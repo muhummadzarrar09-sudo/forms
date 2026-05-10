@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeQuestion } from '@/lib/api-serialization';
+import { saveQuestionsSchema } from '@/lib/validations';
 
 // PUT /api/forms/[id]/questions - Batch update/replace questions
 export async function PUT(
@@ -8,24 +10,27 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const questions = body.questions as Array<{
-      id?: string;
-      type: string;
-      title: string;
-      description?: string;
-      required?: boolean;
-      order: number;
-      options?: Array<{ id: string; label: string; image?: string }>;
-      imageUrls?: string[];
-      settings?: Record<string, unknown>;
-      logic?: Array<{ id: string; condition: { field: string; operator: string; value: string }; action: { type: string; targetQuestionId: string } }>;
-      placeholder?: string;
-    }>;
-    
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = saveQuestionsSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const questions = validation.data.questions;
+
     // Delete existing questions and recreate
     await db.question.deleteMany({ where: { formId: id } });
-    
+
     const created = await Promise.all(
       questions.map((q, index) =>
         db.question.create({
@@ -33,27 +38,20 @@ export async function PUT(
             formId: id,
             type: q.type,
             title: q.title,
-            description: q.description || '',
-            required: q.required || false,
+            description: q.description ?? '',
+            required: q.required ?? false,
             order: index,
-            options: JSON.stringify(q.options || []),
-            imageUrls: JSON.stringify(q.imageUrls || []),
-            settings: JSON.stringify(q.settings || {}),
-            logic: JSON.stringify(q.logic || []),
-            placeholder: q.placeholder || '',
+            options: JSON.stringify(q.options ?? []),
+            imageUrls: JSON.stringify(q.imageUrls ?? []),
+            settings: JSON.stringify(q.settings ?? {}),
+            logic: JSON.stringify(q.logic ?? []),
+            placeholder: q.placeholder ?? '',
           },
         })
       )
     );
-    
-    const serialized = created.map(q => ({
-      ...q,
-      options: JSON.parse(q.options),
-      imageUrls: JSON.parse(q.imageUrls),
-      settings: JSON.parse(q.settings),
-      logic: JSON.parse(q.logic || '[]'),
-    }));
-    
+
+    const serialized = created.map((q) => serializeQuestion(q));
     return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error updating questions:', error);

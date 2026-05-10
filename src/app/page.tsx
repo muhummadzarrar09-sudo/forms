@@ -7,6 +7,7 @@ import { Dashboard } from '@/components/forms/dashboard';
 import { FormBuilder } from '@/components/forms/form-builder';
 import { FormFiller } from '@/components/forms/form-filler';
 import { ResponsesViewer } from '@/components/forms/responses-viewer';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function HomeContent() {
@@ -92,17 +93,19 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense
-      fallback={
-        <div className="h-screen flex items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-3">
-            <div className="size-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading...</p>
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="h-screen flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-3">
+              <div className="size-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <HomeContent />
-    </Suspense>
+        }
+      >
+        <HomeContent />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

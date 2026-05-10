@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeForm } from '@/lib/api-serialization';
 
 // POST /api/forms/[id]/duplicate - Duplicate a form with all its questions
 export async function POST(
@@ -71,29 +72,7 @@ export async function POST(
       },
     });
 
-    const serialized = {
-      ...duplicatedForm,
-      tags: JSON.parse(duplicatedForm.tags || '[]'),
-      closeDate: duplicatedForm.closeDate ? duplicatedForm.closeDate.toISOString() : null,
-      workspace: duplicatedForm.workspace ? {
-        id: duplicatedForm.workspace.id,
-        name: duplicatedForm.workspace.name,
-        color: duplicatedForm.workspace.color,
-        icon: duplicatedForm.workspace.icon,
-        order: duplicatedForm.workspace.order,
-        createdAt: duplicatedForm.workspace.createdAt.toISOString(),
-        updatedAt: duplicatedForm.workspace.updatedAt.toISOString(),
-      } : null,
-      questions: duplicatedForm.questions.map((q) => ({
-        ...q,
-        options: JSON.parse(q.options),
-        imageUrls: JSON.parse(q.imageUrls),
-        settings: JSON.parse(q.settings),
-        logic: JSON.parse(q.logic || '[]'),
-      })),
-    };
-
-    return NextResponse.json(serialized, { status: 201 });
+    return NextResponse.json(serializeForm(duplicatedForm), { status: 201 });
   } catch (error) {
     console.error('Error duplicating form:', error);
     return NextResponse.json({ error: 'Failed to duplicate form' }, { status: 500 });

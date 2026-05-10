@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeWorkspace, serializeForm } from '@/lib/api-serialization';
+import { updateWorkspaceSchema } from '@/lib/validations';
 
 // GET /api/workspaces/[id] - Get workspace by ID with forms
 export async function GET(
@@ -27,18 +29,8 @@ export async function GET(
     }
 
     const serialized = {
-      ...workspace,
-      forms: workspace.forms.map((form) => ({
-        ...form,
-        tags: JSON.parse(form.tags || '[]'),
-        questions: form.questions.map((q) => ({
-          ...q,
-          options: JSON.parse(q.options),
-          imageUrls: JSON.parse(q.imageUrls),
-          settings: JSON.parse(q.settings),
-          logic: JSON.parse(q.logic || '[]'),
-        })),
-      })),
+      ...serializeWorkspace(workspace),
+      forms: workspace.forms.map((form) => serializeForm(form)),
     };
 
     return NextResponse.json(serialized);
@@ -55,22 +47,38 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = updateWorkspaceSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
 
     const workspace = await db.workspace.update({
       where: { id },
       data: {
-        ...(body.name !== undefined && { name: body.name }),
-        ...(body.color !== undefined && { color: body.color }),
-        ...(body.icon !== undefined && { icon: body.icon }),
-        ...(body.order !== undefined && { order: body.order }),
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.color !== undefined && { color: data.color }),
+        ...(data.icon !== undefined && { icon: data.icon }),
+        ...(data.order !== undefined && { order: data.order }),
       },
       include: {
         _count: { select: { forms: true } },
       },
     });
 
-    return NextResponse.json(workspace);
+    return NextResponse.json(serializeWorkspace(workspace));
   } catch (error) {
     console.error('Error updating workspace:', error);
     return NextResponse.json({ error: 'Failed to update workspace' }, { status: 500 });

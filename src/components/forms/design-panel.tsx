@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { FormQuestion, QuestionType, LogicRule } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
+import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -158,7 +159,7 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
 
 // ── Logic Tab ──────────────────────────────────────────────────────────────
 
-const LOGIC_UNSUPPORTED_TYPES: QuestionType[] = ['statement', 'ending'];
+
 
 function LogicTab({ question }: { question: FormQuestion }) {
   const { currentForm, updateQuestion } = useFormStore();
@@ -480,94 +481,7 @@ function LogicRuleEditor({
   );
 }
 
-// ── Logic Helper Functions ────────────────────────────────────────────────
 
-function isChoiceQuestion(question: FormQuestion): boolean {
-  return ['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type);
-}
-
-function getDefaultField(question: FormQuestion): string {
-  if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
-    return question.options[0]?.id || '';
-  }
-  if (question.type === 'yes_no') {
-    return 'yes';
-  }
-  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-    return 'value';
-  }
-  return 'answer';
-}
-
-function getDefaultOperator(question: FormQuestion): LogicRule['condition']['operator'] {
-  if (['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type)) {
-    return 'equals';
-  }
-  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-    return 'equals';
-  }
-  return 'contains';
-}
-
-function getConditionFields(question: FormQuestion): { value: string; label: string }[] {
-  if (['multiple_choice', 'picture_choice'].includes(question.type)) {
-    return question.options.map((opt) => ({
-      value: opt.id,
-      label: opt.label,
-    }));
-  }
-  if (question.type === 'dropdown') {
-    return question.options.map((opt) => ({
-      value: opt.id,
-      label: opt.label,
-    }));
-  }
-  if (question.type === 'yes_no') {
-    return [
-      { value: 'yes', label: 'Yes' },
-      { value: 'no', label: 'No' },
-    ];
-  }
-  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-    return [{ value: 'value', label: 'Value' }];
-  }
-  return [{ value: 'answer', label: 'Answer' }];
-}
-
-function getAvailableOperators(question: FormQuestion): { value: string; label: string }[] {
-  if (['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type)) {
-    return [
-      { value: 'equals', label: 'equals' },
-      { value: 'not_equals', label: 'does not equal' },
-    ];
-  }
-  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-    return [
-      { value: 'equals', label: 'equals' },
-      { value: 'not_equals', label: 'does not equal' },
-      { value: 'greater_than', label: 'is greater than' },
-      { value: 'less_than', label: 'is less than' },
-    ];
-  }
-  return [
-    { value: 'equals', label: 'equals' },
-    { value: 'not_equals', label: 'does not equal' },
-    { value: 'contains', label: 'contains' },
-  ];
-}
-
-function getChoiceOptions(question: FormQuestion): { value: string; label: string }[] {
-  if (question.type === 'yes_no') {
-    return [
-      { value: 'yes', label: 'Yes' },
-      { value: 'no', label: 'No' },
-    ];
-  }
-  return question.options.map((opt) => ({
-    value: opt.id,
-    label: opt.label,
-  }));
-}
 
 // ── Question Settings Tab ──────────────────────────────────────────────────
 

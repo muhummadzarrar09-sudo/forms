@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeResponse } from '@/lib/api-serialization';
+import { submitResponseSchema } from '@/lib/validations';
 
 // GET /api/forms/[id]/responses - List responses for a form
 export async function GET(
@@ -8,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+
     const responses = await db.response.findMany({
       where: { formId: id },
       orderBy: { startedAt: 'desc' },
@@ -20,21 +22,8 @@ export async function GET(
         },
       },
     });
-    
-    const serialized = responses.map(r => ({
-      ...r,
-      metadata: JSON.parse(r.metadata),
-      answers: r.answers.map(a => ({
-        ...a,
-        question: a.question ? {
-          ...a.question,
-          options: JSON.parse(a.question.options),
-          imageUrls: JSON.parse(a.question.imageUrls),
-          settings: JSON.parse(a.question.settings),
-        } : undefined,
-      })),
-    }));
-    
+
+    const serialized = responses.map((r) => serializeResponse(r));
     return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error fetching responses:', error);
@@ -49,8 +38,24 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = submitResponseSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
+
     // Verify form exists and is published
     const form = await db.form.findUnique({ where: { id } });
     if (!form) {
@@ -59,42 +64,38 @@ export async function POST(
     if (!form.published) {
       return NextResponse.json({ error: 'Form is not published' }, { status: 400 });
     }
-    
+
     // Create response
     const response = await db.response.create({
       data: {
         formId: id,
-        completedAt: body.completedAt ? new Date(body.completedAt) : new Date(),
-        metadata: JSON.stringify(body.metadata || {}),
+        completedAt: data.completedAt ? new Date(data.completedAt) : new Date(),
+        metadata: JSON.stringify(data.metadata || {}),
       },
     });
-    
+
     // Create answers
-    if (body.answers && Array.isArray(body.answers)) {
-      await Promise.all(
-        body.answers.map((answer: { questionId: string; value: string }) =>
-          db.answer.create({
-            data: {
-              responseId: response.id,
-              questionId: answer.questionId,
-              value: answer.value,
-            },
-          })
-        )
-      );
-    }
-    
+    await Promise.all(
+      data.answers.map((answer) =>
+        db.answer.create({
+          data: {
+            responseId: response.id,
+            questionId: answer.questionId,
+            value: answer.value,
+          },
+        })
+      )
+    );
+
     const result = await db.response.findUnique({
       where: { id: response.id },
       include: { answers: true },
     });
-    
-    const serialized = {
-      ...result,
-      metadata: JSON.parse(result?.metadata || '{}'),
-    };
-    
-    return NextResponse.json(serialized, { status: 201 });
+
+    return NextResponse.json(
+      serializeResponse(result!),
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating response:', error);
     return NextResponse.json({ error: 'Failed to create response' }, { status: 500 });
@@ -121,7 +122,7 @@ export async function DELETE(
       select: { id: true },
     });
 
-    const responseIds = responses.map(r => r.id);
+    const responseIds = responses.map((r) => r.id);
 
     if (responseIds.length > 0) {
       await db.answer.deleteMany({

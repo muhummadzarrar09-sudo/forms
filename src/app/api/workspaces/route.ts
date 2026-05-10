@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeWorkspace } from '@/lib/api-serialization';
+import { createWorkspaceSchema } from '@/lib/validations';
 
 // GET /api/workspaces - List all workspaces with form counts
 export async function GET() {
@@ -11,7 +13,8 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(workspaces);
+    const serialized = workspaces.map((ws) => serializeWorkspace(ws));
+    return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error fetching workspaces:', error);
     return NextResponse.json({ error: 'Failed to fetch workspaces' }, { status: 500 });
@@ -21,11 +24,22 @@ export async function GET() {
 // POST /api/workspaces - Create a new workspace
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-
-    if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
-      return NextResponse.json({ error: 'Workspace name is required' }, { status: 400 });
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
+
+    const validation = createWorkspaceSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
 
     // Get the max order to place new workspace at the end
     const maxOrderWorkspace = await db.workspace.findFirst({
@@ -36,17 +50,17 @@ export async function POST(request: NextRequest) {
 
     const workspace = await db.workspace.create({
       data: {
-        name: body.name.trim(),
-        color: body.color || '#6366f1',
-        icon: body.icon || 'Folder',
-        order: body.order ?? nextOrder,
+        name: data.name,
+        color: data.color ?? '#6366f1',
+        icon: data.icon ?? 'Folder',
+        order: data.order ?? nextOrder,
       },
       include: {
         _count: { select: { forms: true } },
       },
     });
 
-    return NextResponse.json(workspace, { status: 201 });
+    return NextResponse.json(serializeWorkspace(workspace), { status: 201 });
   } catch (error) {
     console.error('Error creating workspace:', error);
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 });

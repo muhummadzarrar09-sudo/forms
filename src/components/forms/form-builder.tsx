@@ -86,6 +86,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { getQuestionTypeColor } from '@/lib/constants';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Type,
@@ -118,17 +119,7 @@ function useDebounce<T extends (...args: unknown[]) => void>(fn: T, ms: number):
   ) as T;
 }
 
-// Question type category colors
-function getQuestionTypeColor(type: string): string {
-  const textTypes = ['short_text', 'long_text', 'email', 'phone', 'website'];
-  const choiceTypes = ['multiple_choice', 'dropdown', 'picture_choice', 'yes_no'];
-  const scaleTypes = ['rating', 'opinion_scale', 'number'];
 
-  if (textTypes.includes(type)) return 'bg-blue-500';
-  if (choiceTypes.includes(type)) return 'bg-emerald-500';
-  if (scaleTypes.includes(type)) return 'bg-amber-500';
-  return 'bg-gray-400';
-}
 
 export function FormBuilder() {
   const {

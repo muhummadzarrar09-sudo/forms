@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeForm } from '@/lib/api-serialization';
+import { createFormSchema } from '@/lib/validations';
 
 // GET /api/forms - List all forms
-// Updated: include favorite, archived fields
 export async function GET() {
   try {
     const forms = await db.form.findMany({
@@ -13,29 +14,8 @@ export async function GET() {
         workspace: true,
       },
     });
-    
-    const serialized = forms.map(form => ({
-      ...form,
-      tags: JSON.parse(form.tags || '[]'),
-      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
-      workspace: form.workspace ? {
-        id: form.workspace.id,
-        name: form.workspace.name,
-        color: form.workspace.color,
-        icon: form.workspace.icon,
-        order: form.workspace.order,
-        createdAt: form.workspace.createdAt.toISOString(),
-        updatedAt: form.workspace.updatedAt.toISOString(),
-      } : null,
-      questions: form.questions.map(q => ({
-        ...q,
-        options: JSON.parse(q.options),
-        imageUrls: JSON.parse(q.imageUrls),
-        settings: JSON.parse(q.settings),
-        logic: JSON.parse(q.logic || '[]'),
-      })),
-    }));
-    
+
+    const serialized = forms.map((form) => serializeForm(form));
     return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error fetching forms:', error);
@@ -46,26 +26,41 @@ export async function GET() {
 // POST /api/forms - Create a new form
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = createFormSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
+
     const form = await db.form.create({
       data: {
-        title: body.title || 'Untitled Form',
-        description: body.description || '',
-        welcomeTitle: body.welcomeTitle || 'Welcome!',
-        welcomeMessage: body.welcomeMessage || 'Thanks for taking the time to fill this out.',
-        endingTitle: body.endingTitle || 'Thank you!',
-        endingMessage: body.endingMessage || 'Your response has been recorded.',
-        theme: body.theme || 'default',
-        backgroundColor: body.backgroundColor || '#FFFFFF',
-        textColor: body.textColor || '#333333',
-        buttonColor: body.buttonColor || '#1A1A1A',
-        buttonTextColor: body.buttonTextColor || '#FFFFFF',
-        fontFamily: body.fontFamily || 'sans',
-        progressbar: body.progressbar ?? true,
-        showQuestionNumbers: body.showQuestionNumbers ?? true,
-        allowBackNavigation: body.allowBackNavigation ?? true,
-        ...(body.workspaceId && { workspaceId: body.workspaceId }),
+        title: data.title,
+        description: data.description,
+        welcomeTitle: data.welcomeTitle ?? 'Welcome!',
+        welcomeMessage: data.welcomeMessage ?? 'Thanks for taking the time to fill this out.',
+        endingTitle: data.endingTitle ?? 'Thank you!',
+        endingMessage: data.endingMessage ?? 'Your response has been recorded.',
+        theme: data.theme ?? 'default',
+        backgroundColor: data.backgroundColor ?? '#FFFFFF',
+        textColor: data.textColor ?? '#333333',
+        buttonColor: data.buttonColor ?? '#1A1A1A',
+        buttonTextColor: data.buttonTextColor ?? '#FFFFFF',
+        fontFamily: data.fontFamily ?? 'sans',
+        progressbar: data.progressbar ?? true,
+        showQuestionNumbers: data.showQuestionNumbers ?? true,
+        allowBackNavigation: data.allowBackNavigation ?? true,
+        ...(data.workspaceId && { workspaceId: data.workspaceId }),
       },
       include: {
         _count: { select: { responses: true } },
@@ -73,30 +68,8 @@ export async function POST(request: NextRequest) {
         workspace: true,
       },
     });
-    
-    const serialized = {
-      ...form,
-      tags: JSON.parse(form.tags || '[]'),
-      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
-      workspace: form.workspace ? {
-        id: form.workspace.id,
-        name: form.workspace.name,
-        color: form.workspace.color,
-        icon: form.workspace.icon,
-        order: form.workspace.order,
-        createdAt: form.workspace.createdAt.toISOString(),
-        updatedAt: form.workspace.updatedAt.toISOString(),
-      } : null,
-      questions: form.questions.map(q => ({
-        ...q,
-        options: JSON.parse(q.options),
-        imageUrls: JSON.parse(q.imageUrls),
-        settings: JSON.parse(q.settings),
-        logic: JSON.parse(q.logic || '[]'),
-      })),
-    };
-    
-    return NextResponse.json(serialized, { status: 201 });
+
+    return NextResponse.json(serializeForm(form), { status: 201 });
   } catch (error) {
     console.error('Error creating form:', error);
     return NextResponse.json({ error: 'Failed to create form' }, { status: 500 });

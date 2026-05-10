@@ -13,13 +13,13 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
+import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
 
 /* ─── Blinking cursor animation ────────────────────────────────────────── */
 
 /* ─── Confetti particle ────────────────────────────────────────────────── */
 
-const CONFETTI_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
-const STAR_COLORS = ['#FFD700', '#FFA500', '#FF6347', '#FFD700'];
+
 
 function ConfettiParticles() {
   const particles = useMemo(() =>

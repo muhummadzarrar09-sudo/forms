@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { serializeForm } from '@/lib/api-serialization';
+import { updateFormSchema } from '@/lib/validations';
 
 // GET /api/forms/[id]
 export async function GET(
@@ -16,34 +18,12 @@ export async function GET(
         workspace: true,
       },
     });
-    
+
     if (!form) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
     }
-    
-    const serialized = {
-      ...form,
-      tags: JSON.parse(form.tags || '[]'),
-      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
-      workspace: form.workspace ? {
-        id: form.workspace.id,
-        name: form.workspace.name,
-        color: form.workspace.color,
-        icon: form.workspace.icon,
-        order: form.workspace.order,
-        createdAt: form.workspace.createdAt.toISOString(),
-        updatedAt: form.workspace.updatedAt.toISOString(),
-      } : null,
-      questions: form.questions.map(q => ({
-        ...q,
-        options: JSON.parse(q.options),
-        imageUrls: JSON.parse(q.imageUrls),
-        settings: JSON.parse(q.settings),
-        logic: JSON.parse(q.logic || '[]'),
-      })),
-    };
-    
-    return NextResponse.json(serialized);
+
+    return NextResponse.json(serializeForm(form));
   } catch (error) {
     console.error('Error fetching form:', error);
     return NextResponse.json({ error: 'Failed to fetch form' }, { status: 500 });
@@ -57,37 +37,53 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = updateFormSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
+
     const form = await db.form.update({
       where: { id },
       data: {
-        ...(body.title !== undefined && { title: body.title }),
-        ...(body.description !== undefined && { description: body.description }),
-        ...(body.published !== undefined && { published: body.published }),
-        ...(body.welcomeTitle !== undefined && { welcomeTitle: body.welcomeTitle }),
-        ...(body.welcomeMessage !== undefined && { welcomeMessage: body.welcomeMessage }),
-        ...(body.endingTitle !== undefined && { endingTitle: body.endingTitle }),
-        ...(body.endingMessage !== undefined && { endingMessage: body.endingMessage }),
-        ...(body.theme !== undefined && { theme: body.theme }),
-        ...(body.backgroundColor !== undefined && { backgroundColor: body.backgroundColor }),
-        ...(body.textColor !== undefined && { textColor: body.textColor }),
-        ...(body.buttonColor !== undefined && { buttonColor: body.buttonColor }),
-        ...(body.buttonTextColor !== undefined && { buttonTextColor: body.buttonTextColor }),
-        ...(body.fontFamily !== undefined && { fontFamily: body.fontFamily }),
-        ...(body.logoUrl !== undefined && { logoUrl: body.logoUrl }),
-        ...(body.coverUrl !== undefined && { coverUrl: body.coverUrl }),
-        ...(body.progressbar !== undefined && { progressbar: body.progressbar }),
-        ...(body.showQuestionNumbers !== undefined && { showQuestionNumbers: body.showQuestionNumbers }),
-        ...(body.allowBackNavigation !== undefined && { allowBackNavigation: body.allowBackNavigation }),
-        ...(body.favorite !== undefined && { favorite: body.favorite }),
-        ...(body.archived !== undefined && { archived: body.archived }),
-        ...(body.tags !== undefined && { tags: JSON.stringify(body.tags) }),
-        ...(body.workspaceId !== undefined && { workspaceId: body.workspaceId || null }),
-        ...(body.maxResponses !== undefined && { maxResponses: body.maxResponses }),
-        ...(body.closeDate !== undefined && { closeDate: body.closeDate ? new Date(body.closeDate) : null }),
-        ...(body.metaTitle !== undefined && { metaTitle: body.metaTitle }),
-        ...(body.metaDescription !== undefined && { metaDescription: body.metaDescription }),
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.published !== undefined && { published: data.published }),
+        ...(data.welcomeTitle !== undefined && { welcomeTitle: data.welcomeTitle }),
+        ...(data.welcomeMessage !== undefined && { welcomeMessage: data.welcomeMessage }),
+        ...(data.endingTitle !== undefined && { endingTitle: data.endingTitle }),
+        ...(data.endingMessage !== undefined && { endingMessage: data.endingMessage }),
+        ...(data.theme !== undefined && { theme: data.theme }),
+        ...(data.backgroundColor !== undefined && { backgroundColor: data.backgroundColor }),
+        ...(data.textColor !== undefined && { textColor: data.textColor }),
+        ...(data.buttonColor !== undefined && { buttonColor: data.buttonColor }),
+        ...(data.buttonTextColor !== undefined && { buttonTextColor: data.buttonTextColor }),
+        ...(data.fontFamily !== undefined && { fontFamily: data.fontFamily }),
+        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+        ...(data.coverUrl !== undefined && { coverUrl: data.coverUrl }),
+        ...(data.progressbar !== undefined && { progressbar: data.progressbar }),
+        ...(data.showQuestionNumbers !== undefined && { showQuestionNumbers: data.showQuestionNumbers }),
+        ...(data.allowBackNavigation !== undefined && { allowBackNavigation: data.allowBackNavigation }),
+        ...(data.favorite !== undefined && { favorite: data.favorite }),
+        ...(data.archived !== undefined && { archived: data.archived }),
+        ...(data.tags !== undefined && { tags: JSON.stringify(data.tags) }),
+        ...(data.workspaceId !== undefined && { workspaceId: data.workspaceId || null }),
+        ...(data.maxResponses !== undefined && { maxResponses: data.maxResponses }),
+        ...(data.closeDate !== undefined && { closeDate: data.closeDate ? new Date(data.closeDate) : null }),
+        ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle }),
+        ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
       },
       include: {
         _count: { select: { responses: true } },
@@ -95,30 +91,8 @@ export async function PUT(
         workspace: true,
       },
     });
-    
-    const serialized = {
-      ...form,
-      tags: JSON.parse(form.tags || '[]'),
-      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
-      workspace: form.workspace ? {
-        id: form.workspace.id,
-        name: form.workspace.name,
-        color: form.workspace.color,
-        icon: form.workspace.icon,
-        order: form.workspace.order,
-        createdAt: form.workspace.createdAt.toISOString(),
-        updatedAt: form.workspace.updatedAt.toISOString(),
-      } : null,
-      questions: form.questions.map(q => ({
-        ...q,
-        options: JSON.parse(q.options),
-        imageUrls: JSON.parse(q.imageUrls),
-        settings: JSON.parse(q.settings),
-        logic: JSON.parse(q.logic || '[]'),
-      })),
-    };
-    
-    return NextResponse.json(serialized);
+
+    return NextResponse.json(serializeForm(form));
   } catch (error) {
     console.error('Error updating form:', error);
     return NextResponse.json({ error: 'Failed to update form' }, { status: 500 });
