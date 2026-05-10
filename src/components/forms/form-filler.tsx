@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
-import type { Form, FormQuestion } from '@/types/form';
+import type { Form, FormQuestion, LogicRule } from '@/types/form';
 import { QuestionInput } from '@/components/forms/question-input';
 import {
   ArrowLeft,
@@ -13,6 +13,66 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
+
+/* ─── Blinking cursor animation ────────────────────────────────────────── */
+
+/* ─── Confetti particle ────────────────────────────────────────────────── */
+
+const CONFETTI_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
+
+function ConfettiParticles() {
+  const particles = useMemo(() =>
+    Array.from({ length: 25 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      delay: Math.random() * 0.3,
+      duration: 2 + Math.random() * 2,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      size: 4 + Math.random() * 6,
+      rotation: Math.random() * 360,
+      drift: (Math.random() - 0.5) * 40,
+      isCircle: Math.random() > 0.5,
+    })),
+  []);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-30">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          initial={{
+            x: `${p.x}vw`,
+            y: '-5vh',
+            rotate: 0,
+            opacity: 1,
+          }}
+          animate={{
+            y: '105vh',
+            x: `calc(${p.x}vw + ${p.drift}px)`,
+            rotate: p.rotation + 720,
+            opacity: [1, 1, 0.5, 0],
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            ease: [0.25, 0.46, 0.45, 0.94],
+          }}
+          className="absolute"
+          style={{ width: p.size, height: p.size }}
+        >
+          <div
+            className={p.isCircle ? 'rounded-full' : 'rounded-sm'}
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: p.color,
+            }}
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
@@ -79,6 +139,8 @@ function fontFamilyClass(ff: string) {
 export function FormFiller() {
   const { selectedFormId, openDashboard, shareMode } = useFormStore();
 
+  const [showConfetti, setShowConfetti] = useState(false);
+
   const [state, setState] = useState<FillerState>({
     form: null,
     screen: 'welcome',
@@ -97,6 +159,14 @@ export function FormFiller() {
       openDashboard();
     }
   }, [shareMode, openDashboard]);
+
+  // Auto-hide confetti after animation
+  useEffect(() => {
+    if (showConfetti) {
+      const timer = setTimeout(() => setShowConfetti(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showConfetti]);
 
   // Reset form for "Submit another response"
   const handleSubmitAnother = useCallback(() => {
@@ -205,6 +275,15 @@ export function FormFiller() {
 
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
+    // In preview mode with unpublished form, skip API call and show ending directly
+    if (!shareMode && !currentForm.published) {
+      // Simulate a brief delay then show ending screen
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
+      setShowConfetti(true);
+      return;
+    }
+
     const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
       questionId,
       value,
@@ -224,6 +303,7 @@ export function FormFiller() {
 
       if (res.ok) {
         setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
+        setShowConfetti(true);
       } else {
         const data = await res.json().catch(() => ({}));
         setState((s) => ({
@@ -239,6 +319,76 @@ export function FormFiller() {
         errorMessage: 'Network error. Please check your connection and try again.',
       }));
     }
+  }, [shareMode]);
+
+  // ── Logic Evaluation ──
+
+  const evaluateLogicRule = useCallback((
+    rule: LogicRule,
+    question: FormQuestion,
+    answer: string
+  ): boolean => {
+    const { condition } = rule;
+    const { operator, value: conditionValue, field } = condition;
+
+    // For choice questions, the answer is the selected option ID
+    // For yes_no, the answer is "yes" or "no"
+    // For numeric types, the answer is a number string
+    // For text types, the answer is text
+
+    let answerToCompare = answer;
+
+    // For choice questions: the condition field is the option ID,
+    // and we check if the answer (option ID) matches
+    if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
+      // The answer is the selected option ID(s)
+      // If allowMultiple, answer could be comma-separated IDs
+      const selectedIds = answer.split(',').map((s: string) => s.trim());
+      if (operator === 'equals') {
+        return selectedIds.includes(field) && selectedIds.length === 1;
+      }
+      if (operator === 'not_equals') {
+        return !selectedIds.includes(field);
+      }
+      return false;
+    }
+
+    if (question.type === 'yes_no') {
+      const isYes = answer.toLowerCase() === 'yes' || answer === 'true';
+      const isNo = answer.toLowerCase() === 'no' || answer === 'false';
+      if (operator === 'equals') {
+        if (field === 'yes') return isYes;
+        if (field === 'no') return isNo;
+        return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
+      }
+      if (operator === 'not_equals') {
+        if (field === 'yes') return !isYes;
+        if (field === 'no') return !isNo;
+        return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
+      }
+      return false;
+    }
+
+    if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
+      const numAnswer = parseFloat(answerToCompare);
+      const numCondition = parseFloat(conditionValue);
+      if (isNaN(numAnswer) || isNaN(numCondition)) return false;
+      switch (operator) {
+        case 'equals': return numAnswer === numCondition;
+        case 'not_equals': return numAnswer !== numCondition;
+        case 'greater_than': return numAnswer > numCondition;
+        case 'less_than': return numAnswer < numCondition;
+        default: return false;
+      }
+    }
+
+    // Text-based questions (short_text, long_text, email, phone, website, date, legal)
+    switch (operator) {
+      case 'equals': return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
+      case 'not_equals': return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
+      case 'contains': return answerToCompare.toLowerCase().includes(conditionValue.toLowerCase());
+      default: return false;
+    }
   }, []);
 
   // ── Navigation ──
@@ -248,6 +398,7 @@ export function FormFiller() {
       if (questions.length === 0) {
         // Skip to ending if no questions
         setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
+        setShowConfetti(true);
       } else {
         setState((s) => ({ ...s, screen: 'question', currentIndex: 0, direction: 1 }));
       }
@@ -265,6 +416,55 @@ export function FormFiller() {
         }
       }
 
+      // Evaluate logic rules
+      if (currentQuestion && (currentQuestion.logic?.length > 0 || currentQuestion.settings?.jumpToQuestionId)) {
+        const currentAnswer = currentAnswers[currentQuestion.id] || '';
+
+        // Check logic rules in order
+        for (const rule of currentQuestion.logic || []) {
+          if (evaluateLogicRule(rule, currentQuestion, currentAnswer)) {
+            const targetId = rule.action.targetQuestionId;
+
+            // Submit form target
+            if (targetId === '__submit__') {
+              handleSubmit();
+              return;
+            }
+
+            // Find the target question index
+            const targetIndex = questions.findIndex((q) => q.id === targetId);
+            if (targetIndex !== -1) {
+              setState((s) => ({
+                ...s,
+                currentIndex: targetIndex,
+                direction: 1,
+              }));
+              return;
+            }
+          }
+        }
+
+        // No rule matched - check for default jump target
+        const jumpToQuestionId = currentQuestion.settings?.jumpToQuestionId;
+        if (jumpToQuestionId) {
+          if (jumpToQuestionId === '__submit__') {
+            handleSubmit();
+            return;
+          }
+
+          const targetIndex = questions.findIndex((q) => q.id === jumpToQuestionId);
+          if (targetIndex !== -1) {
+            setState((s) => ({
+              ...s,
+              currentIndex: targetIndex,
+              direction: 1,
+            }));
+            return;
+          }
+        }
+      }
+
+      // Default behavior: advance to next question or submit
       if (state.currentIndex < questions.length - 1) {
         setState((s) => ({
           ...s,
@@ -276,7 +476,7 @@ export function FormFiller() {
         handleSubmit();
       }
     }
-  }, [state.screen, state.currentIndex, questions.length, currentQuestion, handleSubmit]);
+  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, shareMode, evaluateLogicRule]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -517,6 +717,9 @@ export function FormFiller() {
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
+      {/* ── Confetti ── */}
+      {showConfetti && state.screen === 'ending' && <ConfettiParticles />}
+
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
         <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
@@ -580,6 +783,11 @@ export function FormFiller() {
                   style={{ color: theme.textColor }}
                 >
                   {state.form.welcomeTitle || state.form.title || 'Welcome!'}
+                  {/* Blinking cursor */}
+                  <span
+                    className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
+                    style={{ backgroundColor: theme.textColor }}
+                  />
                 </h1>
                 <p
                   className={`text-lg md:text-xl opacity-60 ${ff}`}
@@ -677,6 +885,19 @@ export function FormFiller() {
                 {state.form.endingMessage || 'Your response has been recorded.'}
               </p>
 
+              {/* Preview mode indicator */}
+              {!shareMode && !state.form.published && (
+                <motion.p
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className={`text-sm opacity-40 mt-4 ${ff}`}
+                  style={{ color: theme.textColor }}
+                >
+                  Preview — No data was saved
+                </motion.p>
+              )}
+
               {/* Submit another response button (share mode only) */}
               {shareMode && (
                 <motion.div
@@ -711,8 +932,9 @@ export function FormFiller() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
                 onClick={goBack}
-                className="flex items-center gap-2 text-sm font-medium opacity-50 hover:opacity-100 transition-opacity"
+                className="flex items-center gap-2 text-sm font-medium opacity-50 hover:opacity-100 transition-all"
                 style={{ color: theme.textColor }}
+                whileTap={{ scale: 0.97 }}
               >
                 <ArrowLeft className="size-4" />
                 Back
@@ -728,7 +950,8 @@ export function FormFiller() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.4 }}
               onClick={goNext}
-              className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-base font-medium transition-all hover:opacity-90 active:scale-95"
+              className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-base font-medium transition-all hover:opacity-90"
+              whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               Start
@@ -742,7 +965,8 @@ export function FormFiller() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.3 }}
               onClick={goNext}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90"
+              whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               OK

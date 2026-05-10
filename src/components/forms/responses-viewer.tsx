@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
 import type { FormResponse, FormSummary, QuestionSummary, FormQuestion, FormAnswer } from '@/types/form';
@@ -61,6 +61,40 @@ const responseChartConfig = {
     color: 'hsl(var(--primary))',
   },
 } satisfies ChartConfig;
+
+// ─── Animated counter hook ────────────────────────────────────────────────────
+
+function useAnimatedCounter(target: number, duration = 600) {
+  const [count, setCount] = useState(0);
+  const prevTargetRef = useRef(0);
+
+  useEffect(() => {
+    if (target === prevTargetRef.current) return;
+    const start = prevTargetRef.current;
+    const diff = target - start;
+    if (diff === 0) return;
+
+    const startTime = performance.now();
+    let rafId: number;
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(start + diff * eased));
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+
+    rafId = requestAnimationFrame(animate);
+    prevTargetRef.current = target;
+
+    return () => cancelAnimationFrame(rafId);
+  }, [target, duration]);
+
+  return count;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -281,6 +315,11 @@ export function ResponsesViewer() {
   const completionRate = summary?.completionRate ?? 0;
   const averageTime = summary?.averageTime ?? 0;
 
+  // Animated stats
+  const animatedTotalResponses = useAnimatedCounter(totalResponses);
+  const animatedCompletionRate = useAnimatedCounter(completionRate);
+  const animatedAverageTime = useAnimatedCounter(Math.round(averageTime));
+
   // ─── Response trend data ───────────────────────────────────────────────────
   const responseTrendData = useMemo(() => {
     if (responses.length === 0) return [];
@@ -461,7 +500,7 @@ export function ResponsesViewer() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Total Responses</p>
-                    <p className="text-3xl font-bold tabular-nums">{totalResponses}</p>
+                    <p className="text-3xl font-bold tabular-nums">{animatedTotalResponses}</p>
                   </div>
                   <div className="size-11 rounded-xl bg-primary/10 flex items-center justify-center">
                     <Users className="size-5 text-primary" />
@@ -478,7 +517,7 @@ export function ResponsesViewer() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Completion Rate</p>
                     <div className="flex items-baseline gap-1.5">
-                      <p className="text-3xl font-bold tabular-nums">{completionRate}</p>
+                      <p className="text-3xl font-bold tabular-nums">{animatedCompletionRate}</p>
                       <span className="text-lg text-muted-foreground">%</span>
                     </div>
                   </div>
@@ -496,7 +535,7 @@ export function ResponsesViewer() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Avg. Time</p>
-                    <p className="text-3xl font-bold tabular-nums">{formatDuration(averageTime)}</p>
+                    <p className="text-3xl font-bold tabular-nums">{formatDuration(animatedAverageTime)}</p>
                   </div>
                   <div className="size-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
                     <Clock className="size-5 text-amber-600" />
@@ -524,6 +563,12 @@ export function ResponsesViewer() {
               <CardContent className="pt-0">
                 <ChartContainer config={responseChartConfig} className="h-[200px] w-full">
                   <BarChart data={responseTrendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="barGradientFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.6} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="label"
@@ -546,7 +591,7 @@ export function ResponsesViewer() {
                     />
                     <Bar
                       dataKey="responses"
-                      fill="var(--color-responses)"
+                      fill="url(#barGradientFill)"
                       radius={[4, 4, 0, 0]}
                       maxBarSize={40}
                     />

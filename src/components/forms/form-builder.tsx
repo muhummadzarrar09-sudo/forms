@@ -29,6 +29,7 @@ import { QuestionEditor } from '@/components/forms/question-editor';
 import { QuestionTypePicker } from '@/components/forms/question-type-picker';
 import { DesignPanel } from '@/components/forms/design-panel';
 import { ShareDialog } from '@/components/forms/share-dialog';
+import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -80,6 +81,8 @@ import {
   Share2,
   Menu,
   PanelLeftOpen,
+  Download,
+  Keyboard,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -114,6 +117,18 @@ function useDebounce<T extends (...args: unknown[]) => void>(fn: T, ms: number):
   ) as T;
 }
 
+// Question type category colors
+function getQuestionTypeColor(type: string): string {
+  const textTypes = ['short_text', 'long_text', 'email', 'phone', 'website'];
+  const choiceTypes = ['multiple_choice', 'dropdown', 'picture_choice', 'yes_no'];
+  const scaleTypes = ['rating', 'opinion_scale', 'number'];
+
+  if (textTypes.includes(type)) return 'bg-blue-500';
+  if (choiceTypes.includes(type)) return 'bg-emerald-500';
+  if (scaleTypes.includes(type)) return 'bg-amber-500';
+  return 'bg-gray-400';
+}
+
 export function FormBuilder() {
   const {
     currentForm,
@@ -138,6 +153,7 @@ export function FormBuilder() {
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [showLeftPanel, setShowLeftPanel] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
 
@@ -208,7 +224,7 @@ export function FormBuilder() {
     const hash = JSON.stringify(questions.map(q => ({
       id: q.id, type: q.type, title: q.title, description: q.description,
       required: q.required, order: q.order, options: q.options,
-      settings: q.settings, placeholder: q.placeholder
+      settings: q.settings, logic: q.logic, placeholder: q.placeholder
     })));
 
     if (hash === lastSavedHashRef.current) return; // No changes since last save
@@ -383,6 +399,113 @@ export function FormBuilder() {
     });
   }, [currentForm, updateForm, saveFormSettings]);
 
+  // ── Export JSON ──
+  const handleExportJSON = useCallback(() => {
+    if (!currentForm) return;
+    const exportData = {
+      version: 1,
+      title: currentForm.title,
+      description: currentForm.description,
+      welcomeTitle: currentForm.welcomeTitle || '',
+      welcomeMessage: currentForm.welcomeMessage || '',
+      endingTitle: currentForm.endingTitle || '',
+      endingMessage: currentForm.endingMessage || '',
+      theme: currentForm.theme || 'default',
+      backgroundColor: currentForm.backgroundColor,
+      textColor: currentForm.textColor,
+      buttonColor: currentForm.buttonColor,
+      buttonTextColor: currentForm.buttonTextColor,
+      fontFamily: currentForm.fontFamily || 'sans',
+      progressbar: currentForm.progressbar ?? true,
+      showQuestionNumbers: currentForm.showQuestionNumbers ?? true,
+      allowBackNavigation: currentForm.allowBackNavigation ?? true,
+      questions: (currentForm.questions || []).map((q) => ({
+        type: q.type,
+        title: q.title,
+        description: q.description || '',
+        required: q.required,
+        options: (q.options || []).map((opt) => ({ id: opt.id, label: opt.label })),
+        settings: q.settings || {},
+        placeholder: q.placeholder || '',
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentForm.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Form exported',
+      description: `"${currentForm.title}" has been exported as JSON.`,
+    });
+  }, [currentForm]);
+
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Escape - Back to dashboard
+      if (e.key === 'Escape' && !isInputFocused) {
+        // Only if no dialog is open
+        if (!showTypePicker && !showShareDialog && !showKeyboardShortcuts) {
+          openDashboard();
+          return;
+        }
+      }
+
+      // + or = - Add new question
+      if ((e.key === '+' || e.key === '=') && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setShowTypePicker(true);
+        return;
+      }
+
+      // Delete or Backspace - Delete selected question
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInputFocused && selectedQuestionId && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        handleDeleteQuestion(selectedQuestionId);
+        return;
+      }
+
+      // Ctrl+S / Cmd+S - Save (prevent default)
+      if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        // Trigger save by resetting the hash to force re-save
+        lastSavedHashRef.current = '';
+        if (currentForm) {
+          saveQuestions(currentForm.questions);
+        }
+        toast({ title: 'Form saved', description: 'All changes have been saved.' });
+        return;
+      }
+
+      // Ctrl+P / Cmd+P - Preview form
+      if (e.key === 'p' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (currentForm) openFiller(currentForm.id);
+        return;
+      }
+
+      // ? - Show keyboard shortcuts
+      if (e.key === '?' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setShowKeyboardShortcuts(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showTypePicker, showShareDialog, showKeyboardShortcuts, openDashboard, selectedQuestionId, handleDeleteQuestion, currentForm, saveQuestions, openFiller]);
+
   // ── Form title save ──
   const handleFormTitleSave = useCallback(async () => {
     setIsEditingFormTitle(false);
@@ -529,23 +652,44 @@ export function FormBuilder() {
 
           <Separator orientation="vertical" className="h-5 hidden sm:block" />
 
-          <Button
-            size="sm"
-            className={`h-8 gap-1.5 text-xs ${currentForm.published ? 'bg-green-600 hover:bg-green-700' : ''}`}
-            onClick={handlePublish}
+          <motion.div
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 17 }}
           >
-            {currentForm.published ? (
-              <>
-                <Check className="size-3.5" />
-                <span className="hidden sm:inline">Published</span>
-              </>
-            ) : (
-              <>
-                <FileCheck className="size-3.5" />
-                <span className="hidden sm:inline">Publish</span>
-              </>
-            )}
-          </Button>
+            <Button
+              size="sm"
+              className={`h-8 gap-1.5 text-xs transition-colors duration-300 ${currentForm.published ? 'bg-green-600 hover:bg-green-700' : ''}`}
+              onClick={handlePublish}
+            >
+              {currentForm.published ? (
+                <>
+                  <Check className="size-3.5" />
+                  <span className="hidden sm:inline">Published</span>
+                </>
+              ) : (
+                <>
+                  <FileCheck className="size-3.5" />
+                  <span className="hidden sm:inline">Publish</span>
+                </>
+              )}
+            </Button>
+          </motion.div>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => setShowKeyboardShortcuts(true)}
+                >
+                  <Keyboard className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Keyboard shortcuts (?)</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -571,6 +715,15 @@ export function FormBuilder() {
               <DropdownMenuItem onClick={() => selectedQuestion && handleDeleteQuestion(selectedQuestion.id)}>
                 <Trash2 className="size-4 mr-2" />
                 Delete question
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportJSON}>
+                <Download className="size-4 mr-2" />
+                Export as JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowKeyboardShortcuts(true)}>
+                <Keyboard className="size-4 mr-2" />
+                Keyboard shortcuts
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowRightPanel(!showRightPanel)}>
@@ -703,6 +856,9 @@ export function FormBuilder() {
               formButtonTextColor={currentForm.buttonTextColor}
               formFontFamily={currentForm.fontFamily}
             />
+          ) : sortedQuestions.length === 0 ? (
+            /* Empty state - no questions */
+            <EmptyQuestionsState onAddQuestion={() => setShowTypePicker(true)} />
           ) : (
             /* Welcome Screen preview */
             <WelcomeScreenPreview form={currentForm} />
@@ -748,6 +904,13 @@ export function FormBuilder() {
         onOpenChange={setShowShareDialog}
         form={currentForm}
         onPublish={handlePublish}
+      />
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcuts
+        open={showKeyboardShortcuts}
+        onOpenChange={setShowKeyboardShortcuts}
+        context="builder"
       />
     </div>
   );
@@ -822,6 +985,9 @@ function SortableQuestionItem({
 
         {/* Icon */}
         <IconComponent className="size-3.5 shrink-0 opacity-60" />
+
+        {/* Type category dot */}
+        <span className={`size-2 rounded-full shrink-0 ${getQuestionTypeColor(question.type)}`} />
 
         {/* Title */}
         <span className="flex-1 text-sm truncate">{question.title}</span>
@@ -1013,6 +1179,56 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
           <div className="h-full w-0" style={{ backgroundColor: form.buttonColor }} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Empty Questions State ────────────────────────────────────────────────────
+
+function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-6 h-full bg-muted/20">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+        className="text-center space-y-6 max-w-md"
+      >
+        {/* Illustration using lucide icons */}
+        <div className="relative inline-block">
+          <div className="absolute -inset-4 rounded-full bg-primary/5 animate-pulse" />
+          <div className="relative size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto">
+            <Plus className="size-10 text-primary/60" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold">Add your first question</h2>
+          <p className="text-sm text-muted-foreground">
+            Start building your form by adding questions. Choose from 16 different question types
+            like multiple choice, text input, rating scales, and more.
+          </p>
+        </div>
+
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        >
+          <Button
+            size="lg"
+            className="gap-2 rounded-full px-8 h-12 text-base font-medium"
+            onClick={onAddQuestion}
+          >
+            <Plus className="size-5" />
+            Add Question
+          </Button>
+        </motion.div>
+
+        <p className="text-xs text-muted-foreground/50">
+          or press the &ldquo;Add question&rdquo; button in the left panel
+        </p>
+      </motion.div>
     </div>
   );
 }

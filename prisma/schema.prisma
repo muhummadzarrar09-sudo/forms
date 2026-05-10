@@ -44,6 +44,7 @@ model Question {
   options     String   @default("[]") // JSON array of option strings
   imageUrls   String   @default("[]") // JSON array of image URLs for picture_choice
   settings    String   @default("{}") // JSON object for type-specific settings (e.g., min/max for number, steps for rating, etc.)
+  logic       String   @default("[]") // JSON array of logic rules for conditional jumps
   placeholder String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

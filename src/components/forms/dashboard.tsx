@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
 import type { Form } from '@/types/form';
@@ -39,6 +39,8 @@ import {
   Sun,
   Moon,
   Monitor,
+  Upload,
+  Keyboard,
 } from 'lucide-react';
 import {
   MessageSquare,
@@ -53,9 +55,72 @@ import { useTheme } from 'next-themes';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FormCard } from '@/components/forms/form-card';
+import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
 
 type SortOption = 'newest' | 'oldest' | 'title' | 'responses';
+
+// Time ago helper
+function timeAgo(date: string): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(date).toLocaleDateString();
+}
+
+// Animated counter hook
+function useAnimatedCounter(target: number, duration = 600) {
+  const [count, setCount] = useState(0);
+  const prevTargetRef = useRef(0);
+
+  useEffect(() => {
+    if (target === prevTargetRef.current) return;
+    const start = prevTargetRef.current;
+    const diff = target - start;
+    if (diff === 0) return;
+
+    const startTime = performance.now();
+    let rafId: number;
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(start + diff * eased));
+      if (progress < 1) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+
+    rafId = requestAnimationFrame(animate);
+    prevTargetRef.current = target;
+
+    return () => cancelAnimationFrame(rafId);
+  }, [target, duration]);
+
+  return count;
+}
+
+// Staggered animation variants for form cards
+const cardContainerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+};
+
+const cardItemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
 
 // Icon mapping for templates
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -104,6 +169,18 @@ export function Dashboard() {
   // Template picker state
   const [dialogStep, setDialogStep] = useState<'template' | 'details'>('template');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  // Import state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+
+  // Keyboard shortcuts state
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const gKeyBufferRef = useRef(false);
+  const gKeyTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Fetch forms on mount
   useEffect(() => {
@@ -183,6 +260,11 @@ export function Dashboard() {
     (acc, f) => acc + (f._count?.responses ?? 0),
     0
   );
+
+  // Animated counters
+  const animatedTotalForms = useAnimatedCounter(totalForms);
+  const animatedPublishedForms = useAnimatedCounter(publishedForms);
+  const animatedTotalResponses = useAnimatedCounter(totalResponses);
 
   // Greeting based on time of day
   const greeting = useMemo(() => {
@@ -371,6 +453,195 @@ export function Dashboard() {
     responses: 'Most responses',
   };
 
+  // ── Import Form ──
+  const validateImportJson = (json: unknown): { valid: boolean; error: string } => {
+    if (!json || typeof json !== 'object') {
+      return { valid: false, error: 'Invalid JSON: expected an object.' };
+    }
+    const obj = json as Record<string, unknown>;
+    if (!obj.title || typeof obj.title !== 'string') {
+      return { valid: false, error: 'Invalid JSON: "title" is required and must be a string.' };
+    }
+    if (!obj.questions || !Array.isArray(obj.questions)) {
+      return { valid: false, error: 'Invalid JSON: "questions" must be an array.' };
+    }
+    for (let i = 0; i < obj.questions.length; i++) {
+      const q = obj.questions[i] as Record<string, unknown>;
+      if (!q.type || typeof q.type !== 'string') {
+        return { valid: false, error: `Invalid JSON: question ${i + 1} must have a "type" string.` };
+      }
+      if (!q.title || typeof q.title !== 'string') {
+        return { valid: false, error: `Invalid JSON: question ${i + 1} must have a "title" string.` };
+      }
+    }
+    return { valid: true, error: '' };
+  };
+
+  const handleImportForm = useCallback(async () => {
+    setImportError('');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importJsonText);
+    } catch {
+      setImportError('Invalid JSON syntax. Please check your input and try again.');
+      return;
+    }
+
+    const validation = validateImportJson(parsed);
+    if (!validation.valid) {
+      setImportError(validation.error);
+      return;
+    }
+
+    const data = parsed as Record<string, unknown>;
+    setIsImporting(true);
+    try {
+      // Create the form
+      const formRes = await fetch('/api/forms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description || '',
+          welcomeTitle: data.welcomeTitle || '',
+          welcomeMessage: data.welcomeMessage || '',
+          endingTitle: data.endingTitle || '',
+          endingMessage: data.endingMessage || '',
+          theme: data.theme || 'default',
+          backgroundColor: data.backgroundColor || '#FFFFFF',
+          textColor: data.textColor || '#333333',
+          buttonColor: data.buttonColor || '#1A1A1A',
+          buttonTextColor: data.buttonTextColor || '#FFFFFF',
+          fontFamily: data.fontFamily || 'sans',
+          progressbar: data.progressbar ?? true,
+          showQuestionNumbers: data.showQuestionNumbers ?? true,
+          allowBackNavigation: data.allowBackNavigation ?? true,
+        }),
+      });
+
+      if (!formRes.ok) {
+        setImportError('Failed to create form. Please try again.');
+        setIsImporting(false);
+        return;
+      }
+
+      const createdForm = await formRes.json();
+
+      // Add questions if present
+      const questions = data.questions as Record<string, unknown>[];
+      if (questions.length > 0) {
+        const questionsPayload = questions.map((q, index) => ({
+          type: q.type,
+          title: q.title,
+          description: q.description || '',
+          required: q.required || false,
+          order: index,
+          options: Array.isArray(q.options)
+            ? q.options.map((opt: unknown, optIdx: number) => {
+                if (typeof opt === 'string') {
+                  return { id: `opt_${Date.now()}_${optIdx}`, label: opt };
+                }
+                const optObj = opt as Record<string, unknown>;
+                return { id: (optObj.id as string) || `opt_${Date.now()}_${optIdx}`, label: optObj.label as string };
+              })
+            : [],
+          imageUrls: [],
+          settings: (q.settings as Record<string, unknown>) || {},
+          placeholder: (q.placeholder as string) || '',
+        }));
+
+        await fetch(`/api/forms/${createdForm.id}/questions`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions: questionsPayload }),
+        });
+      }
+
+      addForm(createdForm);
+      setShowImportDialog(false);
+      setImportJsonText('');
+      setImportError('');
+      toast({
+        title: 'Form imported',
+        description: `"${createdForm.title}" has been imported successfully.`,
+      });
+    } catch {
+      setImportError('Network error. Could not import the form.');
+    } finally {
+      setIsImporting(false);
+    }
+  }, [importJsonText, addForm]);
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.json')) {
+      setImportError('Please upload a .json file.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setImportJsonText(text);
+      setImportError('');
+    };
+    reader.readAsText(file);
+    // Reset the input so the same file can be re-uploaded
+    e.target.value = '';
+  }, []);
+
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs/textareas
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // N - Create new form
+      if (e.key === 'n' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        handleOpenNewFormDialog();
+        return;
+      }
+
+      // / - Focus search
+      if (e.key === '/' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // G then G - Toggle view
+      if (e.key === 'g' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (gKeyBufferRef.current) {
+          // Second G pressed
+          e.preventDefault();
+          gKeyBufferRef.current = false;
+          if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current);
+          setViewMode((prev) => (prev === 'grid' ? 'list' : 'grid'));
+        } else {
+          // First G pressed
+          gKeyBufferRef.current = true;
+          if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current);
+          gKeyTimerRef.current = setTimeout(() => {
+            gKeyBufferRef.current = false;
+          }, 500);
+        }
+        return;
+      }
+
+      // ? - Show keyboard shortcuts
+      if (e.key === '?' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setShowKeyboardShortcuts(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleOpenNewFormDialog]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header / Navbar */}
@@ -415,6 +686,20 @@ export function Dashboard() {
               )}
 
               <Button
+                variant="outline"
+                onClick={() => {
+                  setImportJsonText('');
+                  setImportError('');
+                  setShowImportDialog(true);
+                }}
+                size="default"
+                className="gap-2"
+              >
+                <Upload className="size-4" />
+                <span className="hidden sm:inline">Import</span>
+              </Button>
+
+              <Button
                 onClick={handleOpenNewFormDialog}
                 size="default"
                 className="gap-2"
@@ -455,7 +740,7 @@ export function Dashboard() {
                 className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/10 p-4"
               >
                 <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Total Forms</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{totalForms}</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{animatedTotalForms}</p>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -464,7 +749,7 @@ export function Dashboard() {
                 className="rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/10 p-4"
               >
                 <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">Published</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{publishedForms}</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{animatedPublishedForms}</p>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -473,7 +758,7 @@ export function Dashboard() {
                 className="rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/10 p-4"
               >
                 <p className="text-sm text-rose-700 dark:text-rose-400 font-medium">Responses</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{totalResponses}</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{animatedTotalResponses}</p>
               </motion.div>
             </div>
           </motion.div>
@@ -487,7 +772,8 @@ export function Dashboard() {
           <div className="relative flex-1 w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search forms..."
+              ref={searchInputRef}
+              placeholder="Search forms... (/)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9"
@@ -617,7 +903,10 @@ export function Dashboard() {
         {/* Form grid / list */}
         {!isLoading && filteredForms.length > 0 && (
           <AnimatePresence mode="popLayout">
-            <div
+            <motion.div
+              variants={cardContainerVariants}
+              initial="hidden"
+              animate="visible"
               className={
                 viewMode === 'grid'
                   ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
@@ -625,21 +914,23 @@ export function Dashboard() {
               }
             >
               {filteredForms.map((form, index) => (
-                <FormCard
-                  key={form.id}
-                  form={form}
-                  index={index}
-                  viewMode={viewMode}
-                  onEdit={openBuilder}
-                  onPreview={openFiller}
-                  onViewResponses={openResponses}
-                  onDelete={handleDeleteForm}
-                  onTitleUpdate={handleTitleUpdate}
-                  onPublish={(formId, published) => updateForm(formId, { published })}
-                  onDuplicate={(duplicatedForm) => addForm(duplicatedForm)}
-                />
+                <motion.div key={form.id} variants={cardItemVariants}>
+                  <FormCard
+                    form={form}
+                    index={index}
+                    viewMode={viewMode}
+                    onEdit={openBuilder}
+                    onPreview={openFiller}
+                    onViewResponses={openResponses}
+                    onDelete={handleDeleteForm}
+                    onTitleUpdate={handleTitleUpdate}
+                    onPublish={(formId, published) => updateForm(formId, { published })}
+                    onDuplicate={(duplicatedForm) => addForm(duplicatedForm)}
+                    timeAgoText={timeAgo(form.updatedAt || form.createdAt)}
+                  />
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </AnimatePresence>
         )}
       </main>
@@ -652,6 +943,101 @@ export function Dashboard() {
           </p>
         </div>
       </footer>
+
+      {/* Import Form Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowImportDialog(false);
+          setImportJsonText('');
+          setImportError('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Upload className="size-4 text-primary" />
+              </div>
+              Import Form from JSON
+            </DialogTitle>
+            <DialogDescription>
+              Paste JSON text or upload a .json file to import a form.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {/* File upload */}
+            <div className="flex items-center gap-3">
+              <label
+                htmlFor="json-file-upload"
+                className="flex items-center gap-2 px-4 py-2 rounded-md border border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Upload className="size-4" />
+                Upload .json file
+                <input
+                  id="json-file-upload"
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+              </label>
+              <span className="text-xs text-muted-foreground">or paste below</span>
+            </div>
+
+            {/* JSON textarea */}
+            <Textarea
+              placeholder='Paste JSON here...'
+              value={importJsonText}
+              onChange={(e) => {
+                setImportJsonText(e.target.value);
+                setImportError('');
+              }}
+              rows={8}
+              className="font-mono text-xs"
+            />
+
+            {/* Error message */}
+            {importError && (
+              <p className="text-sm text-destructive">{importError}</p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowImportDialog(false);
+                setImportJsonText('');
+                setImportError('');
+              }}
+              disabled={isImporting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportForm}
+              disabled={isImporting || !importJsonText.trim()}
+            >
+              {isImporting ? (
+                <>
+                  <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                'Import Form'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <KeyboardShortcuts
+        open={showKeyboardShortcuts}
+        onOpenChange={setShowKeyboardShortcuts}
+        context="dashboard"
+      />
 
       {/* New Form Dialog - Template Picker */}
       <Dialog open={showNewFormDialog} onOpenChange={(open) => {

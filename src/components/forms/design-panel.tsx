@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { FormQuestion, QuestionType } from '@/types/form';
+import type { FormQuestion, QuestionType, LogicRule } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -39,6 +40,10 @@ import {
   Palette,
   Settings2,
   Check,
+  GitBranch,
+  Plus,
+  X,
+  ArrowRight,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -82,6 +87,13 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
             Question
           </TabsTrigger>
           <TabsTrigger
+            value="logic"
+            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+          >
+            <GitBranch className="size-4 mr-1.5" />
+            Logic
+          </TabsTrigger>
+          <TabsTrigger
             value="design"
             className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
@@ -103,6 +115,22 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
             )}
           </TabsContent>
 
+          <TabsContent value="logic" className="m-0 p-4">
+            {selectedQuestion ? (
+              <LogicTab
+                key={`logic-${selectedQuestion.id}`}
+                question={selectedQuestion}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <GitBranch className="size-8 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Select a question to add logic rules
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="design" className="m-0 p-4">
             <DesignTabContent />
           </TabsContent>
@@ -110,6 +138,419 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
       </Tabs>
     </div>
   );
+}
+
+// ── Logic Tab ──────────────────────────────────────────────────────────────
+
+const LOGIC_UNSUPPORTED_TYPES: QuestionType[] = ['statement', 'ending'];
+
+function LogicTab({ question }: { question: FormQuestion }) {
+  const { currentForm, updateQuestion } = useFormStore();
+  const logic = question.logic || [];
+
+  const sortedQuestions = useMemo(
+    () => [...(currentForm?.questions || [])].sort((a, b) => a.order - b.order),
+    [currentForm?.questions]
+  );
+
+  // Target questions for "jump to" dropdown: exclude current question
+  const targetQuestions = useMemo(
+    () => sortedQuestions.filter((q) => q.id !== question.id),
+    [sortedQuestions, question.id]
+  );
+
+  if (LOGIC_UNSUPPORTED_TYPES.includes(question.type)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <GitBranch className="size-8 text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">
+          Logic is not available for this question type
+        </p>
+      </div>
+    );
+  }
+
+  const addRule = () => {
+    const newRule: LogicRule = {
+      id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      condition: {
+        field: getDefaultField(question),
+        operator: getDefaultOperator(question),
+        value: '',
+      },
+      action: {
+        type: 'jump_to',
+        targetQuestionId: '',
+      },
+    };
+    updateQuestion(question.id, { logic: [...logic, newRule] });
+  };
+
+  const updateRule = (ruleId: string, updates: Partial<LogicRule>) => {
+    const newLogic = logic.map((rule) =>
+      rule.id === ruleId ? { ...rule, ...updates } : rule
+    );
+    updateQuestion(question.id, { logic: newLogic });
+  };
+
+  const removeRule = (ruleId: string) => {
+    updateQuestion(question.id, { logic: logic.filter((r) => r.id !== ruleId) });
+  };
+
+  const updateJumpToQuestionId = (targetId: string) => {
+    updateQuestion(question.id, {
+      settings: { ...question.settings, jumpToQuestionId: targetId || undefined },
+    });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-5"
+    >
+      {/* Header */}
+      <div className="space-y-1">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Conditional Logic
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Control which question comes next based on the answer to this question.
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* Logic Rules */}
+      {logic.length === 0 ? (
+        <div className="flex flex-col items-center py-6 text-center border border-dashed rounded-lg bg-muted/30">
+          <GitBranch className="size-6 text-muted-foreground/40 mb-2" />
+          <p className="text-sm text-muted-foreground mb-3">No logic rules yet</p>
+          <Button variant="outline" size="sm" onClick={addRule} className="gap-1.5">
+            <Plus className="size-3.5" />
+            Add Logic Rule
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {logic.map((rule, index) => (
+            <LogicRuleEditor
+              key={rule.id}
+              rule={rule}
+              index={index}
+              question={question}
+              targetQuestions={targetQuestions}
+              onUpdate={(updates) => updateRule(rule.id, updates)}
+              onRemove={() => removeRule(rule.id)}
+            />
+          ))}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addRule}
+            className="w-full gap-1.5"
+          >
+            <Plus className="size-3.5" />
+            Add another rule
+          </Button>
+        </div>
+      )}
+
+      <Separator />
+
+      {/* Otherwise jump to */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Otherwise
+        </Label>
+        <p className="text-xs text-muted-foreground mb-2">
+          If no condition matches, where should the form go?
+        </p>
+        <Select
+          value={question.settings?.jumpToQuestionId || '__next__'}
+          onValueChange={(val) => updateJumpToQuestionId(val === '__next__' ? '' : val)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__next__">
+              <div className="flex items-center gap-2">
+                <ArrowRight className="size-3.5 opacity-50" />
+                Next question (default)
+              </div>
+            </SelectItem>
+            {targetQuestions.map((q) => (
+              <SelectItem key={q.id} value={q.id}>
+                <div className="flex items-center gap-2">
+                  <ArrowRight className="size-3.5 opacity-50" />
+                  <span className="truncate">{q.title}</span>
+                </div>
+              </SelectItem>
+            ))}
+            <SelectItem value="__submit__">
+              <div className="flex items-center gap-2">
+                <Check className="size-3.5 opacity-50" />
+                Submit form
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Logic Rule Editor ─────────────────────────────────────────────────────
+
+function LogicRuleEditor({
+  rule,
+  index,
+  question,
+  targetQuestions,
+  onUpdate,
+  onRemove,
+}: {
+  rule: LogicRule;
+  index: number;
+  question: FormQuestion;
+  targetQuestions: FormQuestion[];
+  onUpdate: (updates: Partial<LogicRule>) => void;
+  onRemove: () => void;
+}) {
+  // Get condition field options based on question type
+  const conditionFields = useMemo(() => getConditionFields(question), [question]);
+
+  // Get available operators based on question type
+  const availableOperators = useMemo(() => getAvailableOperators(question), [question]);
+
+  return (
+    <div className="border rounded-lg p-3 space-y-3 bg-muted/20 relative">
+      {/* Rule header */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Rule {index + 1}
+        </span>
+        <button
+          onClick={onRemove}
+          className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+
+      {/* IF condition */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground font-medium">IF</Label>
+        <div className="grid grid-cols-1 gap-2">
+          {/* Condition field selector */}
+          <Select
+            value={rule.condition.field}
+            onValueChange={(val) =>
+              onUpdate({
+                condition: { ...rule.condition, field: val },
+              })
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select field" />
+            </SelectTrigger>
+            <SelectContent>
+              {conditionFields.map((field) => (
+                <SelectItem key={field.value} value={field.value}>
+                  {field.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Operator and value row */}
+          <div className="flex gap-2">
+            <Select
+              value={rule.condition.operator}
+              onValueChange={(val) =>
+                onUpdate({
+                  condition: {
+                    ...rule.condition,
+                    operator: val as LogicRule['condition']['operator'],
+                  },
+                })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs w-[130px] shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableOperators.map((op) => (
+                  <SelectItem key={op.value} value={op.value}>
+                    {op.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Value input or selector */}
+            {isChoiceQuestion(question) && (rule.condition.operator === 'equals' || rule.condition.operator === 'not_equals') ? (
+              <Select
+                value={rule.condition.value}
+                onValueChange={(val) =>
+                  onUpdate({
+                    condition: { ...rule.condition, value: val },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectValue placeholder="Select option" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getChoiceOptions(question).map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={rule.condition.value}
+                onChange={(e) =>
+                  onUpdate({
+                    condition: { ...rule.condition, value: e.target.value },
+                  })
+                }
+                placeholder="Value..."
+                className="h-8 text-xs flex-1"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* THEN action */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground font-medium">THEN JUMP TO</Label>
+        <Select
+          value={rule.action.targetQuestionId}
+          onValueChange={(val) =>
+            onUpdate({
+              action: { ...rule.action, targetQuestionId: val },
+            })
+          }
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Select target question" />
+          </SelectTrigger>
+          <SelectContent>
+            {targetQuestions.map((q) => (
+              <SelectItem key={q.id} value={q.id}>
+                <div className="flex items-center gap-2">
+                  <ArrowRight className="size-3.5 opacity-50" />
+                  <span className="truncate">{q.title}</span>
+                </div>
+              </SelectItem>
+            ))}
+            <SelectItem value="__submit__">
+              <div className="flex items-center gap-2">
+                <Check className="size-3.5 opacity-50" />
+                Submit form
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+// ── Logic Helper Functions ────────────────────────────────────────────────
+
+function isChoiceQuestion(question: FormQuestion): boolean {
+  return ['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type);
+}
+
+function getDefaultField(question: FormQuestion): string {
+  if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
+    return question.options[0]?.id || '';
+  }
+  if (question.type === 'yes_no') {
+    return 'yes';
+  }
+  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
+    return 'value';
+  }
+  return 'answer';
+}
+
+function getDefaultOperator(question: FormQuestion): LogicRule['condition']['operator'] {
+  if (['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type)) {
+    return 'equals';
+  }
+  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
+    return 'equals';
+  }
+  return 'contains';
+}
+
+function getConditionFields(question: FormQuestion): { value: string; label: string }[] {
+  if (['multiple_choice', 'picture_choice'].includes(question.type)) {
+    return question.options.map((opt) => ({
+      value: opt.id,
+      label: opt.label,
+    }));
+  }
+  if (question.type === 'dropdown') {
+    return question.options.map((opt) => ({
+      value: opt.id,
+      label: opt.label,
+    }));
+  }
+  if (question.type === 'yes_no') {
+    return [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no', label: 'No' },
+    ];
+  }
+  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
+    return [{ value: 'value', label: 'Value' }];
+  }
+  return [{ value: 'answer', label: 'Answer' }];
+}
+
+function getAvailableOperators(question: FormQuestion): { value: string; label: string }[] {
+  if (['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type)) {
+    return [
+      { value: 'equals', label: 'equals' },
+      { value: 'not_equals', label: 'does not equal' },
+    ];
+  }
+  if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
+    return [
+      { value: 'equals', label: 'equals' },
+      { value: 'not_equals', label: 'does not equal' },
+      { value: 'greater_than', label: 'is greater than' },
+      { value: 'less_than', label: 'is less than' },
+    ];
+  }
+  return [
+    { value: 'equals', label: 'equals' },
+    { value: 'not_equals', label: 'does not equal' },
+    { value: 'contains', label: 'contains' },
+  ];
+}
+
+function getChoiceOptions(question: FormQuestion): { value: string; label: string }[] {
+  if (question.type === 'yes_no') {
+    return [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no', label: 'No' },
+    ];
+  }
+  return question.options.map((opt) => ({
+    value: opt.id,
+    label: opt.label,
+  }));
 }
 
 // ── Question Settings Tab ──────────────────────────────────────────────────

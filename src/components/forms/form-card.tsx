@@ -35,6 +35,8 @@ import {
   GripVertical,
   Share2,
   Copy,
+  BarChart2,
+  Download,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -50,6 +52,7 @@ interface FormCardProps {
   onDuplicate?: (form: Form) => void;
   index: number;
   viewMode: 'grid' | 'list';
+  timeAgoText?: string;
 }
 
 function formatDate(dateString: string): string {
@@ -87,6 +90,7 @@ export function FormCard({
   onDuplicate,
   index,
   viewMode,
+  timeAgoText,
 }: FormCardProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(form.title);
@@ -161,6 +165,51 @@ export function FormCard({
     }
   };
 
+  const handleExportJSON = () => {
+    const exportData = {
+      version: 1,
+      title: form.title,
+      description: form.description,
+      welcomeTitle: form.welcomeTitle || '',
+      welcomeMessage: form.welcomeMessage || '',
+      endingTitle: form.endingTitle || '',
+      endingMessage: form.endingMessage || '',
+      theme: form.theme || 'default',
+      backgroundColor: form.backgroundColor,
+      textColor: form.textColor,
+      buttonColor: form.buttonColor,
+      buttonTextColor: form.buttonTextColor,
+      fontFamily: form.fontFamily || 'sans',
+      progressbar: form.progressbar ?? true,
+      showQuestionNumbers: form.showQuestionNumbers ?? true,
+      allowBackNavigation: form.allowBackNavigation ?? true,
+      questions: (form.questions || []).map((q) => ({
+        type: q.type,
+        title: q.title,
+        description: q.description || '',
+        required: q.required,
+        options: (q.options || []).map((opt) => ({ id: opt.id, label: opt.label })),
+        settings: q.settings || {},
+        placeholder: q.placeholder || '',
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${form.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Form exported',
+      description: `"${form.title}" has been exported as JSON.`,
+    });
+  };
+
   const handlePublish = async () => {
     const newPublished = !form.published;
     try {
@@ -228,6 +277,11 @@ export function FormCard({
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {form.description || 'No description'}
                   </p>
+                  {timeAgoText && (
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      Edited {timeAgoText}
+                    </p>
+                  )}
                 </div>
 
                 {/* Status badge */}
@@ -239,9 +293,11 @@ export function FormCard({
                 </Badge>
 
                 {/* Response count */}
-                <div className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                  <Users className="size-3.5" />
-                  <span>{responseCount}</span>
+                <div className="hidden md:flex items-center gap-1 text-xs shrink-0">
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 gap-1 font-normal">
+                    <Users className="size-3" />
+                    {responseCount}
+                  </Badge>
                 </div>
 
                 {/* Date */}
@@ -293,6 +349,10 @@ export function FormCard({
                       >
                         <Copy className="size-4 mr-2" />
                         {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportJSON}>
+                        <Download className="size-4 mr-2" />
+                        Export JSON
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
@@ -366,6 +426,15 @@ export function FormCard({
             className="h-20 w-full shrink-0 relative flex flex-col justify-between p-3"
             style={{ backgroundColor: themeColor }}
           >
+            {/* Status indicator dot */}
+            <div className="absolute top-2 right-2">
+              <span className={`relative flex size-2.5 ${form.published ? '' : ''}`}>
+                {form.published && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                )}
+                <span className={`relative inline-flex rounded-full size-2.5 ${form.published ? 'bg-green-500' : 'bg-gray-400/60'}`} />
+              </span>
+            </div>
             {/* Title inside colored area */}
             <div className="flex-1 min-w-0 pr-6">
               {isEditingTitle ? (
@@ -438,6 +507,10 @@ export function FormCard({
                   <Copy className="size-4 mr-2" />
                   {isDuplicating ? 'Duplicating...' : 'Duplicate'}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportJSON}>
+                  <Download className="size-4 mr-2" />
+                  Export JSON
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={() => setShowDeleteDialog(true)}
@@ -467,16 +540,18 @@ export function FormCard({
                 >
                   {form.published ? 'Published' : 'Draft'}
                 </Badge>
-                {responseCount > 0 && (
+                {responseCount > 0 ? (
                   <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 gap-1">
-                    <Users className="size-3" />
+                    <BarChart2 className="size-3" />
                     {responseCount}
                   </Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50">0 responses</span>
                 )}
               </div>
               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <Calendar className="size-3" />
-                {formatDate(form.createdAt)}
+                {timeAgoText || formatDate(form.createdAt)}
               </span>
             </div>
 

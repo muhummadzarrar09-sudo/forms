@@ -52,6 +52,7 @@ export async function POST(
             options: q.options,
             imageUrls: q.imageUrls,
             settings: q.settings,
+            logic: q.logic || '[]',
             placeholder: q.placeholder,
           })),
         },
@@ -69,6 +70,7 @@ export async function POST(
         options: JSON.parse(q.options),
         imageUrls: JSON.parse(q.imageUrls),
         settings: JSON.parse(q.settings),
+        logic: JSON.parse(q.logic || '[]'),
       })),
     };
 

@@ -19,6 +19,7 @@ export async function PUT(
       options?: Array<{ id: string; label: string; image?: string }>;
       imageUrls?: string[];
       settings?: Record<string, unknown>;
+      logic?: Array<{ id: string; condition: { field: string; operator: string; value: string }; action: { type: string; targetQuestionId: string } }>;
       placeholder?: string;
     }>;
     
@@ -38,6 +39,7 @@ export async function PUT(
             options: JSON.stringify(q.options || []),
             imageUrls: JSON.stringify(q.imageUrls || []),
             settings: JSON.stringify(q.settings || {}),
+            logic: JSON.stringify(q.logic || []),
             placeholder: q.placeholder || '',
           },
         })
@@ -49,6 +51,7 @@ export async function PUT(
       options: JSON.parse(q.options),
       imageUrls: JSON.parse(q.imageUrls),
       settings: JSON.parse(q.settings),
+      logic: JSON.parse(q.logic || '[]'),
     }));
     
     return NextResponse.json(serialized);

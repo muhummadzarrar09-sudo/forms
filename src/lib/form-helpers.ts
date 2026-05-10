@@ -202,6 +202,7 @@ export function createDefaultQuestion(type: QuestionType, formId: string, order:
     options: defaults[type]?.options || [],
     imageUrls: [],
     settings: defaults[type]?.settings || {},
+    logic: [],
     placeholder: defaults[type]?.placeholder || '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

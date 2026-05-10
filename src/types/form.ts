@@ -22,6 +22,19 @@ export interface QuestionOption {
   image?: string;
 }
 
+export interface LogicRule {
+  id: string;
+  condition: {
+    field: string; // which option/value to check - for choice questions, this is the option id
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+    value: string;
+  };
+  action: {
+    type: 'jump_to'; // future: could add 'show' | 'hide'
+    targetQuestionId: string; // which question to jump to
+  };
+}
+
 export interface QuestionSettings {
   // For rating/opinion_scale
   steps?: number;
@@ -36,6 +49,8 @@ export interface QuestionSettings {
   requiredText?: string;
   // For ending
   redirectUrl?: string;
+  // Default jump target if no logic rule matches
+  jumpToQuestionId?: string;
 }
 
 export interface FormQuestion {
@@ -49,6 +64,7 @@ export interface FormQuestion {
   options: QuestionOption[];
   imageUrls: string[];
   settings: QuestionSettings;
+  logic: LogicRule[];
   placeholder: string;
   createdAt: string;
   updatedAt: string;

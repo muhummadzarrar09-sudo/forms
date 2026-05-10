@@ -27,6 +27,7 @@ export async function GET(
         options: JSON.parse(q.options),
         imageUrls: JSON.parse(q.imageUrls),
         settings: JSON.parse(q.settings),
+        logic: JSON.parse(q.logic || '[]'),
       })),
     };
     
@@ -81,6 +82,7 @@ export async function PUT(
         options: JSON.parse(q.options),
         imageUrls: JSON.parse(q.imageUrls),
         settings: JSON.parse(q.settings),
+        logic: JSON.parse(q.logic || '[]'),
       })),
     };
     

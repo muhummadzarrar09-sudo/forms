@@ -19,6 +19,7 @@ export async function GET() {
         options: JSON.parse(q.options),
         imageUrls: JSON.parse(q.imageUrls),
         settings: JSON.parse(q.settings),
+        logic: JSON.parse(q.logic || '[]'),
       })),
     }));
     
@@ -42,11 +43,15 @@ export async function POST(request: NextRequest) {
         welcomeMessage: body.welcomeMessage || 'Thanks for taking the time to fill this out.',
         endingTitle: body.endingTitle || 'Thank you!',
         endingMessage: body.endingMessage || 'Your response has been recorded.',
+        theme: body.theme || 'default',
         backgroundColor: body.backgroundColor || '#FFFFFF',
         textColor: body.textColor || '#333333',
         buttonColor: body.buttonColor || '#1A1A1A',
         buttonTextColor: body.buttonTextColor || '#FFFFFF',
         fontFamily: body.fontFamily || 'sans',
+        progressbar: body.progressbar ?? true,
+        showQuestionNumbers: body.showQuestionNumbers ?? true,
+        allowBackNavigation: body.allowBackNavigation ?? true,
       },
       include: {
         _count: { select: { responses: true } },
@@ -61,6 +66,7 @@ export async function POST(request: NextRequest) {
         options: JSON.parse(q.options),
         imageUrls: JSON.parse(q.imageUrls),
         settings: JSON.parse(q.settings),
+        logic: JSON.parse(q.logic || '[]'),
       })),
     };
     
