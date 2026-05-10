@@ -140,7 +140,7 @@ export function FormFiller() {
         }
         const data: Form = await res.json();
         if (!cancelled) {
-          if (!data.published) {
+          if (!data.published && shareMode) {
             setState((s) => ({
               ...s,
               isLoading: false,
@@ -552,8 +552,15 @@ export function FormFiller() {
         </button>
       )}
 
+      {/* ── Preview mode banner for unpublished forms ── */}
+      {!state.form.published && !shareMode && (
+        <div className="absolute top-0 left-0 right-0 z-40 bg-amber-500/90 text-white text-center py-1.5 text-xs font-medium backdrop-blur-sm">
+          Preview mode — This form is not published
+        </div>
+      )}
+
       {/* ── Main content area ── */}
-      <div className="flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 relative overflow-hidden">
+      <div className={`flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 relative overflow-hidden ${!state.form.published && !shareMode ? 'pt-8' : ''}`}>
         <AnimatePresence mode="wait" custom={state.direction}>
           {/* Welcome Screen */}
           {state.screen === 'welcome' && (

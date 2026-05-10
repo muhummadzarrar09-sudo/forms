@@ -184,6 +184,14 @@ export function Dashboard() {
     0
   );
 
+  // Greeting based on time of day
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
   // Reset dialog state when opening
   const handleOpenNewFormDialog = useCallback(() => {
     setDialogStep('template');
@@ -421,29 +429,57 @@ export function Dashboard() {
 
       {/* Main content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Stats bar */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <div className="flex items-center gap-6 flex-1">
-            <div>
-              <p className="text-2xl font-bold">{totalForms}</p>
-              <p className="text-xs text-muted-foreground">
-                {totalForms === 1 ? 'Form' : 'Forms'}
-              </p>
+        {/* Welcome Section */}
+        {!isLoading && forms.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-8"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold">{greeting}</h2>
+                <p className="text-muted-foreground mt-1">
+                  You have {totalForms} {totalForms === 1 ? 'form' : 'forms'} — {publishedForms} {publishedForms === 1 ? 'is' : 'are'} published and {totalResponses} {totalResponses === 1 ? 'response' : 'responses'} collected.
+                </p>
+              </div>
             </div>
-            <div className="hidden sm:block h-8 w-px bg-border" />
-            <div className="hidden sm:block">
-              <p className="text-2xl font-bold">{publishedForms}</p>
-              <p className="text-xs text-muted-foreground">Published</p>
+
+            {/* Quick stats with gradient cards */}
+            <div className="grid grid-cols-3 gap-3 mt-5">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/10 p-4"
+              >
+                <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Total Forms</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{totalForms}</p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/10 p-4"
+              >
+                <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">Published</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{publishedForms}</p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/10 p-4"
+              >
+                <p className="text-sm text-rose-700 dark:text-rose-400 font-medium">Responses</p>
+                <p className="text-3xl font-bold tabular-nums mt-1">{totalResponses}</p>
+              </motion.div>
             </div>
-            <div className="hidden sm:block h-8 w-px bg-border" />
-            <div className="hidden sm:block">
-              <p className="text-2xl font-bold">{totalResponses}</p>
-              <p className="text-xs text-muted-foreground">
-                {totalResponses === 1 ? 'Response' : 'Responses'}
-              </p>
-            </div>
-          </div>
-        </div>
+          </motion.div>
+        )}
+
+        {/* Original stats bar - only show when there are no forms (empty state handled below) */}
 
         {/* Toolbar: Search, Sort, View toggle */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">

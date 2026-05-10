@@ -436,7 +436,7 @@ export function FormBuilder() {
           <Menu className="size-4" />
         </Button>
 
-        <Separator orientation="vertical" className="h-5 hidden md:block" />
+        <Separator orientation="vertical" className="h-5" />
 
         {/* Form title */}
         <div className="flex-1 min-w-0">
@@ -465,13 +465,18 @@ export function FormBuilder() {
           )}
         </div>
 
-        {/* Saving indicator */}
+        {/* Saving indicator - pulsing dot */}
         {isSaving && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <div className="size-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-            Saving
+          <span className="flex items-center gap-1.5">
+            <span className="relative flex size-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full size-2 bg-primary" />
+            </span>
+            <span className="text-xs text-muted-foreground">Saving</span>
           </span>
         )}
+
+        <Separator orientation="vertical" className="h-5" />
 
         {/* Action buttons */}
         <div className="flex items-center gap-1">
@@ -488,7 +493,7 @@ export function FormBuilder() {
                   <Settings2 className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Toggle settings</TooltipContent>
+              <TooltipContent>Toggle settings panel</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -503,7 +508,7 @@ export function FormBuilder() {
                   Share
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Share form</TooltipContent>
+              <TooltipContent>Share your form</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -518,9 +523,11 @@ export function FormBuilder() {
                   Preview
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Preview form</TooltipContent>
+              <TooltipContent>Preview form as respondent</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          <Separator orientation="vertical" className="h-5 hidden sm:block" />
 
           <Button
             size="sm"
@@ -854,9 +861,10 @@ function SortableQuestionItem({
   );
 }
 
-// ── Welcome Screen Preview ──────────────────────────────────────────────────
+// ── Welcome Screen Preview (Interactive Editor) ──────────────────────────────
 
 function WelcomeScreenPreview({ form }: { form: Form }) {
+  const { updateForm } = useFormStore();
   const fontFamilyClass =
     form.fontFamily === 'serif'
       ? 'font-serif'
@@ -864,9 +872,34 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
       ? 'font-mono'
       : 'font-sans';
 
+  const [localTitle, setLocalTitle] = useState<string | null>(null);
+  const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [buttonText, setButtonText] = useState('Start');
+  const [editingField, setEditingField] = useState<'title' | 'message' | 'button' | null>(null);
+
+  // Use local state if editing, otherwise use form state
+  const welcomeTitle = localTitle !== null ? localTitle : (form.welcomeTitle || '');
+  const welcomeMessage = localMessage !== null ? localMessage : (form.welcomeMessage || '');
+
+  const handleTitleBlur = () => {
+    setEditingField(null);
+    if (localTitle !== null && localTitle !== (form.welcomeTitle || '')) {
+      updateForm(form.id, { welcomeTitle: localTitle });
+    }
+    setLocalTitle(null);
+  };
+
+  const handleMessageBlur = () => {
+    setEditingField(null);
+    if (localMessage !== null && localMessage !== (form.welcomeMessage || '')) {
+      updateForm(form.id, { welcomeMessage: localMessage });
+    }
+    setLocalMessage(null);
+  };
+
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full"
+      className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative"
       style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
     >
       <motion.div
@@ -875,35 +908,103 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
         transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
         className="text-center max-w-lg space-y-6"
       >
-        <h1
-          className={`text-4xl md:text-5xl font-bold leading-tight ${fontFamilyClass}`}
-          style={{ color: form.textColor }}
-        >
-          {form.welcomeTitle || 'Welcome!'}
-        </h1>
-        <p
-          className={`text-lg opacity-70 ${fontFamilyClass}`}
-          style={{ color: form.textColor }}
-        >
-          {form.welcomeMessage || 'Thanks for taking the time to fill this out.'}
-        </p>
+        {/* Editable Title */}
+        {editingField === 'title' ? (
+          <textarea
+            value={welcomeTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleTitleBlur();
+              }
+            }}
+            autoFocus
+            className={`text-4xl md:text-5xl font-bold leading-tight bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
+            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            rows={2}
+          />
+        ) : (
+          <h1
+            onClick={() => setEditingField('title')}
+            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
+            style={{ color: form.textColor }}
+            title="Click to edit"
+          >
+            {welcomeTitle || 'Welcome!'}
+            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2 align-middle">✏️</span>
+          </h1>
+        )}
+
+        {/* Editable Message */}
+        {editingField === 'message' ? (
+          <textarea
+            value={welcomeMessage}
+            onChange={(e) => setLocalMessage(e.target.value)}
+            onBlur={handleMessageBlur}
+            autoFocus
+            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full opacity-70 ${fontFamilyClass}`}
+            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            rows={3}
+          />
+        ) : (
+          <p
+            onClick={() => setEditingField('message')}
+            className={`text-lg opacity-70 cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
+            style={{ color: form.textColor }}
+            title="Click to edit"
+          >
+            {welcomeMessage || 'Thanks for taking the time to fill this out.'}
+            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2">✏️</span>
+          </p>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Button
-            size="lg"
-            className="gap-2 rounded-full px-10 h-12 text-base font-medium"
-            style={{
-              backgroundColor: form.buttonColor,
-              color: form.buttonTextColor,
-            }}
-          >
-            Start
-            <ArrowLeft className="size-4 rotate-180" />
-          </Button>
+          {/* Editable Button */}
+          {editingField === 'button' ? (
+            <input
+              value={buttonText}
+              onChange={(e) => setButtonText(e.target.value)}
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setEditingField(null);
+              }}
+              autoFocus
+              className="text-base font-medium bg-transparent border-b-2 border-dashed outline-none text-center"
+              style={{ color: form.buttonTextColor, borderColor: `${form.buttonTextColor}40` }}
+            />
+          ) : (
+            <Button
+              size="lg"
+              className="gap-2 rounded-full px-10 h-12 text-base font-medium cursor-pointer"
+              style={{
+                backgroundColor: form.buttonColor,
+                color: form.buttonTextColor,
+              }}
+              onClick={() => setEditingField('button')}
+            >
+              {buttonText || 'Start'}
+              <ArrowLeft className="size-4 rotate-180" />
+            </Button>
+          )}
         </motion.div>
+      </motion.div>
+
+      {/* Edit hint overlay */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2"
+      >
+        <p className="text-xs opacity-40" style={{ color: form.textColor }}>
+          Click any element to edit
+        </p>
       </motion.div>
 
       {/* Progress indicator */}

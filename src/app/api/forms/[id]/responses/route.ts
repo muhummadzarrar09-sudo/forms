@@ -100,3 +100,45 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to create response' }, { status: 500 });
   }
 }
+
+// DELETE /api/forms/[id]/responses - Delete all responses for a form
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // Verify form exists
+    const form = await db.form.findUnique({ where: { id } });
+    if (!form) {
+      return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+    }
+
+    // Delete all answers first (cascade), then responses
+    const responses = await db.response.findMany({
+      where: { formId: id },
+      select: { id: true },
+    });
+
+    const responseIds = responses.map(r => r.id);
+
+    if (responseIds.length > 0) {
+      await db.answer.deleteMany({
+        where: { responseId: { in: responseIds } },
+      });
+
+      await db.response.deleteMany({
+        where: { formId: id },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      deletedCount: responseIds.length,
+    });
+  } catch (error) {
+    console.error('Error deleting responses:', error);
+    return NextResponse.json({ error: 'Failed to delete responses' }, { status: 500 });
+  }
+}

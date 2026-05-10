@@ -41,7 +41,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay } from 'date-fns';
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +54,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+const responseChartConfig = {
+  responses: {
+    label: 'Responses',
+    color: 'hsl(var(--primary))',
+  },
+} satisfies ChartConfig;
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -85,6 +94,8 @@ export function ResponsesViewer() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
+  const [showClearAllDialog, setShowClearAllDialog] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
 
   // Fetch form data + summary + responses
   useEffect(() => {
@@ -228,11 +239,83 @@ export function ResponsesViewer() {
     });
   }, [responses, displayResponses, questions, currentForm]);
 
+  // ─── Bulk Delete All Responses ─────────────────────────────────────────────
+  const handleClearAllResponses = useCallback(async () => {
+    if (!selectedFormId) return;
+    setIsClearingAll(true);
+    try {
+      const res = await fetch(`/api/forms/${selectedFormId}/responses`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResponses([]);
+        setSummary(null);
+        toast({
+          title: 'All responses deleted',
+          description: `${data.deletedCount} response${data.deletedCount !== 1 ? 's' : ''} permanently deleted.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Failed to delete responses',
+          description: 'Could not delete all responses. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Failed to delete responses',
+        description: 'Could not delete all responses. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingAll(false);
+      setShowClearAllDialog(false);
+    }
+  }, [selectedFormId]);
+
   // ─── Stats ────────────────────────────────────────────────────────────────
 
   const totalResponses = summary?.totalResponses ?? 0;
   const completionRate = summary?.completionRate ?? 0;
   const averageTime = summary?.averageTime ?? 0;
+
+  // ─── Response trend data ───────────────────────────────────────────────────
+  const responseTrendData = useMemo(() => {
+    if (responses.length === 0) return [];
+
+    // Get date range: last 30 days or from first response
+    const now = new Date();
+    const firstResponseDate = responses.reduce((earliest, r) => {
+      const d = new Date(r.completedAt || r.startedAt);
+      return d < earliest ? d : earliest;
+    }, now);
+    const startDate = startOfDay(
+      firstResponseDate > subDays(now, 30) ? firstResponseDate : subDays(now, 30)
+    );
+
+    // Build a map of date -> count
+    const dateCounts: Record<string, number> = {};
+    for (let d = new Date(startDate); d <= now; d = new Date(d.getTime() + 86400000)) {
+      const key = format(d, 'yyyy-MM-dd');
+      dateCounts[key] = 0;
+    }
+
+    responses.forEach((r) => {
+      const date = startOfDay(new Date(r.completedAt || r.startedAt));
+      const key = format(date, 'yyyy-MM-dd');
+      if (key in dateCounts) {
+        dateCounts[key]++;
+      }
+    });
+
+    return Object.entries(dateCounts).map(([date, count]) => ({
+      date,
+      label: format(new Date(date), 'MMM d'),
+      responses: count,
+    }));
+  }, [responses]);
 
   // ─── Loading State ────────────────────────────────────────────────────────
 
@@ -354,6 +437,15 @@ export function ResponsesViewer() {
                 <Download className="size-3.5" />
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowClearAllDialog(true)}
+                className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+              >
+                <Trash2 className="size-3.5" />
+                <span className="hidden sm:inline">Clear all</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -414,6 +506,56 @@ export function ResponsesViewer() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Response Trend Chart */}
+        {responseTrendData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="size-4 text-muted-foreground" />
+                  Responses over time
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <ChartContainer config={responseChartConfig} className="h-[200px] w-full">
+                  <BarChart data={responseTrendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      tickMargin={4}
+                      interval={Math.max(0, Math.floor(responseTrendData.length / 8) - 1)}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      allowDecimals={false}
+                      tickMargin={4}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      labelFormatter={(label) => label}
+                    />
+                    <Bar
+                      dataKey="responses"
+                      fill="var(--color-responses)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={40}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -587,6 +729,28 @@ export function ResponsesViewer() {
           </p>
         </div>
       </footer>
+
+      {/* Clear All Responses Confirmation Dialog */}
+      <AlertDialog open={showClearAllDialog} onOpenChange={setShowClearAllDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all responses?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all {responses.length} response{responses.length !== 1 ? 's' : ''} and their answers from this form.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAllResponses}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={isClearingAll}
+            >
+              {isClearingAll ? 'Deleting...' : 'Delete all'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -207,3 +207,28 @@ Stage Summary:
 - Full dark mode support with next-themes (Light/Dark/System toggle in header)
 - Polished form builder with left border indicator on selected questions
 - Comprehensive mobile responsiveness for form builder (collapsible left/right panels, mobile-friendly toolbar)
+
+---
+Task ID: 7
+Agent: web-dev-review-agent
+Task: QA fixes, new features, and styling improvements
+
+Work Log:
+- **Bug Fix 1**: Fixed preview of unpublished forms showing "not accepting responses" screen in `form-filler.tsx`. Changed the check from `!data.published` to `!data.published && shareMode` so that preview mode (shareMode=false) always shows the form. Added a subtle amber "Preview mode — This form is not published" banner at the top when previewing an unpublished form.
+- **Bug Fix 2**: Fixed auto-advance not working reliably in `question-input.tsx` for MultipleChoiceInput and OpinionScaleInput. Replaced `setTimeout(onAdvance, 300)` after `onChange()` with a `useEffect` that watches the `value` prop and auto-advances when it changes. This avoids React state batching issues where the setTimeout could fire before the re-render completes. Added `prevValueRef` and `advanceTimerRef` refs for reliable tracking.
+- **Feature 1**: Added "Responses over time" trend chart in `responses-viewer.tsx`. Uses recharts BarChart with shadcn/ui ChartContainer. Groups responses by date (last 30 days or all available data), shows bar chart with primary-colored bars, rounded corners, and proper axis formatting. Added `responseChartConfig` for chart theming.
+- **Feature 2**: Made WelcomeScreenPreview in `form-builder.tsx` an interactive editor instead of static preview. Click on title, message, or button to edit inline. Uses local state pattern (null = use form state, string = editing) to avoid setState-in-effect lint errors. Edits save on blur via updateForm. Added "Click any element to edit" hint at bottom.
+- **Feature 3**: Added bulk delete responses feature. Created DELETE method in `/src/app/api/forms/[id]/responses/route.ts` that deletes all answers then all responses for a form. Added "Clear all" button in responses viewer header (next to Export CSV) with destructive styling. Added AlertDialog confirmation before deleting. Updates local state (clears responses and summary) after successful deletion.
+- **Styling 1**: Better dashboard welcome section in `dashboard.tsx`. Added personalized greeting ("Good morning/afternoon/evening") based on time of day. Added three gradient stat cards (emerald for Total Forms, amber for Published, rose for Responses) replacing the old plain text stats bar. Cards use subtle gradient backgrounds with matching border colors and dark mode support.
+- **Styling 2**: Better form builder toolbar in `form-builder.tsx`. Added visual separators (Separator) between button groups. Improved tooltip descriptions ("Back to dashboard", "Toggle settings panel", "Share your form", "Preview form as respondent"). Changed saving indicator from spinner+text to a pulsing dot animation (animate-ping + solid dot). Added separator before publish button group.
+- **Styling 3**: Improved question type picker modal in `question-type-picker.tsx`. Added category descriptions (e.g., "Free-form text inputs", "Select from options"). Added mini preview text for each type (e.g., "Aa", "○", "0-10"). Enlarged icon containers (size-10). Added subtle hover animations (y: -1 lift, shadow-sm). Improved empty search state with suggestion text. Added subtitle "Choose a question type for your form" in header.
+- Ran ESLint: no errors
+
+Stage Summary:
+- Fixed two critical bugs: unpublished form preview blocking and unreliable auto-advance
+- Added response trend chart with recharts bar chart in responses viewer
+- Interactive welcome screen editor in builder center panel (click-to-edit)
+- Bulk delete all responses with API endpoint + confirmation dialog
+- Dashboard greeting with gradient stat cards
+- Form builder toolbar with pulsing save indicator, separators, and improved tooltips
+- Enhanced question type picker with category descriptions, mini previews, and hover animations

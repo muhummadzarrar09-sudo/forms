@@ -354,6 +354,20 @@ function MultipleChoiceInput({
   const options = question.options || [];
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const ff = fontFamilyClass(theme.fontFamily);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
+
+  // Auto-advance when value changes for single-select (not allowMultiple)
+  useEffect(() => {
+    if (!question.settings.allowMultiple && value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 300);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, question.settings.allowMultiple, onAdvance]);
 
   const handleSelect = useCallback(
     (option: QuestionOption) => {
@@ -365,10 +379,9 @@ function MultipleChoiceInput({
         onChange(newValues.join(','));
       } else {
         onChange(option.label);
-        setTimeout(onAdvance, 300);
       }
     },
-    [value, onChange, onAdvance, question.settings.allowMultiple]
+    [value, onChange, question.settings.allowMultiple]
   );
 
   if (options.length === 0) return null;
@@ -448,6 +461,20 @@ function PictureChoiceInput({
 }: QuestionInputProps) {
   const options = question.options || [];
   const images = question.imageUrls || [];
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
+
+  // Auto-advance when value changes for single-select
+  useEffect(() => {
+    if (!question.settings.allowMultiple && value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 300);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, question.settings.allowMultiple, onAdvance]);
 
   const handleSelect = useCallback(
     (option: QuestionOption) => {
@@ -459,10 +486,9 @@ function PictureChoiceInput({
         onChange(newValues.join(','));
       } else {
         onChange(option.label);
-        setTimeout(onAdvance, 300);
       }
     },
-    [value, onChange, onAdvance, question.settings.allowMultiple]
+    [value, onChange, question.settings.allowMultiple]
   );
 
   return (
@@ -540,6 +566,8 @@ function DropdownInput({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const ff = fontFamilyClass(theme.fontFamily);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -551,10 +579,21 @@ function DropdownInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Auto-advance when value changes
+  useEffect(() => {
+    if (value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 300);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, onAdvance]);
+
   const handleSelect = (option: QuestionOption) => {
     onChange(option.label);
     setIsOpen(false);
-    setTimeout(onAdvance, 300);
   };
 
   return (
@@ -622,10 +661,23 @@ function YesNoInput({
 }: QuestionInputProps) {
   const ff = fontFamilyClass(theme.fontFamily);
   const [hovered, setHovered] = useState<'yes' | 'no' | null>(null);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
+
+  // Auto-advance when value changes
+  useEffect(() => {
+    if (value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 300);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, onAdvance]);
 
   const handleSelect = (val: string) => {
     onChange(val);
-    setTimeout(onAdvance, 300);
   };
 
   return (
@@ -978,10 +1030,23 @@ function RatingInput({
   const steps = question.settings.steps || 5;
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const currentRating = parseInt(value) || 0;
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
+
+  // Auto-advance when value changes
+  useEffect(() => {
+    if (value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 400);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, onAdvance]);
 
   const handleSelect = (rating: number) => {
     onChange(String(rating));
-    setTimeout(onAdvance, 400);
   };
 
   return (
@@ -1028,10 +1093,23 @@ function OpinionScaleInput({
   const [hoveredNum, setHoveredNum] = useState<number | null>(null);
   const currentValue = parseInt(value);
   const ff = fontFamilyClass(theme.fontFamily);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevValueRef = useRef(value);
+
+  // Auto-advance when value changes
+  useEffect(() => {
+    if (value && value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(onAdvance, 350);
+    }
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, [value, onAdvance]);
 
   const handleSelect = (num: number) => {
     onChange(String(num));
-    setTimeout(onAdvance, 350);
   };
 
   return (
