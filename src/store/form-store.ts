@@ -180,43 +180,44 @@ export const useFormStore = create<FormState>((set, get) => ({
     ),
   })),
   clearNotifications: () => {
-    // Also clear lastViewedAt in localStorage
+    // Also clear stored response counts in localStorage
     try {
-      localStorage.removeItem('forms-lastViewedAt');
+      localStorage.removeItem('forms-responseCounts');
     } catch { /* ignore */ }
     set({ notifications: [] });
   },
   checkForNewResponses: () => {
     const { forms } = get();
     try {
-      const lastViewedJson = localStorage.getItem('forms-lastViewedAt');
-      const lastViewedAt: Record<string, string> = lastViewedJson ? JSON.parse(lastViewedJson) : {};
+      // FIX 6: Compare form._count.responses against localStorage-persisted count
+      const storedCountsJson = localStorage.getItem('forms-responseCounts');
+      const storedCounts: Record<string, number> = storedCountsJson ? JSON.parse(storedCountsJson) : {};
 
       const newNotifications: FormNotification[] = [];
-      const updatedLastViewed: Record<string, string> = { ...lastViewedAt };
+      const updatedCounts: Record<string, number> = { ...storedCounts };
 
       for (const form of forms) {
-        const responseCount = form._count?.responses ?? 0;
-        const lastViewed = lastViewedAt[form.id];
-        const formUpdated = new Date(form.updatedAt).toISOString();
+        const currentCount = form._count?.responses ?? 0;
+        const previousCount = storedCounts[form.id] ?? 0;
 
-        if (responseCount > 0 && lastViewed && new Date(form.updatedAt) > new Date(lastViewed)) {
-          // There are new responses since last visit
+        // If current count is higher than the stored count, there are new responses
+        if (currentCount > previousCount && previousCount > 0) {
+          const newCount = currentCount - previousCount;
           const notifId = `notif_${form.id}_${Date.now()}`;
           newNotifications.push({
             id: notifId,
             formId: form.id,
             formTitle: form.title,
-            type: 'new_response',
-            message: `"${form.title}" received new responses`,
-            count: responseCount,
-            timestamp: form.updatedAt,
+            type: newCount === 1 ? 'new_response' : 'response_milestone',
+            message: `"${form.title}" received ${newCount} new response${newCount > 1 ? 's' : ''}`,
+            count: currentCount,
+            timestamp: new Date().toISOString(),
             read: false,
           });
         }
 
-        // Update lastViewedAt to current time for all forms
-        updatedLastViewed[form.id] = new Date().toISOString();
+        // Update stored count to current count
+        updatedCounts[form.id] = currentCount;
       }
 
       if (newNotifications.length > 0) {
@@ -225,8 +226,8 @@ export const useFormStore = create<FormState>((set, get) => ({
         }));
       }
 
-      // Save updated lastViewedAt
-      localStorage.setItem('forms-lastViewedAt', JSON.stringify(updatedLastViewed));
+      // Save updated counts
+      localStorage.setItem('forms-responseCounts', JSON.stringify(updatedCounts));
     } catch { /* ignore localStorage errors */ }
   },
 }));

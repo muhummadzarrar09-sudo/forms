@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeForm } from '@/lib/api-serialization';
 import { createFormSchema } from '@/lib/validations';
 
-// GET /api/forms - List all forms
+// GET /api/forms - List all forms for the authenticated user
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const forms = await db.form.findMany({
+      where: { userId: session.user.id },
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { responses: true } },
@@ -26,6 +34,11 @@ export async function GET() {
 // POST /api/forms - Create a new form
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     let body;
     try {
       body = await request.json();
@@ -60,6 +73,7 @@ export async function POST(request: NextRequest) {
         progressbar: data.progressbar ?? true,
         showQuestionNumbers: data.showQuestionNumbers ?? true,
         allowBackNavigation: data.allowBackNavigation ?? true,
+        userId: session.user.id,
         ...(data.workspaceId && { workspaceId: data.workspaceId }),
       },
       include: {

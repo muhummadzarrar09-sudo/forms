@@ -2,11 +2,13 @@
 
 import { useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useFormStore } from '@/store/form-store';
 import { Dashboard } from '@/components/forms/dashboard';
 import { FormBuilder } from '@/components/forms/form-builder';
 import { FormFiller } from '@/components/forms/form-filler';
 import { ResponsesViewer } from '@/components/forms/responses-viewer';
+import { LoginPage } from '@/components/login-page';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -17,6 +19,7 @@ function HomeContent() {
   const setShareMode = useFormStore((s) => s.setShareMode);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   // Handle URL query parameters for shareable links
   useEffect(() => {
@@ -25,6 +28,7 @@ function HomeContent() {
 
     if (formId) {
       // Shareable link mode - open the form in fill mode with shareMode=true
+      // This does NOT require authentication — anyone can fill a shared form
       setSelectedFormId(formId);
       setCurrentView('fill');
       setShareMode(true);
@@ -39,6 +43,38 @@ function HomeContent() {
       router.replace('/', { scroll: false });
     }
   }, [searchParams, setCurrentView, setSelectedFormId, setShareMode, router]);
+
+  // If in share/preview mode (fill view), show the form filler regardless of auth
+  if (currentView === 'fill') {
+    return (
+      <motion.div
+        key="fill"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-50"
+      >
+        <FormFiller />
+      </motion.div>
+    );
+  }
+
+  // For all other views, require authentication
+  if (status === 'loading') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginPage />;
+  }
 
   return (
     <AnimatePresence mode="wait">
@@ -62,18 +98,6 @@ function HomeContent() {
           transition={{ duration: 0.2 }}
         >
           <FormBuilder />
-        </motion.div>
-      )}
-      {currentView === 'fill' && (
-        <motion.div
-          key="fill"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50"
-        >
-          <FormFiller />
         </motion.div>
       )}
       {currentView === 'responses' && (

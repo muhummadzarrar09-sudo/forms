@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeWorkspace, serializeForm } from '@/lib/api-serialization';
 import { updateWorkspaceSchema } from '@/lib/validations';
 
-// GET /api/workspaces/[id] - Get workspace by ID with forms
+// GET /api/workspaces/[id] - Get workspace by ID with forms (protected)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const workspace = await db.workspace.findUnique({
       where: { id },
@@ -28,6 +35,10 @@ export async function GET(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
     }
 
+    if (workspace.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const serialized = {
       ...serializeWorkspace(workspace),
       forms: workspace.forms.map((form) => serializeForm(form)),
@@ -40,13 +51,27 @@ export async function GET(
   }
 }
 
-// PUT /api/workspaces/[id] - Update workspace
+// PUT /api/workspaces/[id] - Update workspace (protected)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Verify ownership
+    const existingWorkspace = await db.workspace.findUnique({ where: { id }, select: { userId: true } });
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+    }
+    if (existingWorkspace.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     let body;
     try {
@@ -85,13 +110,27 @@ export async function PUT(
   }
 }
 
-// DELETE /api/workspaces/[id] - Delete workspace (move forms to no workspace)
+// DELETE /api/workspaces/[id] - Delete workspace (protected)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Verify ownership
+    const existingWorkspace = await db.workspace.findUnique({ where: { id }, select: { userId: true } });
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+    }
+    if (existingWorkspace.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // First, set workspaceId to null for all forms in this workspace
     await db.form.updateMany({

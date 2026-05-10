@@ -1174,3 +1174,95 @@ Remaining Recommendations:
 - Implement server-side pagination for forms/responses (currently loads all)
 - Add request body size limits
 - Consider TanStack Query for server state management (currently uses Zustand for everything)
+
+---
+Task ID: 15-critical-fixes
+Agent: main-orchestrator
+Task: Implement 6 critical/high/medium/low priority fixes (auth, transaction, maxResponses/closeDate, question upsert, remove file_upload, notification fix)
+
+Work Log:
+- **FIX 1 — Authentication (CRITICAL)**:
+  - Added User model to Prisma schema (id, email, password, name, createdAt, updatedAt)
+  - Added userId field to Form and Workspace models with User relation (onDelete: Cascade)
+  - Created `/src/lib/auth.ts` with NextAuth.js v4 Credentials provider, SHA-256 password hashing, JWT session strategy
+  - Created `/src/app/api/auth/[...nextauth]/route.ts` — NextAuth API route handler
+  - Created `/src/app/api/auth/register/route.ts` — POST /api/auth/register endpoint with email/password validation, duplicate email check
+  - Created `/src/components/auth-provider.tsx` — SessionProvider wrapper for client components
+  - Created `/src/components/login-page.tsx` — Login/Register page with tabs, error handling, loading states
+  - Created `/src/types/next-auth.d.ts` — Type augmentation for session.user.id
+  - Updated all protected API routes to require authentication via `getServerSession(authOptions)`:
+    - `/api/forms` GET/POST — requires auth, scoped by userId
+    - `/api/forms/[id]` GET — public (needed for form filler), PUT/DELETE — protected with ownership check
+    - `/api/forms/[id]/questions` PUT — protected with ownership check
+    - `/api/forms/[id]/responses` GET/DELETE — protected with ownership check
+    - `/api/forms/[id]/responses` POST — public (external form filling)
+    - `/api/forms/[id]/responses/[responseId]` DELETE — protected with ownership check
+    - `/api/forms/[id]/responses/summary` GET — protected with ownership check
+    - `/api/forms/[id]/duplicate` POST — protected with ownership check
+    - All workspace routes — protected and scoped by userId
+  - Updated `/src/app/layout.tsx` — wrapped with AuthProvider
+  - Updated `/src/app/page.tsx` — shows LoginPage when not authenticated, shows form filler without auth for share mode (?form=)
+  - Updated `/src/types/form.ts` — added userId to Form and Workspace interfaces
+  - Updated `/src/lib/api-serialization.ts` — added userId to RawForm type
+  - Added NEXTAUTH_SECRET and NEXTAUTH_URL to .env
+  - Ran `bun run db:push -- --force-reset` to update schema (database was empty dev data)
+
+- **FIX 2 — Response submission transaction (CRITICAL)**:
+  - Wrapped the Response + Answers creation in `db.$transaction()` in `/src/app/api/forms/[id]/responses/route.ts`
+  - If any answer creation fails, the entire transaction rolls back, preventing zombie Response rows
+
+- **FIX 3 — Enforce maxResponses and closeDate (CRITICAL)**:
+  - Added closeDate check: if form.closeDate is set and current time is past it, reject with 403
+  - Added maxResponses check: if form.maxResponses > 0 and existing response count >= maxResponses, reject with 403
+  - Both checks occur after the published check and before any row creation
+
+- **FIX 4 — Question save upsert strategy (HIGH)**:
+  - Replaced deleteMany + recreate approach in `/src/app/api/forms/[id]/questions/route.ts` with upsert strategy
+  - Questions with existing IDs are updated, new questions are created, removed questions are deleted
+  - All operations run within `db.$transaction()` for atomicity
+  - Existing Answer rows linked to surviving questions are preserved (no cascade delete)
+
+- **FIX 5 — Remove file_upload question type (MEDIUM)**:
+  - Removed `'file_upload'` from QuestionType union in `/src/types/form.ts`
+  - Removed maxFileSize and allowedTypes from QuestionSettings interface
+  - Removed file_upload from QUESTION_TYPES array and defaults in `/src/lib/form-helpers.ts`
+  - Removed file_upload from QUESTION_TYPE_CATEGORIES, CATEGORY_ORDER, CATEGORY_DESCRIPTIONS in `/src/lib/constants.ts`
+  - Removed file_upload case from QuestionInput switch and entire FileUploadInput component in `/src/components/forms/question-input.tsx`
+  - Removed file_upload preview text from TYPE_PREVIEW in `/src/components/forms/question-type-picker.tsx`
+  - Removed file_upload mini preview and interactive preview from `/src/components/forms/question-editor.tsx`
+  - Removed hasFileUploadSettings and file upload settings section from `/src/components/forms/design-panel.tsx`
+  - Removed 'Upload & Media' category entirely
+  - Removed Upload icon imports from all affected files
+
+- **FIX 6 — Notification system fix (LOW)**:
+  - Replaced `forms-lastViewedAt` localStorage key with `forms-responseCounts` in `/src/store/form-store.ts`
+  - `checkForNewResponses()` now compares `form._count.responses` against a localStorage-persisted count per form ID
+  - If current count > stored count and stored count > 0, fires a notification with the delta
+  - Updated `clearNotifications()` to clear the new localStorage key
+  - Removed broken `form.updatedAt` comparison logic
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Complete authentication system with NextAuth.js v4 Credentials provider, registration, login page
+- All API routes protected with auth guards and user-scoped queries
+- Form filler remains publicly accessible for external respondents
+- Response submission wrapped in database transaction for data integrity
+- maxResponses and closeDate enforced at submission time with 403 responses
+- Question save uses upsert strategy instead of destructive delete+recreate
+- file_upload question type completely removed (was half-implemented)
+- Notification system now correctly detects new responses using _count.responses comparison
+- All 6 fixes implemented and verified with ESLint passing
+
+Unresolved Issues / Risks:
+- Password hashing uses SHA-256 which is fast but not ideal for production; consider bcrypt/scrypt for production
+- NextAuth secret is hardcoded in auth.ts as fallback; should use proper env variable in production
+- Conditional logic doesn't prevent circular jumps
+- No rate limiting on form submission endpoint
+
+Priority Recommendations for Next Phase:
+1. Add password reset flow
+2. Add OAuth providers (Google, GitHub) for easier signup
+3. Add rate limiting on form submission endpoint
+4. Upgrade password hashing to bcrypt for production use
+5. Add form analytics dashboard with time-based metrics

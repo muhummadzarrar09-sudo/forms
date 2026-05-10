@@ -22,20 +22,18 @@ export const QUESTION_TYPE_CATEGORIES: Record<string, string> = {
   date: 'Fields',
   rating: 'Rating',
   opinion_scale: 'Rating',
-  file_upload: 'Upload & Media',
   legal: 'Other',
   statement: 'Other',
   ending: 'Other',
 };
 
-export const CATEGORY_ORDER = ['Text', 'Choices', 'Fields', 'Rating', 'Upload & Media', 'Other'];
+export const CATEGORY_ORDER = ['Text', 'Choices', 'Fields', 'Rating', 'Other'];
 
 export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   Text: 'Free-form text inputs',
   Choices: 'Select from options',
   Fields: 'Specialized input fields',
   Rating: 'Scales and ratings',
-  'Upload & Media': 'File uploads and media',
   Other: 'Special question types',
 };
 

@@ -14,7 +14,6 @@ export type QuestionType =
   | 'website'
   | 'legal'
   | 'statement'
-  | 'file_upload'
   | 'ending';
 
 export interface QuestionOption {
@@ -50,9 +49,6 @@ export interface QuestionSettings {
   requiredText?: string;
   // For ending
   redirectUrl?: string;
-  // For file_upload
-  maxFileSize?: number; // in MB
-  allowedTypes?: string; // e.g. 'pdf,docx,jpg,png' or '*' for all
   // Default jump target if no logic rule matches
   jumpToQuestionId?: string;
 }
@@ -88,6 +84,7 @@ export interface Workspace {
   color: string;
   icon: string;
   order: number;
+  userId: string;
   createdAt: string;
   updatedAt: string;
   forms?: Form[];
@@ -123,6 +120,7 @@ export interface Form {
   closeDate: string | null;
   metaTitle: string;
   metaDescription: string;
+  userId: string;
   workspaceId: string | null;
   workspace?: Workspace;
   createdAt: string;

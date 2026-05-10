@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeQuestion } from '@/lib/api-serialization';
 
-// GET /api/forms/[id]/responses/summary - Get response summary/analytics
+// GET /api/forms/[id]/responses/summary - Get response summary/analytics (protected)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const form = await db.form.findUnique({
@@ -24,6 +31,10 @@ export async function GET(
 
     if (!form) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+    }
+
+    if (form.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const totalResponses = form.responses.length;

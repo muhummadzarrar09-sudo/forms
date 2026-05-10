@@ -63,6 +63,7 @@ interface RawForm {
   closeDate: Date | string | null;
   metaTitle: string;
   metaDescription: string;
+  userId: string;
   workspaceId: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;

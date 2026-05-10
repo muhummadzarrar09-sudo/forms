@@ -7,6 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  forms     Form[]
+  workspaces Workspace[]
+}
+
 model Form {
   id          String     @id @default(cuid())
   title       String     @default("Untitled Form")
@@ -34,11 +45,13 @@ model Form {
   closeDate   DateTime?  // auto-close date, null = no auto-close
   metaTitle   String     @default("") // SEO meta title
   metaDescription String @default("") // SEO meta description
+  userId      String
   workspaceId String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   questions   Question[]
   responses   Response[]
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 }
 
@@ -48,9 +61,11 @@ model Workspace {
   color       String     @default("#6366f1")
   icon        String     @default("Folder")
   order       Int        @default(0)
+  userId      String
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   forms       Form[]
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Question {

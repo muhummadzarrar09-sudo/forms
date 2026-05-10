@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeForm } from '@/lib/api-serialization';
 
 // POST /api/forms/[id]/duplicate - Duplicate a form with all its questions
+// Protected: only the form owner can duplicate
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     // Find the original form with its questions
@@ -22,7 +30,11 @@ export async function POST(
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
     }
 
-    // Create the duplicated form
+    if (originalForm.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Create the duplicated form (scoped to the same user)
     const duplicatedForm = await db.form.create({
       data: {
         title: `Copy of ${originalForm.title}`,
@@ -46,6 +58,7 @@ export async function POST(
         progressbar: originalForm.progressbar,
         showQuestionNumbers: originalForm.showQuestionNumbers,
         allowBackNavigation: originalForm.allowBackNavigation,
+        userId: session.user.id,
         workspaceId: originalForm.workspaceId, // Copy workspace assignment
         maxResponses: originalForm.maxResponses,
         metaTitle: originalForm.metaTitle,

@@ -38,7 +38,6 @@ import {
   FileText,
   MessageSquare,
   Square,
-  Upload,
   Palette,
   Settings2,
   Check,
@@ -68,7 +67,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
   MessageSquare,
   Square,
-  Upload,
 };
 
 interface DesignPanelProps {
@@ -515,7 +513,6 @@ function QuestionSettingsTab({
   const hasAllowMultiple = question.type === 'multiple_choice' || question.type === 'picture_choice';
   const hasLegalText = question.type === 'legal';
   const hasRedirect = question.type === 'ending';
-  const hasFileUploadSettings = question.type === 'file_upload';
   const isStatement = question.type === 'statement';
   const isEnding = question.type === 'ending';
 
@@ -754,49 +751,6 @@ function QuestionSettingsTab({
         </div>
       )}
 
-      {/* File Upload settings */}
-      {hasFileUploadSettings && (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Max File Size (MB)
-            </Label>
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              value={question.settings?.maxFileSize ?? 10}
-              onChange={(e) =>
-                updateQuestion(question.id, {
-                  settings: { ...question.settings, maxFileSize: parseInt(e.target.value) || 10 },
-                })
-              }
-              className="text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Maximum file size respondents can upload (1–100 MB)
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Allowed File Types
-            </Label>
-            <Input
-              value={question.settings?.allowedTypes || '*'}
-              onChange={(e) =>
-                updateQuestion(question.id, {
-                  settings: { ...question.settings, allowedTypes: e.target.value },
-                })
-              }
-              placeholder="pdf,docx,jpg,png"
-              className="text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Comma-separated extensions (e.g. pdf,docx,jpg) or * for all types
-            </p>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
