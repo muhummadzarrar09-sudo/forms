@@ -5,6 +5,7 @@ interface FormState {
   // Navigation
   currentView: AppView;
   selectedFormId: string | null;
+  shareMode: boolean;
   
   // Data
   forms: Form[];
@@ -21,6 +22,7 @@ interface FormState {
   // Actions
   setCurrentView: (view: AppView) => void;
   setSelectedFormId: (id: string | null) => void;
+  setShareMode: (mode: boolean) => void;
   setForms: (forms: Form[]) => void;
   setCurrentForm: (form: Form | null) => void;
   setSelectedQuestionId: (id: string | null) => void;
@@ -50,6 +52,7 @@ export const useFormStore = create<FormState>((set, get) => ({
   // Initial state
   currentView: 'dashboard',
   selectedFormId: null,
+  shareMode: false,
   forms: [],
   currentForm: null,
   selectedQuestionId: null,
@@ -60,6 +63,7 @@ export const useFormStore = create<FormState>((set, get) => ({
   // Setters
   setCurrentView: (view) => set({ currentView: view }),
   setSelectedFormId: (id) => set({ selectedFormId: id }),
+  setShareMode: (mode) => set({ shareMode: mode }),
   setForms: (forms) => set({ forms }),
   setCurrentForm: (form) => set({ currentForm: form }),
   setSelectedQuestionId: (id) => set({ selectedQuestionId: id }),
@@ -124,8 +128,8 @@ export const useFormStore = create<FormState>((set, get) => ({
   }),
   
   // Navigation helpers
-  openDashboard: () => set({ currentView: 'dashboard', selectedFormId: null, currentForm: null, selectedQuestionId: null }),
+  openDashboard: () => set({ currentView: 'dashboard', selectedFormId: null, currentForm: null, selectedQuestionId: null, shareMode: false }),
   openBuilder: (formId) => set({ currentView: 'builder', selectedFormId: formId }),
-  openFiller: (formId) => set({ currentView: 'fill', selectedFormId: formId }),
+  openFiller: (formId) => set({ currentView: 'fill', selectedFormId: formId, shareMode: false }),
   openResponses: (formId) => set({ currentView: 'responses', selectedFormId: formId }),
 }));

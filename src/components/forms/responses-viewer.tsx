@@ -38,9 +38,20 @@ import {
   List,
   ExternalLink,
   MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -552,6 +563,13 @@ export function ResponsesViewer() {
                         )
                       }
                       questions={questions}
+                      formId={selectedFormId!}
+                      onDelete={(responseId) => {
+                        setResponses((prev) => prev.filter((r) => r.id !== responseId));
+                        if (expandedResponseId === responseId) {
+                          setExpandedResponseId(null);
+                        }
+                      }}
                     />
                   ))}
                 </AnimatePresence>
@@ -580,9 +598,45 @@ interface ResponseCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   questions: FormQuestion[];
+  formId: string;
+  onDelete: (responseId: string) => void;
 }
 
-function ResponseCard({ response, isExpanded, onToggle, questions }: ResponseCardProps) {
+function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDelete }: ResponseCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/forms/${formId}/responses/${response.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        onDelete(response.id);
+        toast({
+          title: 'Response deleted',
+          description: `Response #${response.number} has been permanently deleted.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Failed to delete',
+          description: 'Could not delete the response. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Failed to delete',
+        description: 'Could not delete the response. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
   return (
     <motion.div
       layout
@@ -662,10 +716,48 @@ function ResponseCard({ response, isExpanded, onToggle, questions }: ResponseCar
                     </div>
                   );
                 })}
+
+                {/* Delete response button */}
+                <div className="flex justify-end pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDeleteDialog(true);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="size-3.5 mr-1" />
+                    {isDeleting ? 'Deleting...' : 'Delete Response'}
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Response #{response.number}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete this response and all of its answers.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </Card>
     </motion.div>
   );

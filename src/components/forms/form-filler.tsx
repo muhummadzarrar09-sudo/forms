@@ -11,6 +11,7 @@ import {
   Check,
   X,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
@@ -76,7 +77,7 @@ function fontFamilyClass(ff: string) {
 /* ─── Main Component ─────────────────────────────────────────────────── */
 
 export function FormFiller() {
-  const { selectedFormId, openDashboard } = useFormStore();
+  const { selectedFormId, openDashboard, shareMode } = useFormStore();
 
   const [state, setState] = useState<FillerState>({
     form: null,
@@ -87,6 +88,29 @@ export function FormFiller() {
     isLoading: true,
     errorMessage: '',
   });
+
+  const handleClose = useCallback(() => {
+    if (shareMode) {
+      // In share mode, close the tab/window
+      window.close();
+    } else {
+      openDashboard();
+    }
+  }, [shareMode, openDashboard]);
+
+  // Reset form for "Submit another response"
+  const handleSubmitAnother = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      form: prev.form,
+      screen: 'welcome' as const,
+      currentIndex: -1,
+      answers: {},
+      direction: 1 as const,
+      isLoading: false,
+      errorMessage: '',
+    }));
+  }, []);
 
   // Fetch form
   useEffect(() => {
@@ -383,14 +407,16 @@ export function FormFiller() {
           <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
             {state.errorMessage || 'This form doesn\'t exist or has been removed.'}
           </p>
-          <button
-            onClick={openDashboard}
-            className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-            style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-          >
-            <ArrowLeft className="size-4" />
-            Go back
-          </button>
+          {!shareMode && (
+            <button
+              onClick={openDashboard}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+            >
+              <ArrowLeft className="size-4" />
+              Go back
+            </button>
+          )}
         </div>
       </div>
     );
@@ -411,15 +437,24 @@ export function FormFiller() {
           <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
             The form owner has not published this form yet.
           </p>
-          <button
-            onClick={openDashboard}
-            className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-            style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-          >
-            <ArrowLeft className="size-4" />
-            Go back
-          </button>
+          {!shareMode && (
+            <button
+              onClick={openDashboard}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+            >
+              <ArrowLeft className="size-4" />
+              Go back
+            </button>
+          )}
         </div>
+        {shareMode && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
+              Powered by <span className="font-semibold">Forms</span>
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -439,15 +474,33 @@ export function FormFiller() {
           <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
             {state.errorMessage}
           </p>
-          <button
-            onClick={openDashboard}
-            className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-            style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-          >
-            <ArrowLeft className="size-4" />
-            Go back
-          </button>
+          {!shareMode ? (
+            <button
+              onClick={openDashboard}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+            >
+              <ArrowLeft className="size-4" />
+              Go back
+            </button>
+          ) : (
+            <button
+              onClick={() => setState((s) => ({ ...s, screen: 'welcome', direction: -1 }))}
+              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+            >
+              <RotateCcw className="size-4" />
+              Try again
+            </button>
+          )}
         </div>
+        {shareMode && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
+              Powered by <span className="font-semibold">Forms</span>
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -478,14 +531,26 @@ export function FormFiller() {
       )}
 
       {/* ── Close button ── */}
-      <button
-        onClick={openDashboard}
-        className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-        style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
-        aria-label="Close form"
-      >
-        <X className="size-5" />
-      </button>
+      {!shareMode && (
+        <button
+          onClick={openDashboard}
+          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+          aria-label="Close form"
+        >
+          <X className="size-5" />
+        </button>
+      )}
+      {shareMode && state.screen !== 'ending' && (
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+          aria-label="Close form"
+        >
+          <X className="size-5" />
+        </button>
+      )}
 
       {/* ── Main content area ── */}
       <div className="flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 relative overflow-hidden">
@@ -604,6 +669,25 @@ export function FormFiller() {
               >
                 {state.form.endingMessage || 'Your response has been recorded.'}
               </p>
+
+              {/* Submit another response button (share mode only) */}
+              {shareMode && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="mt-8"
+                >
+                  <button
+                    onClick={handleSubmitAnother}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95"
+                    style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+                  >
+                    <RotateCcw className="size-4" />
+                    Submit another response
+                  </button>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -660,6 +744,21 @@ export function FormFiller() {
           )}
         </div>
       </div>
+
+      {/* ── "Powered by Forms" branding (share mode) ── */}
+      {shareMode && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.35 }}
+            transition={{ delay: 1 }}
+            className={`text-xs ${ff} flex items-center gap-1`}
+            style={{ color: theme.textColor }}
+          >
+            Powered by <span className="font-semibold">Forms</span>
+          </motion.p>
+        </div>
+      )}
 
       {/* ── Keyboard shortcut hints ── */}
       {state.screen === 'question' && (

@@ -28,6 +28,7 @@ import {
 import { QuestionEditor } from '@/components/forms/question-editor';
 import { QuestionTypePicker } from '@/components/forms/question-type-picker';
 import { DesignPanel } from '@/components/forms/design-panel';
+import { ShareDialog } from '@/components/forms/share-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -76,6 +77,9 @@ import {
   Settings2,
   PanelRightOpen,
   PanelRightClose,
+  Share2,
+  Menu,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -132,6 +136,8 @@ export function FormBuilder() {
 
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showLeftPanel, setShowLeftPanel] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
 
@@ -420,7 +426,17 @@ export function FormBuilder() {
           </Tooltip>
         </TooltipProvider>
 
-        <Separator orientation="vertical" className="h-5" />
+        {/* Mobile: toggle left panel */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 md:hidden"
+          onClick={() => setShowLeftPanel(!showLeftPanel)}
+        >
+          <Menu className="size-4" />
+        </Button>
+
+        <Separator orientation="vertical" className="h-5 hidden md:block" />
 
         {/* Form title */}
         <div className="flex-1 min-w-0">
@@ -460,12 +476,42 @@ export function FormBuilder() {
         {/* Action buttons */}
         <div className="flex items-center gap-1">
           <TooltipProvider>
+            {/* Toggle right panel on mobile */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 lg:hidden"
+                  onClick={() => setShowRightPanel(!showRightPanel)}
+                >
+                  <Settings2 className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Toggle settings</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 text-xs"
+                  className="h-8 gap-1.5 text-xs hidden sm:flex"
+                  onClick={() => setShowShareDialog(true)}
+                >
+                  <Share2 className="size-3.5" />
+                  Share
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Share form</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs hidden sm:flex"
                   onClick={() => openFiller(currentForm.id)}
                 >
                   <Eye className="size-3.5" />
@@ -484,12 +530,12 @@ export function FormBuilder() {
             {currentForm.published ? (
               <>
                 <Check className="size-3.5" />
-                Published
+                <span className="hidden sm:inline">Published</span>
               </>
             ) : (
               <>
                 <FileCheck className="size-3.5" />
-                Publish
+                <span className="hidden sm:inline">Publish</span>
               </>
             )}
           </Button>
@@ -501,6 +547,16 @@ export function FormBuilder() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              {/* Mobile-only actions */}
+              <DropdownMenuItem className="sm:hidden" onClick={() => setShowShareDialog(true)}>
+                <Share2 className="size-4 mr-2" />
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem className="sm:hidden" onClick={() => openFiller(currentForm.id)}>
+                <Eye className="size-4 mr-2" />
+                Preview
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="sm:hidden" />
               <DropdownMenuItem onClick={() => selectedQuestion && handleDuplicateQuestion(selectedQuestion)}>
                 <Copy className="size-4 mr-2" />
                 Duplicate question
@@ -524,13 +580,26 @@ export function FormBuilder() {
       </header>
 
       {/* ── Main Content: 3 columns ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile left panel overlay */}
+        {showLeftPanel && (
+          <div
+            className="fixed inset-0 bg-black/40 z-30 md:hidden"
+            onClick={() => setShowLeftPanel(false)}
+          />
+        )}
+
         {/* ── Left Panel: Question List ── */}
-        <div className="w-64 border-r bg-muted/30 flex flex-col shrink-0">
+        <div className={`w-64 border-r bg-muted/30 flex flex-col shrink-0 z-40 transition-transform duration-200 ${
+          showLeftPanel ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        } fixed md:relative h-[calc(100vh-3rem)] md:h-auto`}>
           {/* Welcome Screen item */}
           <div className="px-3 pt-3 pb-1">
             <button
-              onClick={() => setSelectedQuestionId(null)}
+              onClick={() => {
+                setSelectedQuestionId(null);
+                setShowLeftPanel(false);
+              }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
                 !selectedQuestionId
                   ? 'bg-primary/10 text-primary font-medium'
@@ -564,7 +633,10 @@ export function FormBuilder() {
                       question={question}
                       index={index}
                       isSelected={selectedQuestionId === question.id}
-                      onSelect={() => setSelectedQuestionId(question.id)}
+                      onSelect={() => {
+                        setSelectedQuestionId(question.id);
+                        setShowLeftPanel(false);
+                      }}
                       onDelete={() => handleDeleteQuestion(question.id)}
                       onDuplicate={() => handleDuplicateQuestion(question)}
                     />
@@ -595,12 +667,14 @@ export function FormBuilder() {
                 if (endingQ) setSelectedQuestionId(endingQ.id);
               }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
-                false
+                sortedQuestions.find((q) => q.type === 'ending')?.id === selectedQuestionId
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
               }`}
             >
-              <div className="size-7 rounded flex items-center justify-center shrink-0 bg-muted">
+              <div className={`size-7 rounded flex items-center justify-center shrink-0 ${
+                sortedQuestions.find((q) => q.type === 'ending')?.id === selectedQuestionId ? 'bg-primary/10' : 'bg-muted'
+              }`}>
                 <HandMetal className="size-3.5" />
               </div>
               <span className="truncate">Ending Screen</span>
@@ -609,7 +683,7 @@ export function FormBuilder() {
         </div>
 
         {/* ── Center Panel: Question Editor / Preview ── */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-w-0">
           {selectedQuestion ? (
             <QuestionEditor
               key={selectedQuestion.id}
@@ -631,18 +705,25 @@ export function FormBuilder() {
         {/* ── Right Panel: Settings / Design ── */}
         <AnimatePresence>
           {showRightPanel && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="overflow-hidden shrink-0"
-            >
-              <DesignPanel
-                selectedQuestion={selectedQuestion}
-                onQuestionTypeChange={handleQuestionTypeChange}
+            <>
+              {/* Mobile overlay for right panel */}
+              <div
+                className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+                onClick={() => setShowRightPanel(false)}
               />
-            </motion.div>
+              <motion.div
+                initial={{ x: 280, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 280, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="fixed right-0 top-12 bottom-0 w-[280px] z-40 lg:relative lg:top-auto lg:bottom-auto lg:shrink-0 border-l bg-background"
+              >
+                <DesignPanel
+                  selectedQuestion={selectedQuestion}
+                  onQuestionTypeChange={handleQuestionTypeChange}
+                />
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
@@ -652,6 +733,14 @@ export function FormBuilder() {
         open={showTypePicker}
         onClose={() => setShowTypePicker(false)}
         onSelect={handleAddQuestion}
+      />
+
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        form={currentForm}
+        onPublish={handlePublish}
       />
     </div>
   );
@@ -695,13 +784,17 @@ function SortableQuestionItem({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all ${
+        className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all relative ${
           isSelected
             ? 'bg-primary/10 text-primary'
             : 'hover:bg-accent/50 text-foreground'
         }`}
         onClick={onSelect}
       >
+        {/* Left border indicator for selected state */}
+        {isSelected && (
+          <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-primary" />
+        )}
         {/* Drag handle */}
         <button
           className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity shrink-0 cursor-grab active:cursor-grabbing"

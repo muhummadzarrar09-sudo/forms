@@ -18,6 +18,12 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Plus,
   FileText,
   LayoutGrid,
@@ -26,14 +32,43 @@ import {
   SortAsc,
   Sparkles,
   ArrowRight,
+  ArrowLeft,
   Users,
-  FormsIcon,
+  Check,
+  LucideIcon,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
+import {
+  MessageSquare,
+  Calendar,
+  Mail,
+  ShoppingCart,
+  Briefcase,
+  GraduationCap,
+  Newspaper,
+} from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FormCard } from '@/components/forms/form-card';
+import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
 
 type SortOption = 'newest' | 'oldest' | 'title' | 'responses';
+
+// Icon mapping for templates
+const ICON_MAP: Record<string, LucideIcon> = {
+  MessageSquare,
+  Calendar,
+  Users,
+  Mail,
+  ShoppingCart,
+  Briefcase,
+  GraduationCap,
+  Newspaper,
+  FileText,
+};
 
 export function Dashboard() {
   const {
@@ -49,6 +84,14 @@ export function Dashboard() {
     openResponses,
   } = useFormStore();
 
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Local state
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -57,6 +100,10 @@ export function Dashboard() {
   const [newFormTitle, setNewFormTitle] = useState('');
   const [newFormDescription, setNewFormDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Template picker state
+  const [dialogStep, setDialogStep] = useState<'template' | 'details'>('template');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   // Fetch forms on mount
   useEffect(() => {
@@ -137,7 +184,32 @@ export function Dashboard() {
     0
   );
 
-  // Create new form
+  // Reset dialog state when opening
+  const handleOpenNewFormDialog = useCallback(() => {
+    setDialogStep('template');
+    setSelectedTemplateId(null);
+    setNewFormTitle('');
+    setNewFormDescription('');
+    setShowNewFormDialog(true);
+  }, []);
+
+  // Select template and go to details step
+  const handleSelectTemplate = useCallback((templateId: string | null) => {
+    setSelectedTemplateId(templateId);
+    if (templateId) {
+      const template = FORM_TEMPLATES.find((t) => t.id === templateId);
+      if (template) {
+        setNewFormTitle(template.title);
+        setNewFormDescription(template.description);
+      }
+    } else {
+      setNewFormTitle('');
+      setNewFormDescription('');
+    }
+    setDialogStep('details');
+  }, []);
+
+  // Create new form with optional template
   const handleCreateForm = useCallback(async () => {
     if (!newFormTitle.trim()) {
       toast({
@@ -162,9 +234,48 @@ export function Dashboard() {
       if (res.ok) {
         const createdForm = await res.json();
         addForm(createdForm);
+
+        // If a template is selected, add the template questions
+        const selectedTemplate = selectedTemplateId
+          ? FORM_TEMPLATES.find((t) => t.id === selectedTemplateId)
+          : null;
+
+        if (selectedTemplate && selectedTemplate.questions.length > 0) {
+          try {
+            const questionsPayload = selectedTemplate.questions.map(
+              (q, index) => ({
+                type: q.type,
+                title: q.title,
+                description: q.description || '',
+                required: q.required || false,
+                order: index,
+                options: q.options
+                  ? q.options.map((label, optIdx) => ({
+                      id: `opt_${Date.now()}_${optIdx}`,
+                      label,
+                    }))
+                  : [],
+                imageUrls: [],
+                settings: q.settings || {},
+                placeholder: q.placeholder || '',
+              })
+            );
+
+            await fetch(`/api/forms/${createdForm.id}/questions`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ questions: questionsPayload }),
+            });
+          } catch {
+            // Questions creation failed, but form was created
+            console.error('Failed to add template questions');
+          }
+        }
+
         setShowNewFormDialog(false);
         setNewFormTitle('');
         setNewFormDescription('');
+        setSelectedTemplateId(null);
         toast({
           title: 'Form created',
           description: `"${createdForm.title}" is ready to edit.`,
@@ -187,7 +298,7 @@ export function Dashboard() {
     } finally {
       setIsCreating(false);
     }
-  }, [newFormTitle, newFormDescription, addForm, openBuilder]);
+  }, [newFormTitle, newFormDescription, selectedTemplateId, addForm, openBuilder]);
 
   // Delete form
   const handleDeleteForm = useCallback(
@@ -267,14 +378,43 @@ export function Dashboard() {
             </div>
 
             {/* New Form button */}
-            <Button
-              onClick={() => setShowNewFormDialog(true)}
-              size="default"
-              className="gap-2"
-            >
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">New Form</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Dark mode toggle */}
+              {mounted && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="size-8">
+                      <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                      <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                      <span className="sr-only">Toggle theme</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setTheme('light')}>
+                      <Sun className="size-4 mr-2" />
+                      Light
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme('dark')}>
+                      <Moon className="size-4 mr-2" />
+                      Dark
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme('system')}>
+                      <Monitor className="size-4 mr-2" />
+                      System
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              <Button
+                onClick={handleOpenNewFormDialog}
+                size="default"
+                className="gap-2"
+              >
+                <Plus className="size-4" />
+                <span className="hidden sm:inline">New Form</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -408,13 +548,13 @@ export function Dashboard() {
             </h2>
             <p className="text-muted-foreground text-center max-w-md mb-8">
               Build beautiful, engaging forms that people love to fill out.
-              Start from scratch and watch the responses roll in.
+              Start from scratch or choose a template to get going quickly.
             </p>
 
             <Button
               size="lg"
               className="gap-2 text-base px-8"
-              onClick={() => setShowNewFormDialog(true)}
+              onClick={handleOpenNewFormDialog}
             >
               <Plus className="size-5" />
               Create a Form
@@ -459,6 +599,8 @@ export function Dashboard() {
                   onViewResponses={openResponses}
                   onDelete={handleDeleteForm}
                   onTitleUpdate={handleTitleUpdate}
+                  onPublish={(formId, published) => updateForm(formId, { published })}
+                  onDuplicate={(duplicatedForm) => addForm(duplicatedForm)}
                 />
               ))}
             </div>
@@ -475,90 +617,287 @@ export function Dashboard() {
         </div>
       </footer>
 
-      {/* New Form Dialog */}
-      <Dialog open={showNewFormDialog} onOpenChange={setShowNewFormDialog}>
-        <DialogContent className="sm:max-w-md">
+      {/* New Form Dialog - Template Picker */}
+      <Dialog open={showNewFormDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowNewFormDialog(false);
+          setSelectedTemplateId(null);
+          setNewFormTitle('');
+          setNewFormDescription('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Plus className="size-4 text-primary" />
+                {dialogStep === 'template' ? (
+                  <Sparkles className="size-4 text-primary" />
+                ) : (
+                  <Plus className="size-4 text-primary" />
+                )}
               </div>
-              Create New Form
+              {dialogStep === 'template' ? 'Choose a Template' : 'Name Your Form'}
             </DialogTitle>
             <DialogDescription>
-              Give your form a name and optional description to get started.
+              {dialogStep === 'template'
+                ? 'Start from scratch or pick a template to get going quickly.'
+                : 'Give your form a name and optional description. You can edit these later.'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label
-                htmlFor="form-title"
-                className="text-sm font-medium leading-none"
+          <AnimatePresence mode="wait">
+            {dialogStep === 'template' ? (
+              <motion.div
+                key="template-step"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 overflow-y-auto -mx-6 px-6"
               >
-                Title <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="form-title"
-                placeholder="e.g., Customer Feedback Survey"
-                value={newFormTitle}
-                onChange={(e) => setNewFormTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isCreating) {
-                    handleCreateForm();
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="form-description"
-                className="text-sm font-medium leading-none"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+                  {/* Start from Scratch card */}
+                  <TemplateCard
+                    template={{
+                      id: 'blank',
+                      title: 'Start from Scratch',
+                      description: 'Create a blank form and add your own questions.',
+                      icon: 'FileText',
+                      color: '#6B7280',
+                      questions: [],
+                    }}
+                    isSelected={selectedTemplateId === null}
+                    onClick={() => handleSelectTemplate(null)}
+                    isBlank
+                  />
+
+                  {/* Template cards */}
+                  {FORM_TEMPLATES.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      template={template}
+                      isSelected={selectedTemplateId === template.id}
+                      onClick={() => handleSelectTemplate(template.id)}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="details-step"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 py-2"
               >
-                Description{' '}
-                <span className="text-muted-foreground font-normal">
-                  (optional)
-                </span>
-              </label>
-              <Textarea
-                id="form-description"
-                placeholder="What is this form about?"
-                value={newFormDescription}
-                onChange={(e) => setNewFormDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
+                {/* Selected template indicator */}
+                {selectedTemplateId && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border">
+                    {(() => {
+                      const template = FORM_TEMPLATES.find((t) => t.id === selectedTemplateId);
+                      if (!template) return null;
+                      const IconComp = ICON_MAP[template.icon] || FileText;
+                      return (
+                        <>
+                          <div
+                            className="size-8 rounded-md flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: `${template.color}20` }}
+                          >
+                            <IconComp className="size-4" style={{ color: template.color }} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{template.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {template.questions.length} question{template.questions.length !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <Check className="size-4 text-primary shrink-0" />
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="form-title"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Title <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    id="form-title"
+                    placeholder="e.g., Customer Feedback Survey"
+                    value={newFormTitle}
+                    onChange={(e) => setNewFormTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isCreating && newFormTitle.trim()) {
+                        handleCreateForm();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="form-description"
+                    className="text-sm font-medium leading-none"
+                  >
+                    Description{' '}
+                    <span className="text-muted-foreground font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <Textarea
+                    id="form-description"
+                    placeholder="What is this form about?"
+                    value={newFormDescription}
+                    onChange={(e) => setNewFormDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowNewFormDialog(false);
-                setNewFormTitle('');
-                setNewFormDescription('');
-              }}
-              disabled={isCreating}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateForm} disabled={isCreating || !newFormTitle.trim()}>
-              {isCreating ? (
-                <>
-                  <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  Create Form
+            {dialogStep === 'template' ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewFormDialog(false);
+                    setSelectedTemplateId(null);
+                    setNewFormTitle('');
+                    setNewFormDescription('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleSelectTemplate(null)}
+                >
+                  Start from Scratch
                   <ArrowRight className="size-4 ml-1" />
-                </>
-              )}
-            </Button>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDialogStep('template');
+                  }}
+                  disabled={isCreating}
+                >
+                  <ArrowLeft className="size-4 mr-1" />
+                  Back
+                </Button>
+                <Button
+                  onClick={handleCreateForm}
+                  disabled={isCreating || !newFormTitle.trim()}
+                >
+                  {isCreating ? (
+                    <>
+                      <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      Create Form
+                      <ArrowRight className="size-4 ml-1" />
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Template card component
+function TemplateCard({
+  template,
+  isSelected,
+  onClick,
+  isBlank,
+}: {
+  template: FormTemplate;
+  isSelected: boolean;
+  onClick: () => void;
+  isBlank?: boolean;
+}) {
+  const IconComp = ICON_MAP[template.icon] || FileText;
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+    >
+      <Card
+        className={`cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden ${
+          isSelected
+            ? 'ring-2 ring-primary shadow-md'
+            : 'hover:shadow-md hover:border-muted-foreground/30'
+        }`}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        aria-label={`Select ${template.title} template`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
+        {/* Color accent bar */}
+        {!isBlank && (
+          <div
+            className="h-1.5 w-full"
+            style={{ backgroundColor: template.color }}
+          />
+        )}
+        {isBlank && (
+          <div className="h-1.5 w-full bg-muted" />
+        )}
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            {/* Icon */}
+            <div
+              className="size-10 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: isBlank ? 'hsl(var(--muted))' : `${template.color}15`,
+              }}
+            >
+              <IconComp
+                className="size-5"
+                style={{ color: isBlank ? 'hsl(var(--muted-foreground))' : template.color }}
+              />
+            </div>
+
+            {/* Text */}
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-semibold leading-tight mb-1 truncate">
+                {template.title}
+              </h4>
+              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                {template.description}
+              </p>
+              {!isBlank && template.questions.length > 0 && (
+                <Badge variant="secondary" className="mt-2 text-[10px] px-1.5 py-0 h-5">
+                  {template.questions.length} question{template.questions.length !== 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
