@@ -1,0 +1,72 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+
+// GET /api/forms - List all forms
+export async function GET() {
+  try {
+    const forms = await db.form.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { responses: true } },
+        questions: { orderBy: { order: 'asc' } },
+      },
+    });
+    
+    const serialized = forms.map(form => ({
+      ...form,
+      questions: form.questions.map(q => ({
+        ...q,
+        options: JSON.parse(q.options),
+        imageUrls: JSON.parse(q.imageUrls),
+        settings: JSON.parse(q.settings),
+      })),
+    }));
+    
+    return NextResponse.json(serialized);
+  } catch (error) {
+    console.error('Error fetching forms:', error);
+    return NextResponse.json({ error: 'Failed to fetch forms' }, { status: 500 });
+  }
+}
+
+// POST /api/forms - Create a new form
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    const form = await db.form.create({
+      data: {
+        title: body.title || 'Untitled Form',
+        description: body.description || '',
+        welcomeTitle: body.welcomeTitle || 'Welcome!',
+        welcomeMessage: body.welcomeMessage || 'Thanks for taking the time to fill this out.',
+        endingTitle: body.endingTitle || 'Thank you!',
+        endingMessage: body.endingMessage || 'Your response has been recorded.',
+        backgroundColor: body.backgroundColor || '#FFFFFF',
+        textColor: body.textColor || '#333333',
+        buttonColor: body.buttonColor || '#1A1A1A',
+        buttonTextColor: body.buttonTextColor || '#FFFFFF',
+        fontFamily: body.fontFamily || 'sans',
+      },
+      include: {
+        _count: { select: { responses: true } },
+        questions: { orderBy: { order: 'asc' } },
+      },
+    });
+    
+    const serialized = {
+      ...form,
+      questions: form.questions.map(q => ({
+        ...q,
+        options: JSON.parse(q.options),
+        imageUrls: JSON.parse(q.imageUrls),
+        settings: JSON.parse(q.settings),
+      })),
+    };
+    
+    return NextResponse.json(serialized, { status: 201 });
+  } catch (error) {
+    console.error('Error creating form:', error);
+    return NextResponse.json({ error: 'Failed to create form' }, { status: 500 });
+  }
+}

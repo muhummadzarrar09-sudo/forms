@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Form {
+  id          String     @id @default(cuid())
+  title       String     @default("Untitled Form")
+  description String     @default("")
+  published   Boolean    @default(false)
+  welcomeTitle String    @default("Welcome!")
+  welcomeMessage String  @default("Thanks for taking the time to fill this out.")
+  endingTitle String     @default("Thank you!")
+  endingMessage String   @default("Your response has been recorded.")
+  theme       String     @default("default") // default, dark, warm, cool, nature
+  backgroundColor String @default("#FFFFFF")
+  textColor   String     @default("#333333")
+  buttonColor String     @default("#1A1A1A")
+  buttonTextColor String @default("#FFFFFF")
+  fontFamily  String     @default("sans")
+  logoUrl     String?
+  coverUrl    String?
+  progressbar Boolean    @default(true)
+  showQuestionNumbers Boolean @default(true)
+  allowBackNavigation Boolean @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  questions   Question[]
+  responses   Response[]
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  formId      String
+  type        String   // short_text, long_text, multiple_choice, dropdown, email, number, rating, opinion_scale, yes_no, date, picture_choice, phone, website, legal, statement, ending
+  title       String
+  description String   @default("")
+  required    Boolean  @default(false)
+  order       Int      @default(0)
+  options     String   @default("[]") // JSON array of option strings
+  imageUrls   String   @default("[]") // JSON array of image URLs for picture_choice
+  settings    String   @default("{}") // JSON object for type-specific settings (e.g., min/max for number, steps for rating, etc.)
+  placeholder String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+}
+
+model Response {
+  id          String   @id @default(cuid())
+  formId      String
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  metadata    String   @default("{}") // JSON: userAgent, ip, referer, etc.
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  responseId String
+  questionId String
+  value      String   @default("") // The answer value (stringified for flexibility)
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
