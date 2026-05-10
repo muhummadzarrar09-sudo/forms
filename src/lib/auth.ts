@@ -1,10 +1,11 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
-import { createHash } from 'crypto';
+import bcrypt from 'bcryptjs';
+import { checkRateLimit, recordRateLimitAttempt } from './rate-limit';
 
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
+  return bcrypt.hashSync(password, 12);
 }
 
 export const authOptions: NextAuthOptions = {
@@ -20,16 +21,26 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Check if this email is locked out due to too many failed attempts
+        // 10 failed attempts per 15-minute window
+        const loginLimit = checkRateLimit(credentials.email, { maxRequests: 10, windowSeconds: 900 });
+        if (!loginLimit.success) {
+          return null;
+        }
+
         const user = await db.user.findUnique({
           where: { email: credentials.email },
         });
 
         if (!user) {
+          // Record failed attempt even when user not found (don't leak user existence)
+          recordRateLimitAttempt(credentials.email);
           return null;
         }
 
-        const hashedInput = hashPassword(credentials.password);
-        if (hashedInput !== user.password) {
+        if (!bcrypt.compareSync(credentials.password, user.password)) {
+          // Record failed attempt
+          recordRateLimitAttempt(credentials.email);
           return null;
         }
 
@@ -63,7 +74,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/',
   },
-  secret: process.env.NEXTAUTH_SECRET || 'forms-dev-secret-change-in-production',
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 export { hashPassword };

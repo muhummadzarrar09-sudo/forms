@@ -6,7 +6,7 @@ import { serializeForm } from '@/lib/api-serialization';
 import { updateFormSchema } from '@/lib/validations';
 
 // GET /api/forms/[id]
-// Public: accessible without auth so the form filler can load form data
+// Public for published forms (form filler), protected for drafts (owner only)
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,6 +23,24 @@ export async function GET(
     });
 
     if (!form) {
+      return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+    }
+
+    // Check if the requester has a valid session
+    const session = await getServerSession(authOptions);
+
+    if (session?.user?.id) {
+      // Authenticated user
+      if (form.userId === session.user.id) {
+        // Owner — return full form
+        return NextResponse.json(serializeForm(form));
+      }
+      // Authenticated but not the owner — deny
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Unauthenticated — only return published forms
+    if (!form.published) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
     }
 

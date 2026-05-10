@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
+import { rateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
 
 const registerSchema = z.object({
@@ -12,6 +13,16 @@ const registerSchema = z.object({
 // POST /api/auth/register - Register a new user
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit by IP — 5 registrations per 15 minutes
+    const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown';
+    const limit = rateLimit(ip, { maxRequests: 5, windowSeconds: 900 });
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter: limit.retryAfter },
+        { status: 429 }
+      );
+    }
+
     let body;
     try {
       body = await request.json();

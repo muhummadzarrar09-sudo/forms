@@ -47,6 +47,15 @@ export async function PUT(
 
     const incomingQuestions = validation.data.questions;
 
+    // Build a position map from the original incoming order so that
+    // updates and creates each get the correct global position regardless
+    // of which array they end up in.
+    const positionMap = new Map<string, number>();
+    incomingQuestions.forEach((q, i) => {
+      const key = q.id ?? `__new__${i}`;
+      positionMap.set(key, i);
+    });
+
     // Fetch existing questions for this form
     const existingQuestions = await db.question.findMany({
       where: { formId: id },
@@ -56,10 +65,11 @@ export async function PUT(
 
     // Separate incoming questions into those with real (existing) IDs and those that are new
     const toUpdate: typeof incomingQuestions = [];
-    const toCreate: typeof incomingQuestions = [];
+    const toCreate: (typeof incomingQuestions)[number] & { _positionKey: string }[] = [];
     const incomingIds = new Set<string>();
 
-    for (const q of incomingQuestions) {
+    for (let i = 0; i < incomingQuestions.length; i++) {
+      const q = incomingQuestions[i];
       const qId = q.id;
       if (qId && existingIds.has(qId)) {
         // This question already exists — update it
@@ -67,7 +77,7 @@ export async function PUT(
         incomingIds.add(qId);
       } else {
         // This is a new question — create it
-        toCreate.push(q);
+        toCreate.push({ ...q, _positionKey: qId ?? `__new__${i}` });
       }
     }
 
@@ -85,9 +95,9 @@ export async function PUT(
         });
       }
 
-      // 2. Update existing questions
+      // 2. Update existing questions — use position from original incomingQuestions order
       const updated = await Promise.all(
-        toUpdate.map((q, index) =>
+        toUpdate.map((q) =>
           tx.question.update({
             where: { id: q.id! },
             data: {
@@ -95,7 +105,7 @@ export async function PUT(
               title: q.title,
               description: q.description ?? '',
               required: q.required ?? false,
-              order: index,
+              order: positionMap.get(q.id!) ?? 0,
               options: JSON.stringify(q.options ?? []),
               imageUrls: JSON.stringify(q.imageUrls ?? []),
               settings: JSON.stringify(q.settings ?? {}),
@@ -106,9 +116,9 @@ export async function PUT(
         )
       );
 
-      // 3. Create new questions
+      // 3. Create new questions — use position from original incomingQuestions order
       const created = await Promise.all(
-        toCreate.map((q, index) =>
+        toCreate.map((q) =>
           tx.question.create({
             data: {
               formId: id,
@@ -116,7 +126,7 @@ export async function PUT(
               title: q.title,
               description: q.description ?? '',
               required: q.required ?? false,
-              order: toUpdate.length + index,
+              order: positionMap.get(q._positionKey) ?? 0,
               options: JSON.stringify(q.options ?? []),
               imageUrls: JSON.stringify(q.imageUrls ?? []),
               settings: JSON.stringify(q.settings ?? {}),
@@ -131,6 +141,7 @@ export async function PUT(
       const allQuestions = [...updated, ...created].sort((a, b) => a.order - b.order);
 
       // Re-index order to be sequential (0, 1, 2, ...)
+      // This is a safety net — if positionMap logic is correct, no updates should be needed
       for (let i = 0; i < allQuestions.length; i++) {
         if (allQuestions[i].order !== i) {
           await tx.question.update({
