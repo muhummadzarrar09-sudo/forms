@@ -98,6 +98,9 @@ export interface Form {
   progressbar: boolean;
   showQuestionNumbers: boolean;
   allowBackNavigation: boolean;
+  favorite: boolean;
+  archived: boolean;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
   questions: FormQuestion[];

@@ -27,6 +27,9 @@ export async function POST(
         title: `Copy of ${originalForm.title}`,
         description: originalForm.description,
         published: false, // Duplicates are always drafts
+        favorite: false, // Don't copy favorite
+        archived: false, // Don't copy archived
+        tags: originalForm.tags, // Copy tags as-is (already JSON string)
         welcomeTitle: originalForm.welcomeTitle,
         welcomeMessage: originalForm.welcomeMessage,
         endingTitle: originalForm.endingTitle,
@@ -65,6 +68,7 @@ export async function POST(
 
     const serialized = {
       ...duplicatedForm,
+      tags: JSON.parse(duplicatedForm.tags || '[]'),
       questions: duplicatedForm.questions.map((q) => ({
         ...q,
         options: JSON.parse(q.options),

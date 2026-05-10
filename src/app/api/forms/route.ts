@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 // GET /api/forms - List all forms
+// Updated: include favorite, archived fields
 export async function GET() {
   try {
     const forms = await db.form.findMany({
@@ -14,6 +15,7 @@ export async function GET() {
     
     const serialized = forms.map(form => ({
       ...form,
+      tags: JSON.parse(form.tags || '[]'),
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest) {
     
     const serialized = {
       ...form,
+      tags: JSON.parse(form.tags || '[]'),
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),

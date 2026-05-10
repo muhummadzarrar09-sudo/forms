@@ -25,6 +25,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Pencil,
   Eye,
   BarChart3,
@@ -37,9 +42,35 @@ import {
   Copy,
   BarChart2,
   Download,
+  Heart,
+  Archive,
+  ArchiveRestore,
+  Tag,
+  X,
+  Plus,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+
+// Tag color system
+const TAG_COLORS = [
+  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+];
+
+function getTagColor(tag: string): string {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+}
 
 interface FormCardProps {
   form: Form;
@@ -50,6 +81,9 @@ interface FormCardProps {
   onTitleUpdate: (formId: string, title: string) => void;
   onPublish?: (formId: string, published: boolean) => void;
   onDuplicate?: (form: Form) => void;
+  onFavorite?: (formId: string, favorite: boolean) => void;
+  onArchive?: (formId: string, archived: boolean) => void;
+  onAddTag?: (formId: string, tags: string[]) => void;
   index: number;
   viewMode: 'grid' | 'list';
   timeAgoText?: string;
@@ -88,6 +122,9 @@ export function FormCard({
   onTitleUpdate,
   onPublish,
   onDuplicate,
+  onFavorite,
+  onArchive,
+  onAddTag,
   index,
   viewMode,
   timeAgoText,
@@ -97,9 +134,12 @@ export function FormCard({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [showTagPopover, setShowTagPopover] = useState(false);
 
   const themeColor = getThemeColor(form.backgroundColor);
   const responseCount = form._count?.responses ?? 0;
+  const formTags = form.tags || [];
 
   const handleTitleSave = () => {
     const trimmed = editTitle.trim();
@@ -232,6 +272,202 @@ export function FormCard({
     }
   };
 
+  const handleFavorite = async () => {
+    const newFavorite = !form.favorite;
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorite: newFavorite }),
+      });
+      if (res.ok) {
+        onFavorite?.(form.id, newFavorite);
+        toast({
+          title: newFavorite ? 'Added to favorites' : 'Removed from favorites',
+          description: newFavorite
+            ? `"${form.title}" is now a favorite.`
+            : `"${form.title}" is no longer a favorite.`,
+        });
+      }
+    } catch {
+      toast({ title: 'Failed to update', variant: 'destructive' });
+    }
+  };
+
+  const handleArchive = async () => {
+    const newArchived = !form.archived;
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: newArchived }),
+      });
+      if (res.ok) {
+        onArchive?.(form.id, newArchived);
+        toast({
+          title: newArchived ? 'Form archived' : 'Form unarchived',
+          description: newArchived
+            ? `"${form.title}" has been archived.`
+            : `"${form.title}" has been unarchived.`,
+        });
+      }
+    } catch {
+      toast({ title: 'Failed to update', variant: 'destructive' });
+    }
+  };
+
+  const handleAddTag = () => {
+    const tag = tagInput.trim();
+    if (!tag) return;
+    if (formTags.includes(tag)) {
+      toast({ title: 'Tag already exists', variant: 'destructive' });
+      return;
+    }
+    const newTags = [...formTags, tag];
+    onAddTag?.(form.id, newTags);
+    fetch(`/api/forms/${form.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: newTags }),
+    }).catch(() => {
+      toast({ title: 'Failed to add tag', variant: 'destructive' });
+    });
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const newTags = formTags.filter((t) => t !== tagToRemove);
+    onAddTag?.(form.id, newTags);
+    fetch(`/api/forms/${form.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: newTags }),
+    }).catch(() => {
+      toast({ title: 'Failed to remove tag', variant: 'destructive' });
+    });
+  };
+
+  // Tag pills component (shared between list and grid)
+  const TagPills = ({ maxVisible = 2 }: { maxVisible?: number }) => {
+    if (formTags.length === 0) return null;
+    const visibleTags = formTags.slice(0, maxVisible);
+    const remaining = formTags.length - maxVisible;
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {visibleTags.map((tag) => (
+          <span
+            key={tag}
+            className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getTagColor(tag)}`}
+          >
+            {tag}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveTag(tag);
+              }}
+              className="hover:opacity-70 ml-0.5"
+            >
+              <X className="size-2.5" />
+            </button>
+          </span>
+        ))}
+        {remaining > 0 && (
+          <span className="text-[10px] text-muted-foreground font-medium">
+            +{remaining} more
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // Favorite heart button for grid view
+  const FavoriteButton = ({ className = '' }: { className?: string }) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        handleFavorite();
+      }}
+      className={`transition-all ${className} ${
+        form.favorite
+          ? 'text-red-500 hover:text-red-600'
+          : 'text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100'
+      }`}
+      title={form.favorite ? 'Remove from favorites' : 'Add to favorites'}
+    >
+      <Heart className={`size-4 ${form.favorite ? 'fill-current' : ''}`} />
+    </button>
+  );
+
+  // Tag popover for adding tags
+  const TagPopover = () => (
+    <Popover open={showTagPopover} onOpenChange={setShowTagPopover}>
+      <PopoverTrigger asChild>
+        <button
+          onClick={(e) => e.stopPropagation()}
+          className="w-full"
+        >
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Tag className="size-4 mr-2" />
+            Add Tag
+          </DropdownMenuItem>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3" align="start">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Add a tag</p>
+          {/* Existing tags */}
+          {formTags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {formTags.map((tag) => (
+                <span
+                  key={tag}
+                  className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getTagColor(tag)}`}
+                >
+                  {tag}
+                  <button onClick={() => handleRemoveTag(tag)} className="hover:opacity-70">
+                    <X className="size-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-1.5">
+            <Input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddTag();
+                }
+              }}
+              placeholder="Tag name..."
+              className="h-7 text-xs"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddTag();
+              }}
+              disabled={!tagInput.trim()}
+            >
+              <Plus className="size-3" />
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   if (viewMode === 'list') {
     return (
       <>
@@ -252,6 +488,22 @@ export function FormCard({
 
                 {/* Drag handle */}
                 <GripVertical className="size-4 text-muted-foreground/40 hidden sm:block shrink-0" />
+
+                {/* Favorite heart */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFavorite();
+                  }}
+                  className={`shrink-0 transition-all ${
+                    form.favorite
+                      ? 'text-red-500 hover:text-red-600'
+                      : 'text-muted-foreground/30 hover:text-red-400'
+                  }`}
+                  title={form.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <Heart className={`size-4 ${form.favorite ? 'fill-current' : ''}`} />
+                </button>
 
                 {/* Title & description */}
                 <div className="flex-1 min-w-0">
@@ -277,6 +529,12 @@ export function FormCard({
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {form.description || 'No description'}
                   </p>
+                  {/* Tags */}
+                  {formTags.length > 0 && (
+                    <div className="mt-1">
+                      <TagPills maxVisible={2} />
+                    </div>
+                  )}
                   {timeAgoText && (
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                       Edited {timeAgoText}
@@ -333,7 +591,7 @@ export function FormCard({
                         <MoreVertical className="size-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuItem onClick={() => setShowShareDialog(true)}>
                         <Share2 className="size-4 mr-2" />
                         Share
@@ -342,6 +600,25 @@ export function FormCard({
                         <BarChart3 className="size-4 mr-2" />
                         View Responses
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleFavorite}>
+                        <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-red-500' : ''}`} />
+                        {form.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleArchive}>
+                        {form.archived ? (
+                          <>
+                            <ArchiveRestore className="size-4 mr-2" />
+                            Unarchive
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="size-4 mr-2" />
+                            Archive
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <TagPopover />
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={handleDuplicate}
@@ -435,8 +712,14 @@ export function FormCard({
                 <span className={`relative inline-flex rounded-full size-2.5 ${form.published ? 'bg-green-500' : 'bg-gray-400/60'}`} />
               </span>
             </div>
+
+            {/* Favorite heart in top-left corner */}
+            <div className="absolute top-2 left-2">
+              <FavoriteButton className={form.favorite ? '' : ''} />
+            </div>
+
             {/* Title inside colored area */}
-            <div className="flex-1 min-w-0 pr-6">
+            <div className="flex-1 min-w-0 pl-6 pr-6">
               {isEditingTitle ? (
                 <Input
                   value={editTitle}
@@ -482,7 +765,7 @@ export function FormCard({
                   <MoreVertical className="size-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => onEdit(form.id)}>
                   <Pencil className="size-4 mr-2" />
                   Edit in Builder
@@ -499,6 +782,25 @@ export function FormCard({
                   <BarChart3 className="size-4 mr-2" />
                   View Responses
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleFavorite}>
+                  <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-red-500' : ''}`} />
+                  {form.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleArchive}>
+                  {form.archived ? (
+                    <>
+                      <ArchiveRestore className="size-4 mr-2" />
+                      Unarchive
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="size-4 mr-2" />
+                      Archive
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <TagPopover />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleDuplicate}
@@ -527,6 +829,11 @@ export function FormCard({
             <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
               {form.description || 'No description'}
             </p>
+
+            {/* Tags */}
+            {formTags.length > 0 && (
+              <TagPills maxVisible={2} />
+            )}
 
             {/* Spacer */}
             <div className="flex-1" />

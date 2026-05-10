@@ -22,6 +22,7 @@ export async function GET(
     
     const serialized = {
       ...form,
+      tags: JSON.parse(form.tags || '[]'),
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),
@@ -68,6 +69,9 @@ export async function PUT(
         ...(body.progressbar !== undefined && { progressbar: body.progressbar }),
         ...(body.showQuestionNumbers !== undefined && { showQuestionNumbers: body.showQuestionNumbers }),
         ...(body.allowBackNavigation !== undefined && { allowBackNavigation: body.allowBackNavigation }),
+        ...(body.favorite !== undefined && { favorite: body.favorite }),
+        ...(body.archived !== undefined && { archived: body.archived }),
+        ...(body.tags !== undefined && { tags: JSON.stringify(body.tags) }),
       },
       include: {
         _count: { select: { responses: true } },
@@ -77,6 +81,7 @@ export async function PUT(
     
     const serialized = {
       ...form,
+      tags: JSON.parse(form.tags || '[]'),
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),

@@ -83,6 +83,7 @@ import {
   PanelLeftOpen,
   Download,
   Keyboard,
+  Heart,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -154,6 +155,7 @@ export function FormBuilder() {
   const [showLeftPanel, setShowLeftPanel] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showEndingScreen, setShowEndingScreen] = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
 
@@ -562,7 +564,7 @@ export function FormBuilder() {
         <Separator orientation="vertical" className="h-5" />
 
         {/* Form title */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex items-center gap-2">
           {isEditingFormTitle ? (
             <Input
               value={formTitle}
@@ -586,6 +588,28 @@ export function FormBuilder() {
               {currentForm.title}
             </button>
           )}
+          {/* Favorite toggle */}
+          <button
+            onClick={async () => {
+              const newFavorite = !currentForm.favorite;
+              updateForm(currentForm.id, { favorite: newFavorite });
+              await saveFormSettings({ favorite: newFavorite });
+              toast({
+                title: newFavorite ? 'Added to favorites' : 'Removed from favorites',
+                description: newFavorite
+                  ? `"${currentForm.title}" is now a favorite.`
+                  : `"${currentForm.title}" is no longer a favorite.`,
+              });
+            }}
+            className={`shrink-0 transition-all ${
+              currentForm.favorite
+                ? 'text-red-500 hover:text-red-600'
+                : 'text-muted-foreground/40 hover:text-red-400'
+            }`}
+            title={currentForm.favorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Heart className={`size-4 ${currentForm.favorite ? 'fill-current' : ''}`} />
+          </button>
         </div>
 
         {/* Saving indicator - pulsing dot */}
@@ -758,16 +782,17 @@ export function FormBuilder() {
             <button
               onClick={() => {
                 setSelectedQuestionId(null);
+                setShowEndingScreen(false);
                 setShowLeftPanel(false);
               }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
-                !selectedQuestionId
+                !selectedQuestionId && !showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
               }`}
             >
               <div className={`size-7 rounded flex items-center justify-center shrink-0 ${
-                !selectedQuestionId ? 'bg-primary/10' : 'bg-muted'
+                !selectedQuestionId && !showEndingScreen ? 'bg-primary/10' : 'bg-muted'
               }`}>
                 <Sparkles className="size-3.5" />
               </div>
@@ -795,6 +820,7 @@ export function FormBuilder() {
                       isSelected={selectedQuestionId === question.id}
                       onSelect={() => {
                         setSelectedQuestionId(question.id);
+                        setShowEndingScreen(false);
                         setShowLeftPanel(false);
                       }}
                       onDelete={() => handleDeleteQuestion(question.id)}
@@ -808,32 +834,37 @@ export function FormBuilder() {
 
           {/* Add question button */}
           <div className="p-3 border-t">
-            <Button
-              variant="outline"
-              className="w-full gap-2 text-sm"
-              onClick={() => setShowTypePicker(true)}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              <Plus className="size-4" />
-              Add question
-            </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2 text-sm border-dashed hover:border-primary/50 hover:bg-primary/5 group/btn"
+                onClick={() => setShowTypePicker(true)}
+              >
+                <Plus className="size-4 transition-colors group-hover/btn:text-primary" />
+                Add question
+              </Button>
+            </motion.div>
           </div>
 
           {/* Ending Screen item */}
           <div className="px-3 pb-3">
             <button
               onClick={() => {
-                // Find ending question or do nothing
-                const endingQ = sortedQuestions.find((q) => q.type === 'ending');
-                if (endingQ) setSelectedQuestionId(endingQ.id);
+                setSelectedQuestionId(null);
+                setShowEndingScreen(true);
+                setShowLeftPanel(false);
               }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
-                sortedQuestions.find((q) => q.type === 'ending')?.id === selectedQuestionId
+                showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
               }`}
             >
               <div className={`size-7 rounded flex items-center justify-center shrink-0 ${
-                sortedQuestions.find((q) => q.type === 'ending')?.id === selectedQuestionId ? 'bg-primary/10' : 'bg-muted'
+                showEndingScreen ? 'bg-primary/10' : 'bg-muted'
               }`}>
                 <HandMetal className="size-3.5" />
               </div>
@@ -856,6 +887,9 @@ export function FormBuilder() {
               formButtonTextColor={currentForm.buttonTextColor}
               formFontFamily={currentForm.fontFamily}
             />
+          ) : showEndingScreen ? (
+            /* Ending Screen editor */
+            <EndingScreenEditor form={currentForm} />
           ) : sortedQuestions.length === 0 ? (
             /* Empty state - no questions */
             <EmptyQuestionsState onAddQuestion={() => setShowTypePicker(true)} />
@@ -954,7 +988,7 @@ function SortableQuestionItem({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all relative ${
+        className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all relative hover:translate-x-0.5 ${
           isSelected
             ? 'bg-primary/10 text-primary'
             : 'hover:bg-accent/50 text-foreground'
@@ -976,8 +1010,8 @@ function SortableQuestionItem({
 
         {/* Question number */}
         <span
-          className={`size-6 rounded text-xs font-bold flex items-center justify-center shrink-0 ${
-            isSelected ? 'bg-primary/20' : 'bg-muted'
+          className={`size-6 rounded text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${
+            isSelected ? 'bg-primary/30 text-primary' : 'bg-muted text-muted-foreground'
           }`}
         >
           {index + 1}
@@ -1177,6 +1211,155 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
       {form.progressbar && (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/5">
           <div className="h-full w-0" style={{ backgroundColor: form.buttonColor }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Ending Screen Editor (Interactive) ────────────────────────────────────────
+
+function EndingScreenEditor({ form }: { form: Form }) {
+  const { updateForm } = useFormStore();
+  const fontFamilyClass =
+    form.fontFamily === 'serif'
+      ? 'font-serif'
+      : form.fontFamily === 'mono'
+      ? 'font-mono'
+      : 'font-sans';
+
+  const [localTitle, setLocalTitle] = useState<string | null>(null);
+  const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'title' | 'message' | null>(null);
+
+  const endingTitle = localTitle !== null ? localTitle : (form.endingTitle || '');
+  const endingMessage = localMessage !== null ? localMessage : (form.endingMessage || '');
+
+  const handleTitleBlur = () => {
+    setEditingField(null);
+    if (localTitle !== null && localTitle !== (form.endingTitle || '')) {
+      updateForm(form.id, { endingTitle: localTitle });
+    }
+    setLocalTitle(null);
+  };
+
+  const handleMessageBlur = () => {
+    setEditingField(null);
+    if (localMessage !== null && localMessage !== (form.endingMessage || '')) {
+      updateForm(form.id, { endingMessage: localMessage });
+    }
+    setLocalMessage(null);
+  };
+
+  return (
+    <div
+      className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative"
+      style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+        className="text-center max-w-lg space-y-6"
+      >
+        {/* Checkmark animation preview */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 15 }}
+          className="mx-auto size-24 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: form.buttonColor }}
+        >
+          <Check className="size-12" style={{ color: form.buttonTextColor }} />
+        </motion.div>
+
+        {/* Editable Title */}
+        {editingField === 'title' ? (
+          <textarea
+            value={endingTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleTitleBlur();
+              }
+            }}
+            autoFocus
+            className={`text-4xl md:text-5xl font-bold leading-tight bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
+            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            rows={2}
+          />
+        ) : (
+          <h1
+            onClick={() => setEditingField('title')}
+            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
+            style={{ color: form.textColor }}
+            title="Click to edit"
+          >
+            {endingTitle || 'Thank you!'}
+            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2 align-middle">✏️</span>
+          </h1>
+        )}
+
+        {/* Editable Message */}
+        {editingField === 'message' ? (
+          <textarea
+            value={endingMessage}
+            onChange={(e) => setLocalMessage(e.target.value)}
+            onBlur={handleMessageBlur}
+            autoFocus
+            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full opacity-60 ${fontFamilyClass}`}
+            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            rows={3}
+          />
+        ) : (
+          <p
+            onClick={() => setEditingField('message')}
+            className={`text-lg md:text-xl opacity-60 cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
+            style={{ color: form.textColor }}
+            title="Click to edit"
+          >
+            {endingMessage || 'Your response has been recorded.'}
+            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2">✏️</span>
+          </p>
+        )}
+
+        {/* Progress at 100% if showQuestionNumbers is on */}
+        {form.showQuestionNumbers && form.progressbar && (
+          <div className="w-full max-w-xs mx-auto">
+            <div className="h-1 rounded-full bg-black/10 overflow-hidden">
+              <div
+                className="h-full w-full rounded-full"
+                style={{ backgroundColor: form.buttonColor }}
+              />
+            </div>
+            <p className="text-xs opacity-40 mt-1" style={{ color: form.textColor }}>
+              100% complete
+            </p>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Edit hint overlay */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2"
+      >
+        <p className="text-xs opacity-40" style={{ color: form.textColor }}>
+          Click any element to edit
+        </p>
+      </motion.div>
+
+      {/* Progress bar at 100% */}
+      {form.progressbar && (
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/5">
+          <div
+            className="h-full w-full"
+            style={{ backgroundColor: form.buttonColor }}
+          />
         </div>
       )}
     </div>

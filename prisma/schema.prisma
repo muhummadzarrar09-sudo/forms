@@ -27,6 +27,9 @@ model Form {
   progressbar Boolean    @default(true)
   showQuestionNumbers Boolean @default(true)
   allowBackNavigation Boolean @default(true)
+  favorite    Boolean    @default(false)
+  archived    Boolean    @default(false)
+  tags        String     @default("[]") // JSON array of tag strings
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   questions   Question[]

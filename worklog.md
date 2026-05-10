@@ -452,3 +452,167 @@ Priority Recommendations for Next Phase:
 3. Implement form workspace/organization (folders, tags)
 4. Add webhook/API integration for form submission events
 5. Improve conditional logic with compound conditions (AND/OR)
+
+---
+
+Task ID: 13-workspace-activity
+Agent: workspace-agent
+Task: Add Form Organization Features (Favorite, Archive, Tags) and Recent Activity Feed
+
+Work Log:
+- **Database Changes**:
+  - Added `favorite` (Boolean @default(false)), `archived` (Boolean @default(false)), and `tags` (String @default("[]") JSON array) fields to the Form model in `prisma/schema.prisma`
+  - Ran `bun run db:push` to update the database schema
+  - Added corresponding `favorite: boolean`, `archived: boolean`, `tags: string[]` fields to the `Form` interface in `src/types/form.ts`
+
+- **API Updates**:
+  - Updated `/src/app/api/forms/route.ts` — GET and POST endpoints now parse `tags` from JSON (`JSON.parse(form.tags || '[]')`)
+  - Updated `/src/app/api/forms/[id]/route.ts` — GET and PUT endpoints now parse/serialize `tags`, and PUT accepts `favorite`, `archived`, and `tags` fields (with `JSON.stringify(body.tags)` for tags)
+  - Updated `/src/app/api/forms/[id]/duplicate/route.ts` — Duplicated forms copy `tags` from original, but set `favorite: false` and `archived: false`; serialized output includes parsed `tags`
+
+- **Form Card** (`/src/components/forms/form-card.tsx`):
+  - Added `onFavorite`, `onArchive`, `onAddTag` props
+  - Added favorite heart button in grid view (top-left corner of colored header) — visible on hover, always visible if favorited; red filled heart when favorited
+  - Added favorite heart in list view (always visible, muted when not favorited)
+  - Added "Add to Favorites" / "Remove from Favorites" dropdown option in both list and grid views
+  - Added "Archive" / "Unarchive" dropdown option in both views
+  - Added "Add Tag" dropdown option that opens a Popover for adding tags with input field and existing tag display
+  - Added tag pills below the description in both list and grid views (max 2 visible, "+N more" for overflow)
+  - Tag pills have remove buttons and use a hash-based color system with 8 predefined Tailwind color combinations
+  - Tags can also be searched via the dashboard search bar
+
+- **Dashboard** (`/src/components/forms/dashboard.tsx`):
+  - Added filter bar with three filter chips: "All" (default), "Favorites" (heart icon), "Archived" (archive icon)
+  - Each filter chip shows a badge count of matching forms
+  - "All" view hides archived forms; "Favorites" shows only non-archived favorites; "Archived" shows only archived forms
+  - Empty states adapted per filter (different messages for favorites/archived)
+  - Search now also searches tags in addition to title and description
+  - Added "Recent Activity" collapsible section below stat cards
+  - Shows the 5 most recently updated forms with activity type derived from form data
+  - Activity types: "published" (Globe icon), "received a response" (Users icon), "created" (Plus icon), "edited" (Pencil icon)
+  - Each activity item shows clickable form title that opens the builder, activity label, and relative timestamp
+  - Activity section has chevron toggle for collapse/expand with AnimatePresence animation
+  - Wired `onFavorite`, `onArchive`, `onAddTag` props to FormCard with `updateForm` store action
+
+- **Form Builder** (`/src/components/forms/form-builder.tsx`):
+  - Added Heart icon import from lucide-react
+  - Added favorite heart toggle button next to the form title in the top bar
+  - Heart is filled red when favorited, muted gray when not
+  - Clicking toggles favorite state via `updateForm` and `saveFormSettings`
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Complete form organization system with favorite, archive, and color-coded tags
+- Filter chips on dashboard to quickly switch between All/Favorites/Archived views
+- Tag system with hash-based color assignment, add/remove UI in card dropdowns
+- Recent Activity feed showing latest 5 form activities with icons and relative timestamps
+- Favorite toggle in form builder top bar
+- All existing functionality preserved
+
+---
+
+Task ID: 14-live-preview-ending
+Agent: preview-agent
+Task: Add live question preview in builder center panel + interactive ending screen editor
+
+Work Log:
+- **Feature 1: Live Question Preview in Builder** (`question-editor.tsx`):
+  - Restructured QuestionEditor from a single full-screen preview to a two-section layout
+  - Added collapsible preview card at the top of the center panel showing how the question looks to respondents
+  - Preview card displays: question number/total (e.g., "1 of 5"), question title (bold), description (if any), required indicator, and a mini visual preview of the question input based on type
+  - Created `MiniQuestionPreview` component with visual-only (non-interactive) previews for all 16 question types:
+    - `short_text`/`email`/`phone`/`website`/`number`/`long_text`: styled underline input with placeholder text
+    - `multiple_choice`/`picture_choice`: option rows with radio circles and labels (max 4 shown, "+N more" for overflow)
+    - `dropdown`: select-style element with chevron icon
+    - `yes_no`: two side-by-side buttons (Yes/No)
+    - `rating`: star rating visual (unfilled stars)
+    - `opinion_scale`: numbered scale buttons
+    - `date`: calendar icon + placeholder text
+    - `legal`: checkbox with acceptance text
+    - `statement`: "Continue" button preview
+    - `ending`: message text preview
+  - Preview card uses form's backgroundColor, textColor, buttonColor, buttonTextColor, and fontFamily theme props
+  - Preview contained in a bordered rounded card with "Preview" badge in top-right corner (semi-transparent black backdrop)
+  - Added "Hide Preview" / "Show Preview" toggle button with Eye/EyeOff icons above the preview
+  - Preview section animated with Framer Motion (height/opacity transition) for smooth show/hide
+  - Preview default state: visible (showPreview = true)
+  - Below the preview, the existing interactive editor view is preserved (click-to-edit title, description, type-specific inputs)
+  - Changed outer layout from `overflow-hidden` to `overflow-y-auto` to allow scrolling when content exceeds viewport
+- **Feature 2: Interactive Ending Screen Editor** (`form-builder.tsx`):
+  - Added `showEndingScreen` state variable to FormBuilder component
+  - Created `EndingScreenEditor` component (similar pattern to WelcomeScreenPreview):
+    - Shows animated checkmark icon (spring animation, form's buttonColor background)
+    - Clickable "Thank you!" title that becomes editable on click (textarea with border-dashed indicator)
+    - Clickable "Your response has been recorded." message that becomes editable on click
+    - Edits save to form via `updateForm` on blur (endingTitle, endingMessage fields)
+    - "Click any element to edit" hint at bottom (fade-in with 0.8s delay)
+    - Progress bar at 100% when `form.progressbar` is enabled
+    - Shows "100% complete" text when `form.showQuestionNumbers` and `form.progressbar` are both on
+  - Updated left panel "Ending Screen" button:
+    - Now sets `selectedQuestionId(null)` + `showEndingScreen(true)` instead of selecting the ending question
+    - Button highlights with `bg-primary/10` when `showEndingScreen` is true
+  - Updated left panel "Welcome Screen" button:
+    - Now also sets `showEndingScreen(false)` when clicked
+    - Button highlights when `!selectedQuestionId && !showEndingScreen`
+  - Updated question item `onSelect` callback to also set `setShowEndingScreen(false)` when a question is selected
+  - Updated center panel logic:
+    - `selectedQuestion` → QuestionEditor (existing)
+    - `showEndingScreen && !selectedQuestion` → EndingScreenEditor (new)
+    - `!selectedQuestionId && sortedQuestions.length === 0` → EmptyQuestionsState (existing)
+    - `!selectedQuestionId && !showEndingScreen` → WelcomeScreenPreview (existing)
+- Ran ESLint: no errors
+
+Stage Summary:
+- Live question preview card at top of builder center panel with mini visual previews for all 16 question types
+- Collapsible preview with toggle button, "Preview" badge, and smooth Framer Motion animation
+- Interactive ending screen editor with click-to-edit title/message, animated checkmark, and progress bar
+- Left panel buttons properly highlight for Welcome Screen vs Ending Screen selection
+- All existing functionality preserved
+
+---
+Task ID: 15-styling-polish
+Agent: styling-polish-agent
+Task: Major styling polish and visual refinement across all views
+
+Work Log:
+- **Global CSS Polish** (globals.css):
+  - Added subtle noise texture overlay on body::before with SVG fractalNoise filter (opacity 0.015 in light, 0.03 in dark mode)
+  - Added smooth font rendering (-webkit-font-smoothing: antialiased, -moz-osx-font-smoothing: grayscale)
+  - Added .glass glassmorphism utility class with backdrop blur and dark mode variant
+  - Added .gradient-text utility class using CSS background-clip with primary color gradient
+  - Added @keyframes dash animation and .animate-dash class
+- **Dashboard Polish** (dashboard.tsx):
+  - Replaced simple heading with impactful hero section inside rounded container with gradient background
+  - Larger greeting text (text-2xl mobile, sm:text-3xl desktop)
+  - Context-aware subtitle based on form/response count
+  - Enhanced stat cards with ring border, TrendingUp icon, text-4xl numbers
+  - Replaced plain footer with gradient top border, Made with heart by Forms text, v1.0 version
+- **Form Card Polish** (form-card.tsx):
+  - Grid view: Added gradient overlay at bottom of 80px colored header for depth
+  - Grid view: Replaced outline buttons with rounded-full frosted-glass buttons with hover scale
+  - List view: Replaced circle indicator with 3px rounded left border accent
+- **Form Builder Polish** (form-builder.tsx):
+  - Added hover:translate-x-0.5 slide effect on question items
+  - Enhanced question number badge to bg-primary/30 text-primary when selected
+  - Enhanced Add question button with border-dashed, hover effects, and motion wrapper
+- **Form Filler Polish** (form-filler.tsx):
+  - Progress bar: Added glow effect and dot indicator at current progress position
+  - Welcome screen: Staggered fade-in-from-below animations for title and message
+  - Ending screen: Enhanced checkmark circle with golden glow
+  - Confetti: Increased to 35 particles with 6 star-shaped SVG particles
+  - Question transition: Increased to 0.5s with smoother ease curve
+- **Responses Viewer Polish** (responses-viewer.tsx):
+  - Stat cards: Added gradient backgrounds (primary/5, emerald/5, amber/5)
+  - Chart container: Added rounded-xl shadow-sm
+  - Response cards: Added 3px left color accent border
+- Ran ESLint: no errors
+
+Stage Summary:
+- Premium feel across all views with subtle depth effects (noise texture, gradient overlays, glow shadows)
+- Dashboard hero section with context-aware messaging and enhanced stat cards
+- Form cards with depth gradient, frosted-glass quick action buttons, and list view border accents
+- Builder with hover slide animations, vibrant selected badges, and prominent dashed add button
+- Filler with glowing progress bar, staggered welcome animations, enhanced star confetti, smoother transitions
+- Responses viewer with gradient stat cards, refined chart container, and accent-bordered response cards
+- All changes are backward compatible with no functionality modified

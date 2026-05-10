@@ -7,6 +7,7 @@ import { useFormStore } from '@/store/form-store';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   CheckCircle2,
   Star,
@@ -17,6 +18,8 @@ import {
   X,
   ArrowRight,
   ImageIcon,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface QuestionEditorProps {
@@ -49,6 +52,7 @@ export function QuestionEditor({
   const [optionText, setOptionText] = useState('');
   const [hoveredRating, setHoveredRating] = useState(0);
   const [selectedScale, setSelectedScale] = useState<number | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -107,192 +111,512 @@ export function QuestionEditor({
       : 'font-sans';
 
   return (
-    <div
-      className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative overflow-hidden"
-      style={{ backgroundColor: formBackgroundColor, color: formTextColor }}
-    >
-      {/* Question number */}
-      <motion.div
-        key={`num-${question.id}`}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className="absolute top-6 left-6"
-      >
-        <span
-          className="text-sm font-medium opacity-60"
-          style={{ color: formTextColor }}
-        >
-          {questionIndex + 1}/{totalQuestions}
-        </span>
-      </motion.div>
-
-      {/* Required indicator */}
-      {question.required && question.type !== 'statement' && question.type !== 'ending' && (
-        <div className="absolute top-6 right-6">
-          <span className="text-xs font-medium opacity-50 uppercase tracking-wider">
-            Required
-          </span>
-        </div>
-      )}
-
-      <div className="w-full max-w-2xl space-y-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={question.id}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="space-y-6"
+    <div className="flex-1 flex flex-col overflow-y-auto">
+      {/* ── Live Preview Section ── */}
+      <div className="px-4 pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setShowPreview(!showPreview)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            {/* Title */}
-            <div className="space-y-2">
-              {isEditingTitle ? (
-                <textarea
-                  ref={titleRef}
-                  value={titleValue}
-                  onChange={(e) => setTitleValue(e.target.value)}
-                  onBlur={handleTitleSave}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleTitleSave();
-                    }
-                    if (e.key === 'Escape') {
-                      setTitleValue(question.title);
-                      setIsEditingTitle(false);
-                    }
-                  }}
-                  className={`w-full bg-transparent border-b-2 border-current/30 focus:border-current outline-none text-3xl md:text-4xl font-bold resize-none leading-tight ${fontFamilyClass}`}
-                  style={{ color: formTextColor }}
-                  rows={2}
-                  autoFocus
-                />
-              ) : (
-                <h2
-                  onClick={() => setIsEditingTitle(true)}
-                  className={`text-3xl md:text-4xl font-bold leading-tight cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
-                  style={{ color: formTextColor }}
-                  title="Click to edit"
-                >
-                  {question.title || 'Untitled question'}
-                </h2>
-              )}
+            {showPreview ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+            {showPreview ? 'Hide Preview' : 'Show Preview'}
+          </button>
+        </div>
 
-              {/* Description */}
-              {question.type !== 'yes_no' &&
-                question.type !== 'rating' &&
-                question.type !== 'opinion_scale' && (
-                  <div>
-                    {isEditingDescription ? (
-                      <textarea
-                        ref={descRef}
-                        value={descValue}
-                        onChange={(e) => setDescValue(e.target.value)}
-                        onBlur={handleDescriptionSave}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            setDescValue(question.description);
-                            setIsEditingDescription(false);
-                          }
-                        }}
-                        className={`w-full bg-transparent border-b border-current/20 focus:border-current/40 outline-none text-lg resize-none ${fontFamilyClass}`}
-                        style={{ color: formTextColor }}
-                        rows={2}
-                        placeholder="Add a description..."
-                        autoFocus
-                      />
-                    ) : (
-                      <p
-                        onClick={() => setIsEditingDescription(true)}
-                        className={`text-lg opacity-70 cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
-                        style={{ color: formTextColor }}
-                      >
-                        {question.description || (
-                          <span className="italic opacity-50">Add a description...</span>
-                        )}
-                      </p>
+        <AnimatePresence>
+          {showPreview && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+              className="overflow-hidden"
+            >
+              <div
+                className="relative rounded-xl border shadow-sm overflow-hidden max-h-[320px]"
+                style={{ borderColor: `${formTextColor}15` }}
+              >
+                {/* Preview badge */}
+                <div className="absolute top-2 right-2 z-10">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1.5 py-0 h-5 bg-black/40 text-white backdrop-blur-sm border-0"
+                  >
+                    Preview
+                  </Badge>
+                </div>
+
+                <div
+                  className="px-6 py-5"
+                  style={{ backgroundColor: formBackgroundColor, color: formTextColor }}
+                >
+                  {/* Question number */}
+                  <span
+                    className="text-xs font-medium opacity-50"
+                    style={{ color: formTextColor }}
+                  >
+                    {questionIndex + 1} of {totalQuestions}
+                  </span>
+
+                  {/* Title */}
+                  <h3
+                    className={`text-lg font-bold mt-1 leading-snug ${fontFamilyClass}`}
+                    style={{ color: formTextColor }}
+                  >
+                    {question.title || 'Untitled question'}
+                    {question.required && question.type !== 'statement' && question.type !== 'ending' && (
+                      <span className="text-red-400 ml-1">*</span>
                     )}
+                  </h3>
+
+                  {/* Description */}
+                  {question.description && question.type !== 'yes_no' && question.type !== 'rating' && question.type !== 'opinion_scale' && (
+                    <p
+                      className={`text-sm opacity-60 mt-1 ${fontFamilyClass}`}
+                      style={{ color: formTextColor }}
+                    >
+                      {question.description}
+                    </p>
+                  )}
+
+                  {/* Mini input preview */}
+                  <div className="mt-3">
+                    <MiniQuestionPreview
+                      question={question}
+                      formTextColor={formTextColor}
+                      formButtonColor={formButtonColor}
+                      formButtonTextColor={formButtonTextColor}
+                      fontFamilyClass={fontFamilyClass}
+                    />
                   </div>
-                )}
-            </div>
-
-            {/* Question type specific input area */}
-            <div className="min-h-[60px]">
-              <QuestionTypePreview
-                question={question}
-                formTextColor={formTextColor}
-                formButtonColor={formButtonColor}
-                formButtonTextColor={formButtonTextColor}
-                fontFamilyClass={fontFamilyClass}
-                editingOptionId={editingOptionId}
-                optionText={optionText}
-                setEditingOptionId={setEditingOptionId}
-                setOptionText={setOptionText}
-                handleOptionUpdate={handleOptionUpdate}
-                handleAddOption={handleAddOption}
-                handleRemoveOption={handleRemoveOption}
-                hoveredRating={hoveredRating}
-                setHoveredRating={setHoveredRating}
-                selectedScale={selectedScale}
-                setSelectedScale={setSelectedScale}
-                updateQuestion={updateQuestion}
-              />
-            </div>
-
-            {/* OK button (Typeform style) */}
-            {question.type !== 'statement' && question.type !== 'ending' && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="flex items-center gap-3"
-              >
-                <Button
-                  size="lg"
-                  className="gap-2 rounded-full px-8 h-12 text-base font-medium"
-                  style={{
-                    backgroundColor: formButtonColor,
-                    color: formButtonTextColor,
-                  }}
-                >
-                  OK
-                  <CheckCircle2 className="size-5" />
-                </Button>
-                <span
-                  className="text-sm opacity-40"
-                  style={{ color: formTextColor }}
-                >
-                  press <strong>Enter ↵</strong>
-                </span>
-              </motion.div>
-            )}
-
-            {/* Statement / Ending continue button */}
-            {(question.type === 'statement' || question.type === 'ending') && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <Button
-                  size="lg"
-                  className="gap-2 rounded-full px-8 h-12 text-base font-medium"
-                  style={{
-                    backgroundColor: formButtonColor,
-                    color: formButtonTextColor,
-                  }}
-                >
-                  Continue
-                  <ArrowRight className="size-5" />
-                </Button>
-              </motion.div>
-            )}
-          </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
+
+      {/* ── Editor Section ── */}
+      <div
+        className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative overflow-hidden"
+        style={{ backgroundColor: formBackgroundColor, color: formTextColor }}
+      >
+        {/* Question number */}
+        <motion.div
+          key={`num-${question.id}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="absolute top-6 left-6"
+        >
+          <span
+            className="text-sm font-medium opacity-60"
+            style={{ color: formTextColor }}
+          >
+            {questionIndex + 1}/{totalQuestions}
+          </span>
+        </motion.div>
+
+        {/* Required indicator */}
+        {question.required && question.type !== 'statement' && question.type !== 'ending' && (
+          <div className="absolute top-6 right-6">
+            <span className="text-xs font-medium opacity-50 uppercase tracking-wider">
+              Required
+            </span>
+          </div>
+        )}
+
+        <div className="w-full max-w-2xl space-y-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={question.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+              className="space-y-6"
+            >
+              {/* Title */}
+              <div className="space-y-2">
+                {isEditingTitle ? (
+                  <textarea
+                    ref={titleRef}
+                    value={titleValue}
+                    onChange={(e) => setTitleValue(e.target.value)}
+                    onBlur={handleTitleSave}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleTitleSave();
+                      }
+                      if (e.key === 'Escape') {
+                        setTitleValue(question.title);
+                        setIsEditingTitle(false);
+                      }
+                    }}
+                    className={`w-full bg-transparent border-b-2 border-current/30 focus:border-current outline-none text-3xl md:text-4xl font-bold resize-none leading-tight ${fontFamilyClass}`}
+                    style={{ color: formTextColor }}
+                    rows={2}
+                    autoFocus
+                  />
+                ) : (
+                  <h2
+                    onClick={() => setIsEditingTitle(true)}
+                    className={`text-3xl md:text-4xl font-bold leading-tight cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
+                    style={{ color: formTextColor }}
+                    title="Click to edit"
+                  >
+                    {question.title || 'Untitled question'}
+                  </h2>
+                )}
+
+                {/* Description */}
+                {question.type !== 'yes_no' &&
+                  question.type !== 'rating' &&
+                  question.type !== 'opinion_scale' && (
+                    <div>
+                      {isEditingDescription ? (
+                        <textarea
+                          ref={descRef}
+                          value={descValue}
+                          onChange={(e) => setDescValue(e.target.value)}
+                          onBlur={handleDescriptionSave}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setDescValue(question.description);
+                              setIsEditingDescription(false);
+                            }
+                          }}
+                          className={`w-full bg-transparent border-b border-current/20 focus:border-current/40 outline-none text-lg resize-none ${fontFamilyClass}`}
+                          style={{ color: formTextColor }}
+                          rows={2}
+                          placeholder="Add a description..."
+                          autoFocus
+                        />
+                      ) : (
+                        <p
+                          onClick={() => setIsEditingDescription(true)}
+                          className={`text-lg opacity-70 cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
+                          style={{ color: formTextColor }}
+                        >
+                          {question.description || (
+                            <span className="italic opacity-50">Add a description...</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+              </div>
+
+              {/* Question type specific input area */}
+              <div className="min-h-[60px]">
+                <QuestionTypePreview
+                  question={question}
+                  formTextColor={formTextColor}
+                  formButtonColor={formButtonColor}
+                  formButtonTextColor={formButtonTextColor}
+                  fontFamilyClass={fontFamilyClass}
+                  editingOptionId={editingOptionId}
+                  optionText={optionText}
+                  setEditingOptionId={setEditingOptionId}
+                  setOptionText={setOptionText}
+                  handleOptionUpdate={handleOptionUpdate}
+                  handleAddOption={handleAddOption}
+                  handleRemoveOption={handleRemoveOption}
+                  hoveredRating={hoveredRating}
+                  setHoveredRating={setHoveredRating}
+                  selectedScale={selectedScale}
+                  setSelectedScale={setSelectedScale}
+                  updateQuestion={updateQuestion}
+                />
+              </div>
+
+              {/* OK button (Typeform style) */}
+              {question.type !== 'statement' && question.type !== 'ending' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center gap-3"
+                >
+                  <Button
+                    size="lg"
+                    className="gap-2 rounded-full px-8 h-12 text-base font-medium"
+                    style={{
+                      backgroundColor: formButtonColor,
+                      color: formButtonTextColor,
+                    }}
+                  >
+                    OK
+                    <CheckCircle2 className="size-5" />
+                  </Button>
+                  <span
+                    className="text-sm opacity-40"
+                    style={{ color: formTextColor }}
+                  >
+                    press <strong>Enter ↵</strong>
+                  </span>
+                </motion.div>
+              )}
+
+              {/* Statement / Ending continue button */}
+              {(question.type === 'statement' || question.type === 'ending') && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Button
+                    size="lg"
+                    className="gap-2 rounded-full px-8 h-12 text-base font-medium"
+                    style={{
+                      backgroundColor: formButtonColor,
+                      color: formButtonTextColor,
+                    }}
+                  >
+                    Continue
+                    <ArrowRight className="size-5" />
+                  </Button>
+                </motion.div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Mini Question Preview (Visual only, no interaction) ──────────────────── */
+
+function MiniQuestionPreview({
+  question,
+  formTextColor,
+  formButtonColor,
+  formButtonTextColor,
+  fontFamilyClass,
+}: {
+  question: FormQuestion;
+  formTextColor: string;
+  formButtonColor: string;
+  formButtonTextColor: string;
+  fontFamilyClass: string;
+}) {
+  const type = question.type;
+
+  // Short Text / Email / Phone / Website
+  if (type === 'short_text' || type === 'email' || type === 'phone' || type === 'website') {
+    const placeholders: Record<string, string> = {
+      short_text: 'Type your answer here...',
+      email: 'name@example.com',
+      phone: '+1 (555) 000-0000',
+      website: 'https://example.com',
+    };
+    return (
+      <div
+        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+      >
+        {question.placeholder || placeholders[type] || 'Type your answer...'}
+      </div>
+    );
+  }
+
+  // Long Text
+  if (type === 'long_text') {
+    return (
+      <div
+        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+      >
+        {question.placeholder || 'Type your answer here...'}
+      </div>
+    );
+  }
+
+  // Multiple Choice / Picture Choice
+  if (type === 'multiple_choice' || type === 'picture_choice') {
+    const maxOptions = 4;
+    const displayOptions = question.options.slice(0, maxOptions);
+    return (
+      <div className="space-y-1.5">
+        {displayOptions.map((option) => (
+          <div
+            key={option.id}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border"
+            style={{ borderColor: `${formTextColor}18`, backgroundColor: `${formTextColor}05` }}
+          >
+            <div
+              className="size-3.5 rounded-full border shrink-0"
+              style={{ borderColor: `${formTextColor}40` }}
+            />
+            <span className={`text-xs truncate ${fontFamilyClass}`} style={{ color: formTextColor }}>
+              {option.label}
+            </span>
+          </div>
+        ))}
+        {question.options.length > maxOptions && (
+          <span className="text-xs opacity-40 ml-1" style={{ color: formTextColor }}>
+            +{question.options.length - maxOptions} more
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Dropdown
+  if (type === 'dropdown') {
+    return (
+      <div
+        className="flex items-center justify-between px-3 py-1.5 rounded-md border"
+        style={{ borderColor: `${formTextColor}18`, backgroundColor: `${formTextColor}05` }}
+      >
+        <span className={`text-xs opacity-40 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          Select an option...
+        </span>
+        <ChevronDown className="size-3.5 opacity-40" style={{ color: formTextColor }} />
+      </div>
+    );
+  }
+
+  // Yes/No
+  if (type === 'yes_no') {
+    return (
+      <div className="flex gap-2">
+        <div
+          className="flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5"
+          style={{ borderColor: `${formTextColor}20` }}
+        >
+          <ThumbsUp className="size-3.5" style={{ color: formTextColor }} />
+          <span className={`text-xs font-semibold ${fontFamilyClass}`} style={{ color: formTextColor }}>
+            Yes
+          </span>
+        </div>
+        <div
+          className="flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5"
+          style={{ borderColor: `${formTextColor}20` }}
+        >
+          <ThumbsUp className="size-3.5 rotate-180" style={{ color: formTextColor }} />
+          <span className={`text-xs font-semibold ${fontFamilyClass}`} style={{ color: formTextColor }}>
+            No
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Rating
+  if (type === 'rating') {
+    const steps = question.settings?.steps || 5;
+    return (
+      <div className="flex gap-1">
+        {Array.from({ length: steps }, (_, i) => i + 1).map((step) => (
+          <Star
+            key={step}
+            className="size-5"
+            style={{ color: `${formTextColor}25`, fill: 'transparent' }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Opinion Scale
+  if (type === 'opinion_scale') {
+    const steps = question.settings?.steps || 10;
+    const startAtOne = question.settings?.startAtOne ?? false;
+    const start = startAtOne ? 1 : 0;
+    const end = startAtOne ? steps : steps - 1;
+    return (
+      <div className="flex gap-1 flex-wrap">
+        {Array.from({ length: end - start + 1 }, (_, i) => start + i).map((val) => (
+          <div
+            key={val}
+            className="size-7 rounded border flex items-center justify-center text-xs font-semibold"
+            style={{ borderColor: `${formTextColor}20`, color: formTextColor }}
+          >
+            {val}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Number
+  if (type === 'number') {
+    return (
+      <div
+        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+      >
+        {question.placeholder || 'Type a number...'}
+      </div>
+    );
+  }
+
+  // Date
+  if (type === 'date') {
+    return (
+      <div
+        className="flex items-center gap-2 border-b pb-1"
+        style={{ borderBottomColor: `${formTextColor}30` }}
+      >
+        <Calendar className="size-4 opacity-40" style={{ color: formTextColor }} />
+        <span className={`text-sm opacity-40 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          Select a date...
+        </span>
+      </div>
+    );
+  }
+
+  // Legal
+  if (type === 'legal') {
+    return (
+      <div className="flex items-center gap-2">
+        <div
+          className="size-4 rounded border flex items-center justify-center"
+          style={{ borderColor: `${formTextColor}40` }}
+        >
+          <CheckCircle2 className="size-2.5" style={{ color: formButtonColor }} />
+        </div>
+        <span className={`text-xs ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          {question.settings?.requiredText || 'I accept'}
+        </span>
+      </div>
+    );
+  }
+
+  // Statement
+  if (type === 'statement') {
+    return (
+      <div
+        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium"
+        style={{ backgroundColor: formButtonColor, color: formButtonTextColor }}
+      >
+        Continue
+        <ArrowRight className="size-3" />
+      </div>
+    );
+  }
+
+  // Ending
+  if (type === 'ending') {
+    return (
+      <p className={`text-xs opacity-50 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+        {question.description || 'Your response has been recorded.'}
+      </p>
+    );
+  }
+
+  // Fallback
+  return (
+    <div
+      className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
+      style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+    >
+      {question.placeholder || 'Your answer...'}
     </div>
   );
 }

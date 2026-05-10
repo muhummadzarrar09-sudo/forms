@@ -495,7 +495,7 @@ export function ResponsesViewer() {
         {/* Stats cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <Card>
+            <Card className="overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -511,7 +511,7 @@ export function ResponsesViewer() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-            <Card>
+            <Card className="overflow-hidden bg-gradient-to-br from-emerald-500/5 to-transparent">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -530,7 +530,7 @@ export function ResponsesViewer() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-            <Card>
+            <Card className="overflow-hidden bg-gradient-to-br from-amber-500/5 to-transparent">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -553,7 +553,7 @@ export function ResponsesViewer() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.15 }}
           >
-            <Card>
+            <Card className="rounded-xl shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="size-4 text-muted-foreground" />
@@ -854,11 +854,15 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden relative">
+        {/* Left color accent border */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/40 rounded-r-full"
+        />
         {/* Collapsed header */}
         <button
           onClick={onToggle}
-          className="w-full text-left p-4 hover:bg-muted/30 transition-colors flex items-center gap-4"
+          className="w-full text-left p-4 hover:bg-muted/30 transition-colors flex items-center gap-4 pl-5"
         >
           <div className="size-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <span className="text-sm font-bold text-primary">{response.number}</span>

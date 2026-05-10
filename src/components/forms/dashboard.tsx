@@ -41,6 +41,12 @@ import {
   Monitor,
   Upload,
   Keyboard,
+  Heart,
+  Archive,
+  Pencil,
+  Globe,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import {
   MessageSquare,
@@ -59,6 +65,7 @@ import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
 
 type SortOption = 'newest' | 'oldest' | 'title' | 'responses';
+type FilterOption = 'all' | 'favorites' | 'archived';
 
 // Time ago helper
 function timeAgo(date: string): string {
@@ -135,6 +142,27 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FileText,
 };
 
+// Activity type icons and labels
+function getActivityInfo(form: Form): { type: string; label: string; Icon: LucideIcon } {
+  if (form.published) {
+    const createdRecently = (Date.now() - new Date(form.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+    if (createdRecently) {
+      return { type: 'published', label: 'published', Icon: Globe };
+    }
+  }
+  if ((form._count?.responses ?? 0) > 0) {
+    const updatedRecently = (Date.now() - new Date(form.updatedAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
+    if (updatedRecently) {
+      return { type: 'response', label: 'received a response', Icon: Users };
+    }
+  }
+  const createdVeryRecently = (Date.now() - new Date(form.createdAt).getTime()) < 60 * 60 * 1000;
+  if (createdVeryRecently) {
+    return { type: 'created', label: 'created', Icon: Plus };
+  }
+  return { type: 'edited', label: 'edited', Icon: Pencil };
+}
+
 export function Dashboard() {
   const {
     forms,
@@ -161,10 +189,12 @@ export function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
   const [showNewFormDialog, setShowNewFormDialog] = useState(false);
   const [newFormTitle, setNewFormTitle] = useState('');
   const [newFormDescription, setNewFormDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showActivity, setShowActivity] = useState(true);
 
   // Template picker state
   const [dialogStep, setDialogStep] = useState<'template' | 'details'>('template');
@@ -211,9 +241,25 @@ export function Dashboard() {
     fetchForms();
   }, [setForms, setIsLoading]);
 
+  // Count for each filter
+  const filterCounts = useMemo(() => ({
+    all: forms.filter((f) => !f.archived).length,
+    favorites: forms.filter((f) => f.favorite && !f.archived).length,
+    archived: forms.filter((f) => f.archived).length,
+  }), [forms]);
+
   // Filter and sort forms
   const filteredForms = useMemo(() => {
     let result = [...forms];
+
+    // Apply filter
+    if (activeFilter === 'all') {
+      result = result.filter((f) => !f.archived);
+    } else if (activeFilter === 'favorites') {
+      result = result.filter((f) => f.favorite && !f.archived);
+    } else if (activeFilter === 'archived') {
+      result = result.filter((f) => f.archived);
+    }
 
     // Search filter
     if (searchQuery.trim()) {
@@ -221,7 +267,8 @@ export function Dashboard() {
       result = result.filter(
         (f) =>
           f.title.toLowerCase().includes(query) ||
-          f.description.toLowerCase().includes(query)
+          f.description.toLowerCase().includes(query) ||
+          (f.tags || []).some((tag) => tag.toLowerCase().includes(query))
       );
     }
 
@@ -251,11 +298,11 @@ export function Dashboard() {
     }
 
     return result;
-  }, [forms, searchQuery, sortBy]);
+  }, [forms, searchQuery, sortBy, activeFilter]);
 
   // Stats
-  const totalForms = forms.length;
-  const publishedForms = forms.filter((f) => f.published).length;
+  const totalForms = forms.filter((f) => !f.archived).length;
+  const publishedForms = forms.filter((f) => f.published && !f.archived).length;
   const totalResponses = forms.reduce(
     (acc, f) => acc + (f._count?.responses ?? 0),
     0
@@ -273,6 +320,25 @@ export function Dashboard() {
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
   }, []);
+
+  // Recent activity items (derived from form data)
+  const recentActivity = useMemo(() => {
+    const sorted = [...forms]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+    return sorted.map((form) => {
+      const activity = getActivityInfo(form);
+      return {
+        formId: form.id,
+        formTitle: form.title,
+        activityType: activity.type,
+        activityLabel: activity.label,
+        Icon: activity.Icon,
+        timestamp: form.updatedAt || form.createdAt,
+        timeAgoText: timeAgo(form.updatedAt || form.createdAt),
+      };
+    });
+  }, [forms]);
 
   // Reset dialog state when opening
   const handleOpenNewFormDialog = useCallback(() => {
@@ -422,7 +488,7 @@ export function Dashboard() {
     async (formId: string, title: string) => {
       try {
         const res = await fetch(`/api/forms/${formId}`, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title }),
         });
@@ -761,10 +827,97 @@ export function Dashboard() {
                 <p className="text-3xl font-bold tabular-nums mt-1">{animatedTotalResponses}</p>
               </motion.div>
             </div>
+
+            {/* Recent Activity */}
+            {recentActivity.length > 0 && (
+              <div className="mt-5">
+                <button
+                  onClick={() => setShowActivity(!showActivity)}
+                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showActivity ? (
+                    <ChevronDown className="size-4" />
+                  ) : (
+                    <ChevronRight className="size-4" />
+                  )}
+                  Recent Activity
+                </button>
+                <AnimatePresence>
+                  {showActivity && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 space-y-1">
+                        {recentActivity.map((activity, idx) => (
+                          <motion.div
+                            key={activity.formId}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className="flex items-center gap-3 py-2 px-3 rounded-lg border-l-2 border-primary/20 hover:bg-muted/50 transition-colors group"
+                          >
+                            <div className="size-7 rounded-md bg-muted flex items-center justify-center shrink-0">
+                              <activity.Icon className="size-3.5 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate">
+                                <button
+                                  onClick={() => openBuilder(activity.formId)}
+                                  className="font-medium hover:text-primary transition-colors"
+                                >
+                                  {activity.formTitle}
+                                </button>
+                                <span className="text-muted-foreground"> {activity.activityLabel}</span>
+                              </p>
+                            </div>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {activity.timeAgoText}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </motion.div>
         )}
 
-        {/* Original stats bar - only show when there are no forms (empty state handled below) */}
+        {/* Filter chips */}
+        {!isLoading && forms.length > 0 && (
+          <div className="flex items-center gap-2 mb-4">
+            {([
+              { key: 'all' as FilterOption, label: 'All', Icon: null, count: filterCounts.all },
+              { key: 'favorites' as FilterOption, label: 'Favorites', Icon: Heart, count: filterCounts.favorites },
+              { key: 'archived' as FilterOption, label: 'Archived', Icon: Archive, count: filterCounts.archived },
+            ]).map(({ key, label, Icon, count }) => (
+              <button
+                key={key}
+                onClick={() => setActiveFilter(key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  activeFilter === key
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {Icon && <Icon className="size-3.5" />}
+                {label}
+                <span className={`text-[10px] px-1.5 py-0 rounded-full ${
+                  activeFilter === key
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Toolbar: Search, Sort, View toggle */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
@@ -893,9 +1046,21 @@ export function Dashboard() {
             className="flex flex-col items-center justify-center py-16"
           >
             <Search className="size-12 text-muted-foreground/40 mb-4" />
-            <h3 className="text-lg font-medium mb-1">No forms found</h3>
+            <h3 className="text-lg font-medium mb-1">
+              {activeFilter === 'favorites'
+                ? 'No favorite forms'
+                : activeFilter === 'archived'
+                ? 'No archived forms'
+                : 'No forms found'}
+            </h3>
             <p className="text-muted-foreground text-sm">
-              No forms match &ldquo;{searchQuery}&rdquo;. Try a different search term.
+              {activeFilter === 'favorites'
+                ? 'Mark forms as favorites to see them here.'
+                : activeFilter === 'archived'
+                ? 'Archived forms will appear here.'
+                : searchQuery
+                ? `No forms match "${searchQuery}". Try a different search term.`
+                : 'No forms to display.'}
             </p>
           </motion.div>
         )}
@@ -926,6 +1091,9 @@ export function Dashboard() {
                     onTitleUpdate={handleTitleUpdate}
                     onPublish={(formId, published) => updateForm(formId, { published })}
                     onDuplicate={(duplicatedForm) => addForm(duplicatedForm)}
+                    onFavorite={(formId, favorite) => updateForm(formId, { favorite })}
+                    onArchive={(formId, archived) => updateForm(formId, { archived })}
+                    onAddTag={(formId, tags) => updateForm(formId, { tags })}
                     timeAgoText={timeAgo(form.updatedAt || form.createdAt)}
                   />
                 </motion.div>
@@ -1141,42 +1309,30 @@ export function Dashboard() {
                   </div>
                 )}
 
+                {/* Form title */}
                 <div className="space-y-2">
-                  <label
-                    htmlFor="form-title"
-                    className="text-sm font-medium leading-none"
-                  >
-                    Title <span className="text-destructive">*</span>
-                  </label>
+                  <label className="text-sm font-medium">Form title</label>
                   <Input
-                    id="form-title"
-                    placeholder="e.g., Customer Feedback Survey"
                     value={newFormTitle}
                     onChange={(e) => setNewFormTitle(e.target.value)}
+                    placeholder="Enter a title for your form"
+                    autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isCreating && newFormTitle.trim()) {
+                      if (e.key === 'Enter' && newFormTitle.trim()) {
                         handleCreateForm();
                       }
                     }}
-                    autoFocus
                   />
                 </div>
+
+                {/* Form description */}
                 <div className="space-y-2">
-                  <label
-                    htmlFor="form-description"
-                    className="text-sm font-medium leading-none"
-                  >
-                    Description{' '}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
-                  </label>
+                  <label className="text-sm font-medium">Description (optional)</label>
                   <Textarea
-                    id="form-description"
-                    placeholder="What is this form about?"
                     value={newFormDescription}
                     onChange={(e) => setNewFormDescription(e.target.value)}
-                    rows={3}
+                    placeholder="What is this form about?"
+                    rows={2}
                   />
                 </div>
               </motion.div>
@@ -1184,55 +1340,46 @@ export function Dashboard() {
           </AnimatePresence>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            {dialogStep === 'template' ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowNewFormDialog(false);
-                    setSelectedTemplateId(null);
-                    setNewFormTitle('');
-                    setNewFormDescription('');
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleSelectTemplate(null)}
-                >
-                  Start from Scratch
-                  <ArrowRight className="size-4 ml-1" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDialogStep('template');
-                  }}
-                  disabled={isCreating}
-                >
-                  <ArrowLeft className="size-4 mr-1" />
-                  Back
-                </Button>
-                <Button
-                  onClick={handleCreateForm}
-                  disabled={isCreating || !newFormTitle.trim()}
-                >
-                  {isCreating ? (
-                    <>
-                      <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      Create Form
-                      <ArrowRight className="size-4 ml-1" />
-                    </>
-                  )}
-                </Button>
-              </>
+            {dialogStep === 'details' && (
+              <Button
+                variant="outline"
+                onClick={() => setDialogStep('template')}
+                disabled={isCreating}
+              >
+                <ArrowLeft className="size-4 mr-1" />
+                Back
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowNewFormDialog(false);
+                setSelectedTemplateId(null);
+                setNewFormTitle('');
+                setNewFormDescription('');
+              }}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            {dialogStep === 'details' && (
+              <Button
+                onClick={handleCreateForm}
+                disabled={isCreating || !newFormTitle.trim()}
+              >
+                {isCreating ? (
+                  <>
+                    <span className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    Create Form
+                    <ArrowRight className="size-4 ml-1" />
+                  </>
+                )}
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>
@@ -1241,12 +1388,13 @@ export function Dashboard() {
   );
 }
 
-// Template card component
+// ── Template Card ──
+
 function TemplateCard({
   template,
   isSelected,
   onClick,
-  isBlank,
+  isBlank = false,
 }: {
   template: FormTemplate;
   isSelected: boolean;
@@ -1256,70 +1404,54 @@ function TemplateCard({
   const IconComp = ICON_MAP[template.icon] || FileText;
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02, y: -2 }}
+    <motion.button
+      onClick={onClick}
+      whileHover={{ y: -1 }}
       whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className={`relative flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
+        isSelected
+          ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+          : 'border-border hover:border-border/80 hover:shadow-sm'
+      }`}
     >
-      <Card
-        className={`cursor-pointer transition-all duration-200 py-0 gap-0 overflow-hidden ${
-          isSelected
-            ? 'ring-2 ring-primary shadow-md'
-            : 'hover:shadow-md hover:border-muted-foreground/30'
-        }`}
-        onClick={onClick}
-        role="button"
-        tabIndex={0}
-        aria-label={`Select ${template.title} template`}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onClick();
-          }
+      {/* Color accent bar */}
+      <div
+        className="w-1 self-stretch rounded-full shrink-0"
+        style={{ backgroundColor: isBlank ? '#6B7280' : template.color }}
+      />
+
+      {/* Icon */}
+      <div
+        className="size-9 rounded-lg flex items-center justify-center shrink-0"
+        style={{
+          backgroundColor: isBlank ? 'hsl(var(--muted))' : `${template.color}15`,
         }}
       >
-        {/* Color accent bar */}
-        {!isBlank && (
-          <div
-            className="h-1.5 w-full"
-            style={{ backgroundColor: template.color }}
-          />
-        )}
-        {isBlank && (
-          <div className="h-1.5 w-full bg-muted" />
-        )}
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            {/* Icon */}
-            <div
-              className="size-10 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                backgroundColor: isBlank ? 'hsl(var(--muted))' : `${template.color}15`,
-              }}
-            >
-              <IconComp
-                className="size-5"
-                style={{ color: isBlank ? 'hsl(var(--muted-foreground))' : template.color }}
-              />
-            </div>
+        <IconComp
+          className="size-4"
+          style={{ color: isBlank ? 'hsl(var(--muted-foreground))' : template.color }}
+        />
+      </div>
 
-            {/* Text */}
-            <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-semibold leading-tight mb-1 truncate">
-                {template.title}
-              </h4>
-              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                {template.description}
-              </p>
-              {!isBlank && template.questions.length > 0 && (
-                <Badge variant="secondary" className="mt-2 text-[10px] px-1.5 py-0 h-5">
-                  {template.questions.length} question{template.questions.length !== 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{template.title}</p>
+        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+          {template.description}
+        </p>
+        {!isBlank && template.questions.length > 0 && (
+          <p className="text-[10px] text-muted-foreground/60 mt-1">
+            {template.questions.length} questions
+          </p>
+        )}
+      </div>
+
+      {/* Selected indicator */}
+      {isSelected && (
+        <div className="absolute top-2 right-2">
+          <Check className="size-4 text-primary" />
+        </div>
+      )}
+    </motion.button>
   );
 }

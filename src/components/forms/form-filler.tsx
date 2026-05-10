@@ -19,20 +19,27 @@ import {
 /* ─── Confetti particle ────────────────────────────────────────────────── */
 
 const CONFETTI_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
+const STAR_COLORS = ['#FFD700', '#FFA500', '#FF6347', '#FFD700'];
 
 function ConfettiParticles() {
   const particles = useMemo(() =>
-    Array.from({ length: 25 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      delay: Math.random() * 0.3,
-      duration: 2 + Math.random() * 2,
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      size: 4 + Math.random() * 6,
-      rotation: Math.random() * 360,
-      drift: (Math.random() - 0.5) * 40,
-      isCircle: Math.random() > 0.5,
-    })),
+    Array.from({ length: 35 }, (_, i) => {
+      const isStar = i < 6; // First 6 are stars
+      return {
+        id: i,
+        x: Math.random() * 100,
+        delay: Math.random() * 0.3,
+        duration: 2 + Math.random() * 2,
+        color: isStar
+          ? STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)]
+          : CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        size: isStar ? 8 + Math.random() * 8 : 4 + Math.random() * 6,
+        rotation: Math.random() * 360,
+        drift: (Math.random() - 0.5) * 40,
+        isCircle: !isStar && Math.random() > 0.5,
+        isStar,
+      };
+    }),
   []);
 
   return (
@@ -60,14 +67,23 @@ function ConfettiParticles() {
           className="absolute"
           style={{ width: p.size, height: p.size }}
         >
-          <div
-            className={p.isCircle ? 'rounded-full' : 'rounded-sm'}
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: p.color,
-            }}
-          />
+          {p.isStar ? (
+            <svg viewBox="0 0 24 24" width="100%" height="100%" style={{ filter: `drop-shadow(0 0 3px ${p.color})` }}>
+              <path
+                d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"
+                fill={p.color}
+              />
+            </svg>
+          ) : (
+            <div
+              className={p.isCircle ? 'rounded-full' : 'rounded-sm'}
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: p.color,
+              }}
+            />
+          )}
         </motion.div>
       ))}
     </div>
@@ -106,6 +122,11 @@ const slideVariants = {
     opacity: 0,
     scale: 0.98,
   }),
+};
+
+const questionTransition = {
+  duration: 0.5,
+  ease: [0.22, 1, 0.36, 1],
 };
 
 const fadeVariants = {
@@ -724,12 +745,25 @@ export function FormFiller() {
       {state.form.progressbar && (
         <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
           <motion.div
-            className="h-full"
-            style={{ backgroundColor: theme.buttonColor }}
+            className="h-full relative"
+            style={{
+              backgroundColor: theme.buttonColor,
+              boxShadow: `0 0 8px ${theme.buttonColor}4D`,
+            }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-          />
+          >
+            {/* Dot indicator at current progress position */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 size-3 rounded-full border-2"
+              style={{
+                backgroundColor: theme.buttonColor,
+                borderColor: theme.backgroundColor,
+                boxShadow: `0 0 6px ${theme.buttonColor}66`,
+              }}
+            />
+          </motion.div>
         </div>
       )}
 
@@ -778,7 +812,10 @@ export function FormFiller() {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
-                <h1
+                <motion.h1
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
@@ -788,13 +825,16 @@ export function FormFiller() {
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
                     style={{ backgroundColor: theme.textColor }}
                   />
-                </h1>
-                <p
-                  className={`text-lg md:text-xl opacity-60 ${ff}`}
+                </motion.h1>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 0.6, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.1, ease: [0.23, 1, 0.32, 1] }}
+                  className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
                   {state.form.welcomeMessage || 'Thanks for taking the time to fill this out.'}
-                </p>
+                </motion.p>
               </div>
             </motion.div>
           )}
@@ -808,10 +848,7 @@ export function FormFiller() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{
-                duration: 0.45,
-                ease: [0.23, 1, 0.32, 1],
-              }}
+              transition={questionTransition}
               className="max-w-2xl mx-auto w-full"
             >
               <QuestionScreen
@@ -867,10 +904,17 @@ export function FormFiller() {
                 variants={checkmarkVariants}
                 initial="hidden"
                 animate="visible"
-                className="mx-auto mb-8 size-24 rounded-full flex items-center justify-center"
+                className="mx-auto mb-8 size-24 rounded-full flex items-center justify-center relative"
                 style={{ backgroundColor: theme.buttonColor }}
               >
-                <Check className="size-12" style={{ color: theme.buttonTextColor }} />
+                {/* Golden glow behind checkmark */}
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    boxShadow: `0 0 40px 10px ${theme.buttonColor}66, 0 0 80px 20px ${theme.buttonColor}33`,
+                  }}
+                />
+                <Check className="size-12 relative z-10" style={{ color: theme.buttonTextColor }} />
               </motion.div>
               <h1
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
