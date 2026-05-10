@@ -10,12 +10,23 @@ export async function GET() {
       include: {
         _count: { select: { responses: true } },
         questions: { orderBy: { order: 'asc' } },
+        workspace: true,
       },
     });
     
     const serialized = forms.map(form => ({
       ...form,
       tags: JSON.parse(form.tags || '[]'),
+      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
+      workspace: form.workspace ? {
+        id: form.workspace.id,
+        name: form.workspace.name,
+        color: form.workspace.color,
+        icon: form.workspace.icon,
+        order: form.workspace.order,
+        createdAt: form.workspace.createdAt.toISOString(),
+        updatedAt: form.workspace.updatedAt.toISOString(),
+      } : null,
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),
@@ -54,16 +65,28 @@ export async function POST(request: NextRequest) {
         progressbar: body.progressbar ?? true,
         showQuestionNumbers: body.showQuestionNumbers ?? true,
         allowBackNavigation: body.allowBackNavigation ?? true,
+        ...(body.workspaceId && { workspaceId: body.workspaceId }),
       },
       include: {
         _count: { select: { responses: true } },
         questions: { orderBy: { order: 'asc' } },
+        workspace: true,
       },
     });
     
     const serialized = {
       ...form,
       tags: JSON.parse(form.tags || '[]'),
+      closeDate: form.closeDate ? form.closeDate.toISOString() : null,
+      workspace: form.workspace ? {
+        id: form.workspace.id,
+        name: form.workspace.name,
+        color: form.workspace.color,
+        icon: form.workspace.icon,
+        order: form.workspace.order,
+        createdAt: form.workspace.createdAt.toISOString(),
+        updatedAt: form.workspace.updatedAt.toISOString(),
+      } : null,
       questions: form.questions.map(q => ({
         ...q,
         options: JSON.parse(q.options),

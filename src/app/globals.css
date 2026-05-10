@@ -140,6 +140,73 @@ body::before {
   opacity: 0.03;
 }
 
+/* Dashboard subtle grid pattern background */
+.dashboard-grid-bg {
+  background-image:
+    linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Smooth theme transitions */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 200ms ease-in-out, border-color 200ms ease-in-out, color 200ms ease-in-out;
+}
+
+/* Better focus ring styles (Typeform-like blue ring) */
+:focus-visible {
+  outline: 2px solid oklch(0.623 0.214 259.815);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid oklch(0.623 0.214 259.815);
+  outline-offset: 2px;
+}
+
+/* Better selection colors */
+::selection {
+  background-color: oklch(0.623 0.214 259.815 / 0.2);
+  color: inherit;
+}
+
+/* Builder center panel dot grid pattern */
+.builder-dot-grid {
+  background-image: radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Animated gradient background for welcome screen */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animated-gradient-bg {
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+/* Progress bar glow effect */
+.progress-bar-glow {
+  box-shadow: 0 0 12px oklch(0.623 0.214 259.815 / 0.4), 0 0 4px oklch(0.623 0.214 259.815 / 0.2);
+}
+
+/* Connection indicator pulse */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.723 0.219 142.495 / 0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 4px oklch(0.723 0.219 142.495 / 0); }
+}
+.live-dot-pulse {
+  animation: livePulse 2s ease-in-out infinite;
+}
+
 /* Glassmorphism utility */
 .glass {
   background: rgba(255, 255, 255, 0.7);
@@ -190,12 +257,6 @@ body::before {
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--border)) transparent;
-}
-
-/* Selection color */
-::selection {
-  background-color: hsl(var(--primary) / 0.2);
-  color: hsl(var(--primary));
 }
 
 /* Reduced motion support */

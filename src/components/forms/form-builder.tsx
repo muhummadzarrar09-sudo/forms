@@ -874,7 +874,7 @@ export function FormBuilder() {
         </div>
 
         {/* ── Center Panel: Question Editor / Preview ── */}
-        <div className="flex-1 overflow-hidden min-w-0">
+        <div className="flex-1 overflow-hidden min-w-0 bg-muted/20 builder-dot-grid">
           {selectedQuestion ? (
             <QuestionEditor
               key={selectedQuestion.id}
@@ -1099,9 +1099,17 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative"
+      className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative overflow-hidden"
       style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
     >
+      {/* Animated gradient background */}
+      <div
+        className="absolute inset-0 animated-gradient-bg opacity-30"
+        style={{
+          background: `linear-gradient(135deg, ${form.buttonColor}33, ${form.backgroundColor}, ${form.buttonColor}22)`,
+          backgroundSize: '200% 200%',
+        }}
+      />
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1392,6 +1400,19 @@ function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
             like multiple choice, text input, rating scales, and more.
           </p>
         </div>
+
+        {/* Bouncing arrow pointing to Add Question button */}
+        <motion.div
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="text-muted-foreground/50"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto rotate-180">
+            <path d="M12 5v14" />
+            <path d="m19 12-7 7-7-7" />
+          </svg>
+          <p className="text-xs mt-1">Click below to get started</p>
+        </motion.div>
 
         <motion.div
           whileHover={{ scale: 1.02 }}

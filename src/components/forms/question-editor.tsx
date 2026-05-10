@@ -15,6 +15,7 @@ import {
   ThumbsUp,
   Calendar,
   Plus,
+  Upload,
   X,
   ArrowRight,
   ImageIcon,
@@ -588,6 +589,21 @@ function MiniQuestionPreview({
     );
   }
 
+  // File Upload
+  if (type === 'file_upload') {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-4 px-4 rounded-lg border-2 border-dashed gap-1.5"
+        style={{ borderColor: `${formTextColor}25`, backgroundColor: `${formTextColor}05` }}
+      >
+        <Upload className="size-4 opacity-30" style={{ color: formTextColor }} />
+        <span className={`text-[10px] opacity-30 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          Drag & drop or browse
+        </span>
+      </div>
+    );
+  }
+
   // Statement
   if (type === 'statement') {
     return (
@@ -1081,6 +1097,33 @@ function QuestionTypePreview({
           {question.settings?.requiredText || 'I accept'}
         </span>
       </label>
+    );
+  }
+
+  // File Upload
+  if (type === 'file_upload') {
+    return (
+      <div
+        className="flex flex-col items-center justify-center py-8 px-6 rounded-xl border-2 border-dashed cursor-pointer transition-colors hover:border-current/30"
+        style={{ borderColor: `${formTextColor}25`, backgroundColor: `${formTextColor}05` }}
+      >
+        <div
+          className="size-10 rounded-full flex items-center justify-center mb-2"
+          style={{ backgroundColor: `${formTextColor}10`, color: `${formTextColor}50` }}
+        >
+          <Upload className="size-5" />
+        </div>
+        <p className={`text-sm opacity-50 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          Drag & drop your file here
+        </p>
+        <p className={`text-xs opacity-30 mt-0.5 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          or browse files
+        </p>
+        <p className={`text-xs opacity-25 mt-2 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          Max {question.settings?.maxFileSize ?? 10}MB
+          {question.settings?.allowedTypes && question.settings.allowedTypes !== '*' && ` · ${question.settings.allowedTypes}`}
+        </p>
+      </div>
     );
   }
 

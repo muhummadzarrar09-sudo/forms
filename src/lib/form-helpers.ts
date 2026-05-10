@@ -166,6 +166,7 @@ export const QUESTION_TYPES: { type: QuestionType; label: string; icon: string; 
   { type: 'date', label: 'Date', icon: 'Calendar', category: 'Fields' },
   { type: 'rating', label: 'Rating', icon: 'Star', category: 'Rating' },
   { type: 'opinion_scale', label: 'Opinion Scale', icon: 'BarChart3', category: 'Rating' },
+  { type: 'file_upload', label: 'File Upload', icon: 'Upload', category: 'Upload & Media' },
   { type: 'legal', label: 'Legal', icon: 'FileText', category: 'Other' },
   { type: 'statement', label: 'Statement', icon: 'MessageSquare', category: 'Other' },
   { type: 'ending', label: 'Ending Screen', icon: 'Square', category: 'Other' },
@@ -187,6 +188,7 @@ export function createDefaultQuestion(type: QuestionType, formId: string, order:
     rating: { title: 'How would you rate this?', settings: { steps: 5 } },
     opinion_scale: { title: 'How likely are you to recommend us?', settings: { steps: 10, startAtOne: false } },
     legal: { title: 'I accept the terms and conditions', required: true },
+    file_upload: { title: 'Upload your file', settings: { maxFileSize: 10, allowedTypes: '*' } },
     statement: { title: 'This is a statement', description: 'It doesn\'t require an answer.' },
     ending: { title: 'Thank you!', description: 'Your response has been recorded.' },
   };

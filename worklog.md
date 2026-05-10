@@ -54,7 +54,7 @@ A 1:1 Typeform replica called "Forms" — a conversational form builder with:
 
 ## Next Steps
 - Add more question type previews in builder (live preview of question input)
-- Add form workspace/organization features (folders, tags)
+- Add form workspace/organization features (folders, tags) ✅
 - Add webhook/API integration for form submissions
 - Add form response email notifications
 - Improve conditional logic with AND/OR conditions
@@ -616,3 +616,373 @@ Stage Summary:
 - Filler with glowing progress bar, staggered welcome animations, enhanced star confetti, smoother transitions
 - Responses viewer with gradient stat cards, refined chart container, and accent-bordered response cards
 - All changes are backward compatible with no functionality modified
+
+---
+
+Task ID: 2-a
+Agent: bug-fix-agent
+Task: Fix 4 critical bugs in the Forms application
+
+Work Log:
+
+- **Bug 1 Fix**: Grid card title click now navigates to builder instead of editing inline
+  - Changed `onClick={() => setIsEditingTitle(true)}` to `onClick={() => onEdit(form.id)}` in grid view h3 element
+  - Updated title attribute from "Click to edit title" to "Open in builder"
+  - Added "Rename" dropdown menu item in grid view dropdown (before "Duplicate") so users can still rename from the dropdown
+  - List view title click behavior kept as-is (inline editing)
+
+- **Bug 2 Fix**: Multiple choice now stores option IDs instead of labels
+  - MultipleChoiceInput: `handleSelect` now stores `option.id` for single select, comma-separated IDs for multi-select
+  - `isSelected` check now compares against `option.id` instead of `option.label`
+  - PictureChoiceInput: Same fix — stores `option.id` and checks `option.id` for selection state
+  - DropdownInput: `handleSelect` now stores `option.id` instead of `option.label`
+  - DropdownInput: Added `selectedOption` lookup and `displayValue` to show the label text while storing the ID
+  - This aligns with the logic evaluation in `form-filler.tsx` which checks `selectedIds.includes(field)` where `field` is an option ID
+
+- **Bug 3 Fix**: Status indicator and dropdown menu no longer overlap in grid view
+  - Moved status indicator dot from `absolute top-2 right-2` to `absolute top-2 left-10` (positioned after the favorite heart)
+  - Reordered DOM: favorite heart first (left-2), then status indicator (left-10)
+  - Dropdown menu trigger stays at `absolute top-2 right-2` with no overlap
+
+- **Bug 4 Fix**: Sort dropdown now uses shadcn Select instead of native HTML select
+  - Replaced `<select>` element with `Select`, `SelectTrigger`, `SelectContent`, `SelectItem`, `SelectValue` from `@/components/ui/select`
+  - Added imports for Select components in `dashboard.tsx`
+  - Styled `SelectTrigger` with `size="sm"`, `border-none`, `bg-transparent`, matching the previous visual weight
+  - `onValueChange` replaces `onChange` handler, values remain the same
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Fixed 4 critical bugs affecting UX and logic correctness
+- Grid view title click navigates to builder (Typeform-style), rename available via dropdown
+- Choice/dropdown inputs now store option IDs matching logic evaluation expectations
+- Status indicator and dropdown menu no longer overlap in grid view
+- Sort dropdown uses consistent shadcn Select component
+
+---
+
+Task ID: 2-b
+Agent: file-upload-agent
+Task: Add file_upload question type
+
+Work Log:
+- Updated `/src/types/form.ts`:
+  - Added `'file_upload'` to the `QuestionType` union type
+  - Added `maxFileSize?: number` (in MB) and `allowedTypes?: string` (e.g. 'pdf,docx,jpg,png' or '*') to `QuestionSettings` interface
+- Updated `/src/lib/form-helpers.ts`:
+  - Added `{ type: 'file_upload', label: 'File Upload', icon: 'Upload', category: 'Upload & Media' }` to QUESTION_TYPES array
+  - Added `file_upload` default in `createDefaultQuestion`: title "Upload your file", settings `{ maxFileSize: 10, allowedTypes: '*' }`
+- Added `FileUploadInput` component to `/src/components/forms/question-input.tsx`:
+  - Drag-and-drop zone with dashed border styling
+  - "Browse files" button with theme buttonColor styling
+  - File size validation against `question.settings.maxFileSize` (default 10MB)
+  - File type validation against `question.settings.allowedTypes` (default '*' for all)
+  - Simulated upload progress animation (7-step progress bar: 10% → 100%)
+  - Shows uploaded file info (name + size) with check icon after completion
+  - Auto-advances to next question 500ms after upload completes
+  - Error messages for oversized files and disallowed types
+  - Remove file button (X icon) to clear selection
+  - Full theme color integration (backgroundColor, textColor, buttonColor, buttonTextColor)
+  - Uses `useCallback` for `formatFileSize`, `isTypeAllowed`, and `handleFile` with proper dependency arrays
+- Added `file_upload` switch case to `QuestionInput` component
+- Updated `/src/components/forms/question-type-picker.tsx`:
+  - Added `Upload` icon import and to ICON_MAP
+  - Added `'Upload & Media'` category to CATEGORY_ORDER (between Rating and Other)
+  - Added category description: "File uploads and media"
+  - Added preview text: `file_upload: '📎'`
+- Updated `/src/components/forms/question-editor.tsx`:
+  - Added `Upload` icon import
+  - Added mini preview case for `file_upload` in `MiniQuestionPreview`: dashed upload zone with Upload icon and "Drag & drop or browse" text
+  - Added interactive preview case for `file_upload` in `QuestionTypePreview`: larger dashed zone with Upload icon in circle, "Drag & drop your file here" text, file size and allowed types info
+- Updated `/src/components/forms/design-panel.tsx`:
+  - Added `Upload` icon import and to ICON_MAP
+  - Added `hasFileUploadSettings` boolean flag for `file_upload` type
+  - Added file upload-specific settings section in Question Settings tab:
+    - Max File Size (number input, 1–100 MB range, default 10)
+    - Allowed File Types (text input, comma-separated extensions, default '*' for all)
+    - Helper text explaining each setting
+- Ran ESLint: no errors
+
+Stage Summary:
+- Complete file_upload question type with drag-and-drop input, simulated upload progress, file validation
+- Settings for max file size (MB) and allowed file types (comma-separated extensions or *)
+- Added to question type picker under new "Upload & Media" category with 📎 preview
+- Mini previews and interactive editor previews in question editor
+- Design panel settings for file size and type restrictions
+- All existing functionality preserved
+
+---
+Task ID: 3-a
+Agent: styling-agent
+Task: Major styling improvements to make the application look more like actual Typeform product
+
+Work Log:
+- **Dashboard Left Sidebar Navigation** (`dashboard.tsx`):
+  - Replaced top header bar with a proper left sidebar (240px expanded / 64px collapsed)
+  - Sidebar includes: Forms logo at top, navigation items (Home, Templates, Themes, Resources) with icons
+  - Active nav item has animated left border indicator using Framer Motion layoutId
+  - Sidebar is collapsible (desktop) with smooth width transition
+  - Mobile: sidebar becomes a slide-in drawer with backdrop overlay
+  - Bottom section has theme toggle and user avatar placeholder
+  - Main content area sits alongside sidebar with breathing room
+  - Added `sidebarExpanded`, `mobileSidebarOpen`, `activeNav` state variables
+  - Added new icon imports: Home, Palette, BookOpen, Layers, ChevronLeft, Menu, X
+
+- **Better Dashboard Form Grid** (`form-card.tsx`):
+  - Increased colored header area from h-20 to h-28 for more prominent card design
+  - Added subtle gradient overlay on colored area for depth effect (linear-gradient with white/black opacity)
+  - Form title is now text-base font-bold (was text-sm font-semibold) for more prominence
+  - Added "Last edited X ago" subtitle below description in grid view
+  - Card hover uses `whileHover={{ y: -6 }}` (was -4) with `hover:shadow-xl` for deeper lift effect
+  - Added `overflow-hidden` to colored area for proper gradient clipping
+  - Title area has `relative z-10` to stay above gradient overlay
+
+- **Improved Form Builder Center Panel** (`form-builder.tsx`):
+  - Added `builder-dot-grid` CSS class for subtle dot pattern background in center panel
+  - Added `bg-muted/20` lighter background for the center panel vs side panels
+  - WelcomeScreenPreview now has animated gradient background using CSS `animated-gradient-bg` class
+  - Gradient uses form buttonColor + backgroundColor for a slow color shift effect
+  - Added `overflow-hidden` to welcome screen container for proper gradient containment
+
+- **Enhanced Form Filler Experience** (`form-filler.tsx`):
+  - Added connection indicator: small animated green dot with "Live" label in bottom-left
+  - Uses CSS `live-dot-pulse` animation for pulsing glow effect
+  - Welcome screen start button has enhanced fade-in animation (scale: 0.95 → 1, longer duration, smoother easing)
+  - Progress bar now uses `progress-bar-glow` CSS class for subtle glow effect
+  - Removed inline boxShadow on progress bar in favor of CSS class
+  - Added slight parallax effect on question transitions (x offset of ±10px alongside y movement)
+
+- **Global CSS Improvements** (`globals.css`):
+  - Added `dashboard-grid-bg` class with subtle grid lines pattern (48px spacing)
+  - Added `.theme-transitioning` class for smooth theme change transitions (200ms ease-in-out)
+  - Added Typeform-like blue focus ring (`oklch(0.623 0.214 259.815)`) on focus-visible elements
+  - Improved selection colors using blue tone matching Typeform style
+  - Added `.builder-dot-grid` class with radial dot pattern (24px spacing) for builder center panel
+  - Added `.animated-gradient-bg` keyframes and class for slow color shift animation (8s infinite)
+  - Added `.progress-bar-glow` class for progress bar glow effect
+  - Added `.live-dot-pulse` keyframes and class for connection indicator animation
+  - Removed old `::selection` duplicate and replaced with better blue-toned version
+  - Fixed theme transition CSS to only apply when `.theme-transitioning` class is active
+
+- **Response Viewer Improvements** (`responses-viewer.tsx`):
+  - Added colored accent dot next to form title in header (uses form backgroundColor)
+  - Added "Response Analytics" subtitle under form title
+  - Replaced completion rate card icon with circular SVG progress indicator
+  - Circular indicator shows animated fill based on completionRate percentage
+  - Uses emerald color scheme matching the existing completion rate card design
+  - Improved bar chart rounded corners (radius [6,6,0,0] from [4,4,0,0])
+  - Response cards now have `hover:shadow-md` transition for better hover feedback
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Typeform-like left sidebar with collapsible navigation, mobile drawer, and animated active indicators
+- More prominent form cards with h-28 colored area, gradient depth, and larger titles
+- Builder center panel with dot grid background and animated gradient on welcome screen
+- Form filler with live connection indicator, enhanced start button animation, progress bar glow, and parallax transitions
+- Improved global CSS with dashboard grid pattern, theme transitions, blue focus rings, and selection colors
+- Response viewer with colored accent header, circular progress indicator, and better chart styling
+- All existing functionality preserved
+
+
+---
+Task ID: 3-b
+Agent: workspace-folders-agent
+Task: Add Workspace/Folder Organization feature
+
+Work Log:
+- **Database Changes**:
+  - Added `Workspace` model to `prisma/schema.prisma` with id, name, color, icon, order, createdAt, updatedAt, and forms relation
+  - Added `workspaceId` (String?) field to Form model with relation to Workspace (onDelete: SetNull)
+  - Ran `bun run db:push` to update the database schema
+  - Added `Workspace` interface to `/src/types/form.ts` with id, name, color, icon, order, forms, _count
+  - Added `workspaceId: string | null` and `workspace?: Workspace` fields to the Form interface
+
+- **API Routes**:
+  - Created `/src/app/api/workspaces/route.ts` — GET (list all workspaces with form counts), POST (create workspace with name, color, icon, auto-incrementing order)
+  - Created `/src/app/api/workspaces/[id]/route.ts` — GET (workspace by ID with forms), PUT (update workspace name/color/icon/order), DELETE (delete workspace, moves forms to null workspaceId)
+  - Updated `/src/app/api/forms/route.ts` — GET includes workspace relation, POST accepts workspaceId
+  - Updated `/src/app/api/forms/[id]/route.ts` — GET includes workspace relation, PUT accepts workspaceId (supports null for removing from workspace)
+  - Updated `/src/app/api/forms/[id]/duplicate/route.ts` — Copies workspaceId from original form, includes workspace relation in response
+
+- **Form Store** (`/src/store/form-store.ts`):
+  - Added `workspaces: Workspace[]` state
+  - Added `setWorkspaces`, `addWorkspace`, `updateWorkspace`, `removeWorkspace` actions
+  - `removeWorkspace` also updates any forms that were in the deleted workspace (sets workspaceId to null)
+
+- **Dashboard** (`/src/components/forms/dashboard.tsx`):
+  - Added workspace-related state: activeWorkspaceId, showCreateWorkspaceDialog, newWorkspaceName, newWorkspaceColor, isCreatingWorkspace, workspaceMenuId, newFormWorkspaceId
+  - Fetches workspaces alongside forms on mount (Promise.all)
+  - Added workspace filter to filteredForms useMemo (filters by activeWorkspaceId)
+  - Added "Workspaces" section in sidebar with:
+    - "All Forms" default item (no workspace filter)
+    - List of workspace items with colored folder icons, name, and form count
+    - "+" button to create new workspace
+    - Hover menu with "Delete Workspace" option per workspace
+    - Click to filter forms by workspace, click again to deselect
+  - Added "Create Workspace" dialog with name input, color picker (8 color options), and create button
+  - Added workspace selector in "New Form" dialog details step (Select component with workspace options)
+  - Passes `onMoveToWorkspace` and `workspaces` props to FormCard
+  - `handleMoveToWorkspace` callback: moves form to different workspace via PUT /api/forms/[id], updates local state
+  - `handleCreateWorkspace` callback: creates workspace via POST /api/workspaces, adds to store
+  - `handleDeleteWorkspace` callback: deletes workspace via DELETE /api/workspaces/[id], removes from store, resets filter if active
+
+- **Form Card** (`/src/components/forms/form-card.tsx`):
+  - Added `onMoveToWorkspace` and `workspaces` props
+  - Added `WorkspaceIndicator` component showing colored dot + workspace name
+  - Grid view: workspace indicator shown below tags
+  - List view: workspace indicator shown below tags
+  - Added "Move to..." submenu in dropdown menus (both list and grid views) with:
+    - "No Workspace" option (with muted dot)
+    - List of all workspaces (with colored dots)
+    - Current workspace highlighted with text-primary
+  - Imported `Folder` and `FolderInput` icons from lucide-react
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Complete workspace/folder organization feature with full CRUD API and UI
+- Workspaces appear in sidebar with colored folder icons, form counts, and delete action
+- Click workspace to filter forms, click "All Forms" to show all
+- Create workspace dialog with name input and 8-color picker
+- Move forms between workspaces via dropdown "Move to..." submenu
+- Workspace indicator (colored dot + name) on form cards in both grid and list views
+- Workspace selection when creating new forms
+- Deleting a workspace moves all its forms back to "No Workspace"
+- All existing functionality preserved
+
+---
+
+Task ID: 4-a
+Agent: feature-enhancement-agent
+Task: Add Form Notifications/Alerts, Settings Tab in Design Panel, Improved Response Analytics, Better Empty States
+
+Work Log:
+- **Feature 1: Form Notifications/Alerts System**:
+  - Added `FormNotification` interface and `notifications` state array to `/src/store/form-store.ts`
+  - Added `addNotification`, `markNotificationRead`, `clearNotifications`, and `checkForNewResponses` actions
+  - `checkForNewResponses` compares `updatedAt` with `lastViewedAt` stored in localStorage per form
+  - Created `/src/components/forms/notification-bell.tsx` — Bell icon in dashboard header with badge count
+  - Popover dropdown showing recent notifications with type-based icons (Users for new responses, ExternalLink for published)
+  - Mark all read / Clear all buttons
+  - Each notification clickable and navigates to responses viewer via `openResponses`
+  - Integrated NotificationBell in dashboard header (`dashboard.tsx`)
+  - Added `checkForNewResponses` call after forms are loaded on dashboard mount
+
+- **Feature 2: Form Settings Tab in Design Panel**:
+  - Added `maxResponses` (Int, default 0), `closeDate` (DateTime?), `metaTitle` (String, default ""), `metaDescription` (String, default "") fields to Form model in `prisma/schema.prisma`
+  - Ran `bun run db:push` to update the database schema
+  - Added corresponding fields to `Form` interface in `/src/types/form.ts`
+  - Updated all API routes to serialize/deserialize the new fields:
+    - `/src/app/api/forms/route.ts` — GET and POST now include `closeDate` serialization
+    - `/src/app/api/forms/[id]/route.ts` — GET serializes closeDate, PUT accepts new fields (maxResponses, closeDate, metaTitle, metaDescription)
+    - `/src/app/api/forms/[id]/duplicate/route.ts` — Copies maxResponses, metaTitle, metaDescription from original
+  - Added "Settings" tab (4th tab) to design panel with Cog/Gear icon
+  - Created `FormSettingsAdvancedTab` component with:
+    - Progress Bar toggle (with description "Show progress indicator at top")
+    - Question Numbers toggle (with description "Display 1 of 5 labels")
+    - Back Navigation toggle (with description "Allow respondents to go back")
+    - Form Status toggle with published/draft state and description
+    - Response Limits input (0 = unlimited)
+    - Auto-Close Date picker with CalendarClock icon
+    - SEO Settings section with Meta Title and Meta Description inputs
+  - All settings auto-save via `updateForm` on blur/change
+
+- **Feature 3: Improved Response Analytics** (`responses-viewer.tsx`):
+  - Added "Daily Response Trend" line chart using recharts LineChart with monotone curve, styled dots, and active dots
+  - Added `lineChartConfig` for chart theming
+  - Added "Drop-off Analysis" card showing questions with highest abandonment rate
+  - Drop-off data computed in useMemo comparing answer counts between adjacent questions
+  - Each drop-off item shows question number, title, answer rate progress bar, and drop-off percentage badge
+  - Destructive badge styling for drop-offs > 20% with AlertTriangle icon
+  - Added "PDF" export button next to Export CSV — shows "Coming soon" toast notification
+  - Added FileDown, TrendingDown, AlertTriangle icon imports
+
+- **Feature 4: Better Empty States**:
+  - Dashboard empty state: Added animated CSS-only illustration with rotating dashed ring, floating dots with staggered bounce animations, and shadow effect on main icon
+  - Form builder no questions: Added bouncing arrow animation (motion.div with y: [0, -8, 0] infinite transition) and "Click below to get started" hint
+  - Responses viewer no responses: Added "Share your form to collect responses" call-to-action card with copy share link button
+
+- Ran ESLint: no errors
+
+Stage Summary:
+- Complete notifications system with bell icon, badge count, and localStorage-based response detection
+- Settings tab in design panel with progress bar, question numbers, back navigation, form status, response limits, close date, and SEO settings
+- New database fields (maxResponses, closeDate, metaTitle, metaDescription) with full API support
+- Improved response analytics with line chart, drop-off analysis, and PDF export button placeholder
+- Better empty states with CSS animations, bouncing arrows, and share CTA
+- All existing functionality preserved
+
+---
+
+Task ID: 15-comprehensive-qa-fixes
+Agent: main-orchestrator
+Task: Comprehensive QA, bug fixes, new features, and styling improvements
+
+Work Log:
+- **Bug Fix 1**: Grid card title click now navigates to form builder instead of editing inline. In Typeform, clicking a form card opens the builder. Changed `onClick` from `setIsEditingTitle(true)` to `onEdit(form.id)`. Added "Rename" dropdown option for grid view cards.
+- **Bug Fix 2**: Choice question inputs (MultipleChoice, PictureChoice, Dropdown) now store option IDs instead of labels. This aligns with the logic evaluation system which expects option IDs. Updated `handleSelect` and `isSelected` logic in all three components.
+- **Bug Fix 3**: Status indicator and dropdown menu overlap resolved in grid view. Moved status indicator from top-right to left-10 position (after favorite heart).
+- **Bug Fix 4**: Replaced native HTML `<select>` sort dropdown with shadcn/ui Select component for consistent design.
+- **Feature 1**: Added file_upload question type with drag-and-drop zone, file size/type validation, simulated upload progress, and auto-advance.
+- **Feature 2**: Added Workspace/Folder organization system:
+  - New Workspace model in Prisma schema
+  - API routes for CRUD workspaces
+  - Workspace sidebar section in dashboard with create/delete/filter
+  - "Move to workspace" option in form card dropdowns
+  - Workspace indicator on form cards
+- **Feature 3**: Typeform-like left sidebar navigation:
+  - Collapsible sidebar (240px expanded / 64px collapsed)
+  - Navigation items: Home, Templates, Themes, Resources
+  - Mobile slide-in drawer mode
+  - User avatar and theme toggle in sidebar footer
+- **Feature 4**: Major styling improvements:
+  - Larger form card colored headers (h-28)
+  - Gradient overlay on colored areas
+  - Dot grid background in builder center panel
+  - Animated gradient on welcome screen preview
+  - Connection indicator ("Live" dot) in form filler
+  - Better focus rings matching Typeform's blue
+  - Dashboard grid pattern background
+  - Smooth theme transitions
+- **Feature 5**: Form notification system:
+  - Notification bell in dashboard header
+  - Detects new responses since last visit
+  - Clickable notifications navigate to responses viewer
+- **Feature 6**: Settings tab in Design Panel:
+  - Progress bar, question numbers, back navigation toggles
+  - Form status (published/draft) toggle
+  - Response limits and close date
+  - SEO settings (meta title/description)
+  - Added maxResponses, closeDate, metaTitle, metaDescription to Form model
+- **Feature 7**: Improved response analytics:
+  - Daily response trend line chart
+  - Drop-off analysis section
+  - PDF export button (coming soon)
+- **Feature 8**: Better empty states:
+  - Animated CSS illustration on dashboard
+  - Bouncing arrow in form builder
+  - "Share your form" CTA in responses viewer
+- Fixed Next.js cross-origin warning by adding allowedDevOrigins config
+- Ran ESLint: no errors
+
+Stage Summary:
+- 4 critical bugs fixed (title navigation, choice ID storage, overlap, native select)
+- 8 major features added (file upload, workspaces, sidebar nav, notifications, settings tab, analytics, empty states, styling)
+- Application now much closer to exact Typeform clone with sidebar navigation, workspace organization, and polished interactions
+- All APIs tested and working (forms, workspaces, responses)
+- Clean lint with no errors
+
+Unresolved Issues / Risks:
+- Next.js dev server process can die between terminal sessions (infrastructure issue, not app bug)
+- Conditional logic doesn't prevent circular jumps
+- File upload only simulates (no actual cloud storage)
+- PDF export shows "Coming soon" placeholder
+
+Priority Recommendations for Next Phase:
+1. Add webhook/API integration for form submission events
+2. Add form versioning/history
+3. Implement actual file upload to cloud storage
+4. Add compound conditions (AND/OR) for conditional logic
+5. Add payment integration question type
+6. Add form A/B testing

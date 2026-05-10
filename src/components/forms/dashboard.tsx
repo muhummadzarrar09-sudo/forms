@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
-import type { Form } from '@/types/form';
+import type { Form, Workspace } from '@/types/form';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,17 @@ import {
   Globe,
   ChevronDown,
   ChevronRight,
+  Home,
+  Palette,
+  BookOpen,
+  Layers,
+  ChevronLeft,
+  Menu,
+  X,
+  FolderOpen,
+  Trash2,
+  MoreHorizontal,
+  Folder,
 } from 'lucide-react';
 import {
   MessageSquare,
@@ -60,8 +71,16 @@ import {
 import { useTheme } from 'next-themes';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { FormCard } from '@/components/forms/form-card';
 import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
+import { NotificationBell } from '@/components/forms/notification-bell';
 import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
 
 type SortOption = 'newest' | 'oldest' | 'title' | 'responses';
@@ -175,6 +194,12 @@ export function Dashboard() {
     openBuilder,
     openFiller,
     openResponses,
+    workspaces,
+    setWorkspaces,
+    addWorkspace,
+    updateWorkspace,
+    removeWorkspace,
+    checkForNewResponses,
   } = useFormStore();
 
   const { theme, setTheme } = useTheme();
@@ -195,6 +220,18 @@ export function Dashboard() {
   const [newFormDescription, setNewFormDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState('home');
+
+  // Workspace state
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [showCreateWorkspaceDialog, setShowCreateWorkspaceDialog] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [newWorkspaceColor, setNewWorkspaceColor] = useState('#6366f1');
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [workspaceMenuId, setWorkspaceMenuId] = useState<string | null>(null);
+  const [newFormWorkspaceId, setNewFormWorkspaceId] = useState<string | null>(null);
 
   // Template picker state
   const [dialogStep, setDialogStep] = useState<'template' | 'details'>('template');
@@ -212,14 +249,17 @@ export function Dashboard() {
   const gKeyBufferRef = useRef(false);
   const gKeyTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Fetch forms on mount
+  // Fetch forms and workspaces on mount
   useEffect(() => {
-    const fetchForms = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/forms');
-        if (res.ok) {
-          const data = await res.json();
+        const [formsRes, workspacesRes] = await Promise.all([
+          fetch('/api/forms'),
+          fetch('/api/workspaces'),
+        ]);
+        if (formsRes.ok) {
+          const data = await formsRes.json();
           setForms(data);
         } else {
           toast({
@@ -227,6 +267,10 @@ export function Dashboard() {
             description: 'Could not fetch your forms. Please try again.',
             variant: 'destructive',
           });
+        }
+        if (workspacesRes.ok) {
+          const wsData = await workspacesRes.json();
+          setWorkspaces(wsData);
         }
       } catch {
         toast({
@@ -238,8 +282,15 @@ export function Dashboard() {
         setIsLoading(false);
       }
     };
-    fetchForms();
-  }, [setForms, setIsLoading]);
+    fetchData();
+  }, [setForms, setWorkspaces, setIsLoading]);
+
+  // Check for new response notifications after forms are loaded
+  useEffect(() => {
+    if (forms.length > 0 && !isLoading) {
+      checkForNewResponses();
+    }
+  }, [forms.length, isLoading, checkForNewResponses]);
 
   // Count for each filter
   const filterCounts = useMemo(() => ({
@@ -251,6 +302,11 @@ export function Dashboard() {
   // Filter and sort forms
   const filteredForms = useMemo(() => {
     let result = [...forms];
+
+    // Apply workspace filter
+    if (activeWorkspaceId) {
+      result = result.filter((f) => f.workspaceId === activeWorkspaceId);
+    }
 
     // Apply filter
     if (activeFilter === 'all') {
@@ -298,7 +354,7 @@ export function Dashboard() {
     }
 
     return result;
-  }, [forms, searchQuery, sortBy, activeFilter]);
+  }, [forms, searchQuery, sortBy, activeFilter, activeWorkspaceId]);
 
   // Stats
   const totalForms = forms.filter((f) => !f.archived).length;
@@ -340,14 +396,84 @@ export function Dashboard() {
     });
   }, [forms]);
 
+  // Workspace form count helper
+  const getWorkspaceFormCount = useCallback((workspaceId: string) => {
+    return forms.filter((f) => f.workspaceId === workspaceId && !f.archived).length;
+  }, [forms]);
+
+  // Create workspace
+  const handleCreateWorkspace = useCallback(async () => {
+    if (!newWorkspaceName.trim()) {
+      toast({ title: 'Name required', description: 'Please enter a workspace name.', variant: 'destructive' });
+      return;
+    }
+    setIsCreatingWorkspace(true);
+    try {
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newWorkspaceName.trim(), color: newWorkspaceColor }),
+      });
+      if (res.ok) {
+        const workspace = await res.json();
+        addWorkspace(workspace);
+        setShowCreateWorkspaceDialog(false);
+        setNewWorkspaceName('');
+        setNewWorkspaceColor('#6366f1');
+        toast({ title: 'Workspace created', description: `"${workspace.name}" is ready.` });
+      } else {
+        toast({ title: 'Error', description: 'Failed to create workspace.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Network error', variant: 'destructive' });
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
+  }, [newWorkspaceName, newWorkspaceColor, addWorkspace]);
+
+  // Delete workspace
+  const handleDeleteWorkspace = useCallback(async (workspaceId: string) => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}`, { method: 'DELETE' });
+      if (res.ok) {
+        removeWorkspace(workspaceId);
+        if (activeWorkspaceId === workspaceId) {
+          setActiveWorkspaceId(null);
+        }
+        toast({ title: 'Workspace deleted' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete workspace', variant: 'destructive' });
+    }
+  }, [activeWorkspaceId, removeWorkspace]);
+
+  // Move form to workspace
+  const handleMoveToWorkspace = useCallback(async (formId: string, workspaceId: string | null) => {
+    try {
+      const res = await fetch(`/api/forms/${formId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (res.ok) {
+        const ws = workspaceId ? workspaces.find(w => w.id === workspaceId) : null;
+        updateForm(formId, { workspaceId, workspace: ws ? { id: ws.id, name: ws.name, color: ws.color, icon: ws.icon, order: ws.order, createdAt: ws.createdAt, updatedAt: ws.updatedAt } : null });
+        toast({ title: workspaceId ? `Moved to ${ws?.name || 'workspace'}` : 'Removed from workspace' });
+      }
+    } catch {
+      toast({ title: 'Failed to move form', variant: 'destructive' });
+    }
+  }, [workspaces, updateForm]);
+
   // Reset dialog state when opening
   const handleOpenNewFormDialog = useCallback(() => {
     setDialogStep('template');
     setSelectedTemplateId(null);
     setNewFormTitle('');
     setNewFormDescription('');
+    setNewFormWorkspaceId(activeWorkspaceId);
     setShowNewFormDialog(true);
-  }, []);
+  }, [activeWorkspaceId]);
 
   // Select template and go to details step
   const handleSelectTemplate = useCallback((templateId: string | null) => {
@@ -384,6 +510,7 @@ export function Dashboard() {
         body: JSON.stringify({
           title: newFormTitle.trim(),
           description: newFormDescription.trim(),
+          workspaceId: newFormWorkspaceId || undefined,
         }),
       });
 
@@ -708,78 +835,298 @@ export function Dashboard() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleOpenNewFormDialog]);
 
+  // ── Sidebar navigation items ──
+  const navItems = [
+    { key: 'home', label: 'Home', Icon: Home },
+    { key: 'templates', label: 'Templates', Icon: Layers },
+    { key: 'themes', label: 'Themes', Icon: Palette },
+    { key: 'resources', label: 'Resources', Icon: BookOpen },
+  ];
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header / Navbar */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            {/* Logo / Brand */}
-            <div className="flex items-center gap-2.5">
-              <div className="size-8 rounded-lg bg-primary flex items-center justify-center">
-                <FileText className="size-4 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-bold tracking-tight">Forms</span>
-            </div>
+    <div className="min-h-screen bg-background flex">
+      {/* ── Mobile sidebar overlay ── */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
-            {/* New Form button */}
-            <div className="flex items-center gap-2">
-              {/* Dark mode toggle */}
-              {mounted && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-8">
-                      <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                      <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                      <span className="sr-only">Toggle theme</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setTheme('light')}>
-                      <Sun className="size-4 mr-2" />
-                      Light
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setTheme('dark')}>
-                      <Moon className="size-4 mr-2" />
-                      Dark
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setTheme('system')}>
-                      <Monitor className="size-4 mr-2" />
-                      System
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+      {/* ── Left Sidebar ── */}
+      <aside
+        className={`fixed lg:relative z-50 lg:z-auto h-screen flex flex-col bg-card border-r transition-all duration-300 ease-in-out ${
+          sidebarExpanded ? 'w-[240px]' : 'w-[64px]'
+        } ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+      >
+        {/* Logo / Brand */}
+        <div className={`flex items-center h-14 border-b shrink-0 ${sidebarExpanded ? 'px-4' : 'px-0 justify-center'}`}>
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+              <FileText className="size-4 text-primary-foreground" />
+            </div>
+            {sidebarExpanded && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-lg font-bold tracking-tight"
+              >
+                Forms
+              </motion.span>
+            )}
+          </div>
+          {/* Collapse toggle (desktop) */}
+          <button
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className={`ml-auto size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors hidden lg:flex ${!sidebarExpanded ? 'lg:hidden' : ''}`}
+          >
+            <ChevronLeft className={`size-4 transition-transform ${!sidebarExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {/* Expand toggle when collapsed (desktop) */}
+        {!sidebarExpanded && (
+          <button
+            onClick={() => setSidebarExpanded(true)}
+            className="hidden lg:flex items-center justify-center h-10 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <ChevronLeft className="size-4 rotate-180" />
+          </button>
+        )}
+
+        {/* Navigation */}
+        <nav className="py-2 px-2 space-y-0.5">
+          {navItems.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveNav(key)}
+              className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-all relative ${
+                sidebarExpanded ? 'px-3 py-2.5' : 'px-0 py-2.5 justify-center'
+              } ${
+                activeNav === key
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {/* Active left border indicator */}
+              {activeNav === key && (
+                <motion.div
+                  layoutId="sidebar-active-indicator"
+                  className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-primary"
+                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                />
               )}
+              <Icon className="size-[18px] shrink-0" />
+              {sidebarExpanded && <span>{label}</span>}
+            </button>
+          ))}
+        </nav>
 
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setImportJsonText('');
-                  setImportError('');
-                  setShowImportDialog(true);
-                }}
-                size="default"
-                className="gap-2"
+        {/* Workspaces Section */}
+        <div className="flex-1 border-t pt-2 pb-1 px-2 min-h-0 overflow-y-auto">
+          <div className={`flex items-center justify-between mb-1 ${sidebarExpanded ? 'px-1' : 'justify-center'}`}>
+            {sidebarExpanded && (
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Workspaces</span>
+            )}
+            <button
+              onClick={() => {
+                setNewWorkspaceName('');
+                setNewWorkspaceColor('#6366f1');
+                setShowCreateWorkspaceDialog(true);
+              }}
+              className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Create workspace"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+          {/* All Forms (no workspace filter) */}
+          <button
+            onClick={() => setActiveWorkspaceId(null)}
+            className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
+              sidebarExpanded ? 'px-2.5 py-2' : 'px-0 py-2 justify-center'
+            } ${
+              !activeWorkspaceId
+                ? 'bg-primary/10 text-primary font-medium'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            <FolderOpen className="size-4 shrink-0" />
+            {sidebarExpanded && (
+              <>
+                <span className="flex-1 text-left truncate">All Forms</span>
+                <span className="text-[10px] text-muted-foreground">{forms.filter(f => !f.archived).length}</span>
+              </>
+            )}
+          </button>
+          {/* Workspace items */}
+          {workspaces.map((ws) => (
+            <div key={ws.id} className="relative group">
+              <button
+                onClick={() => setActiveWorkspaceId(activeWorkspaceId === ws.id ? null : ws.id)}
+                className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
+                  sidebarExpanded ? 'px-2.5 py-2' : 'px-0 py-2 justify-center'
+                } ${
+                  activeWorkspaceId === ws.id
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
               >
-                <Upload className="size-4" />
-                <span className="hidden sm:inline">Import</span>
-              </Button>
-
-              <Button
-                onClick={handleOpenNewFormDialog}
-                size="default"
-                className="gap-2"
-              >
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">New Form</span>
-              </Button>
+                <div
+                  className="size-4 rounded shrink-0 flex items-center justify-center"
+                  style={{ backgroundColor: ws.color + '20', color: ws.color }}
+                >
+                  <Folder className="size-3" />
+                </div>
+                {sidebarExpanded && (
+                  <>
+                    <span className="flex-1 text-left truncate">{ws.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{getWorkspaceFormCount(ws.id)}</span>
+                  </>
+                )}
+              </button>
+              {/* Workspace actions (hover) */}
+              {sidebarExpanded && (
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setWorkspaceMenuId(workspaceMenuId === ws.id ? null : ws.id); }}
+                    className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
+                  >
+                    <MoreHorizontal className="size-3.5" />
+                  </button>
+                </div>
+              )}
+              {/* Workspace context menu */}
+              {workspaceMenuId === ws.id && sidebarExpanded && (
+                <div className="absolute left-0 right-0 top-full z-10 bg-popover border rounded-lg shadow-md py-1 mx-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteWorkspace(ws.id); setWorkspaceMenuId(null); }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="size-3" />
+                    Delete Workspace
+                  </button>
+                </div>
+              )}
             </div>
+          ))}
+        </div>
+
+        {/* Bottom section */}
+        <div className={`border-t p-2 space-y-1 shrink-0 ${!sidebarExpanded ? 'flex flex-col items-center' : ''}`}>
+          {/* Dark mode toggle */}
+          {mounted && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`flex items-center gap-3 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all ${
+                    sidebarExpanded ? 'px-3 py-2 w-full' : 'p-2 justify-center'
+                  }`}
+                >
+                  <Sun className="size-[18px] shrink-0 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute size-[18px] shrink-0 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  {sidebarExpanded && <span>Theme</span>}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align={sidebarExpanded ? 'start' : 'end'} side="right">
+                <DropdownMenuItem onClick={() => setTheme('light')}>
+                  <Sun className="size-4 mr-2" />
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')}>
+                  <Moon className="size-4 mr-2" />
+                  Dark
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')}>
+                  <Monitor className="size-4 mr-2" />
+                  System
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* User avatar placeholder */}
+          <div className={`flex items-center gap-3 rounded-lg ${
+            sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+          }`}>
+            <div className="size-8 rounded-full bg-gradient-to-br from-primary/60 to-primary/30 flex items-center justify-center shrink-0">
+              <span className="text-xs font-bold text-primary-foreground">U</span>
+            </div>
+            {sidebarExpanded && (
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">User</p>
+                <p className="text-[10px] text-muted-foreground truncate">Free plan</p>
+              </div>
+            )}
           </div>
         </div>
-      </header>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar with mobile menu + actions */}
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-14">
+              {/* Mobile menu button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden size-8"
+                onClick={() => setMobileSidebarOpen(true)}
+              >
+                <Menu className="size-5" />
+              </Button>
+
+              {/* Mobile logo */}
+              <div className="flex items-center gap-2.5 lg:hidden">
+                <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
+                  <FileText className="size-3.5 text-primary-foreground" />
+                </div>
+                <span className="text-base font-bold tracking-tight">Forms</span>
+              </div>
+
+              {/* Spacer */}
+              <div className="flex-1 lg:hidden" />
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setImportJsonText('');
+                    setImportError('');
+                    setShowImportDialog(true);
+                  }}
+                  size="default"
+                  className="gap-2"
+                >
+                  <Upload className="size-4" />
+                  <span className="hidden sm:inline">Import</span>
+                </Button>
+
+                <Button
+                  onClick={handleOpenNewFormDialog}
+                  size="default"
+                  className="gap-2"
+                >
+                  <Plus className="size-4" />
+                  <span className="hidden sm:inline">New Form</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 dashboard-grid-bg">
         {/* Welcome Section */}
         {!isLoading && forms.length > 0 && (
           <motion.div
@@ -937,17 +1284,18 @@ export function Dashboard() {
             {/* Sort */}
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <SortAsc className="size-3.5" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-transparent border-none text-xs text-muted-foreground cursor-pointer focus:outline-none pr-1"
-              >
-                {Object.entries(sortLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                <SelectTrigger size="sm" className="h-7 gap-1 border-none bg-transparent px-1 py-0 text-xs text-muted-foreground shadow-none hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(sortLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value} className="text-xs">
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="h-5 w-px bg-border" />
@@ -1009,11 +1357,18 @@ export function Dashboard() {
             transition={{ duration: 0.4 }}
             className="flex flex-col items-center justify-center py-20 px-4"
           >
+            {/* Animated CSS-only illustration */}
             <div className="relative mb-8">
-              {/* Decorative background circles */}
-              <div className="absolute -inset-6 rounded-full bg-primary/5 animate-pulse" />
-              <div className="absolute -inset-3 rounded-full bg-primary/10" />
-              <div className="relative size-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+              {/* Outer pulsing ring */}
+              <div className="absolute -inset-8 rounded-full bg-primary/5 animate-pulse" />
+              {/* Rotating dashed ring */}
+              <div className="absolute -inset-4 rounded-full border-2 border-dashed border-primary/20 animate-[spin_20s_linear_infinite]" />
+              {/* Floating dots */}
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 size-2 rounded-full bg-primary/40 animate-[bounce_2s_ease-in-out_infinite]" />
+              <div className="absolute top-1/2 -right-2 -translate-y-1/2 size-1.5 rounded-full bg-primary/30 animate-[bounce_2s_ease-in-out_infinite_0.5s]" />
+              <div className="absolute -bottom-1 left-1/3 size-1.5 rounded-full bg-primary/25 animate-[bounce_2s_ease-in-out_infinite_1s]" />
+              {/* Main icon */}
+              <div className="relative size-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shadow-lg shadow-primary/10">
                 <Sparkles className="size-10 text-primary/70" />
               </div>
             </div>
@@ -1094,6 +1449,8 @@ export function Dashboard() {
                     onFavorite={(formId, favorite) => updateForm(formId, { favorite })}
                     onArchive={(formId, archived) => updateForm(formId, { archived })}
                     onAddTag={(formId, tags) => updateForm(formId, { tags })}
+                    onMoveToWorkspace={handleMoveToWorkspace}
+                    workspaces={workspaces}
                     timeAgoText={timeAgo(form.updatedAt || form.createdAt)}
                   />
                 </motion.div>
@@ -1111,6 +1468,7 @@ export function Dashboard() {
           </p>
         </div>
       </footer>
+      </div>{/* end main content area */}
 
       {/* Import Form Dialog */}
       <Dialog open={showImportDialog} onOpenChange={(open) => {
@@ -1206,6 +1564,62 @@ export function Dashboard() {
         onOpenChange={setShowKeyboardShortcuts}
         context="dashboard"
       />
+
+      {/* Create Workspace Dialog */}
+      <Dialog open={showCreateWorkspaceDialog} onOpenChange={setShowCreateWorkspaceDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Folder className="size-4 text-primary" />
+              </div>
+              Create Workspace
+            </DialogTitle>
+            <DialogDescription>
+              Organize your forms into folders for easy access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newWorkspaceName}
+                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                placeholder="e.g., Marketing, HR, Client Forms"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newWorkspaceName.trim()) {
+                    handleCreateWorkspace();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Color</label>
+              <div className="flex items-center gap-2">
+                {['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'].map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setNewWorkspaceColor(color)}
+                    className={`size-7 rounded-full transition-all ${
+                      newWorkspaceColor === color ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateWorkspaceDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateWorkspace} disabled={!newWorkspaceName.trim() || isCreatingWorkspace}>
+              {isCreatingWorkspace ? 'Creating...' : 'Create Workspace'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Form Dialog - Template Picker */}
       <Dialog open={showNewFormDialog} onOpenChange={(open) => {
@@ -1335,6 +1749,29 @@ export function Dashboard() {
                     rows={2}
                   />
                 </div>
+
+                {/* Workspace selector */}
+                {workspaces.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Workspace (optional)</label>
+                    <Select value={newFormWorkspaceId || '__none__'} onValueChange={(v) => setNewFormWorkspaceId(v === '__none__' ? null : v)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No workspace" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No workspace</SelectItem>
+                        {workspaces.map((ws) => (
+                          <SelectItem key={ws.id} value={ws.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="size-2.5 rounded-full" style={{ backgroundColor: ws.color }} />
+                              {ws.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

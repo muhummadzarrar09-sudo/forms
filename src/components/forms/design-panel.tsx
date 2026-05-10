@@ -37,6 +37,7 @@ import {
   FileText,
   MessageSquare,
   Square,
+  Upload,
   Palette,
   Settings2,
   Check,
@@ -44,6 +45,9 @@ import {
   Plus,
   X,
   ArrowRight,
+  Cog,
+  CalendarClock,
+  Search,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -63,6 +67,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
   MessageSquare,
   Square,
+  Upload,
 };
 
 interface DesignPanelProps {
@@ -100,6 +105,13 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
             <Palette className="size-4 mr-1.5" />
             Design
           </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+          >
+            <Cog className="size-4 mr-1.5" />
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <ScrollArea className="flex-1">
@@ -133,6 +145,10 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
 
           <TabsContent value="design" className="m-0 p-4">
             <DesignTabContent />
+          </TabsContent>
+
+          <TabsContent value="settings" className="m-0 p-4">
+            <FormSettingsAdvancedTab />
           </TabsContent>
         </ScrollArea>
       </Tabs>
@@ -585,6 +601,7 @@ function QuestionSettingsTab({
   const hasAllowMultiple = question.type === 'multiple_choice' || question.type === 'picture_choice';
   const hasLegalText = question.type === 'legal';
   const hasRedirect = question.type === 'ending';
+  const hasFileUploadSettings = question.type === 'file_upload';
   const isStatement = question.type === 'statement';
   const isEnding = question.type === 'ending';
 
@@ -820,6 +837,50 @@ function QuestionSettingsTab({
             placeholder="https://example.com"
             className="text-sm"
           />
+        </div>
+      )}
+
+      {/* File Upload settings */}
+      {hasFileUploadSettings && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Max File Size (MB)
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={question.settings?.maxFileSize ?? 10}
+              onChange={(e) =>
+                updateQuestion(question.id, {
+                  settings: { ...question.settings, maxFileSize: parseInt(e.target.value) || 10 },
+                })
+              }
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Maximum file size respondents can upload (1–100 MB)
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Allowed File Types
+            </Label>
+            <Input
+              value={question.settings?.allowedTypes || '*'}
+              onChange={(e) =>
+                updateQuestion(question.id, {
+                  settings: { ...question.settings, allowedTypes: e.target.value },
+                })
+              }
+              placeholder="pdf,docx,jpg,png"
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Comma-separated extensions (e.g. pdf,docx,jpg) or * for all types
+            </p>
+          </div>
         </div>
       )}
     </motion.div>
@@ -1144,5 +1205,202 @@ function ColorInput({
         />
       </div>
     </div>
+  );
+}
+
+// ── Advanced Settings Tab (Settings gear tab) ─────────────────────────────
+
+function FormSettingsAdvancedTab() {
+  const currentForm = useFormStore((s) => s.currentForm);
+  const updateForm = useFormStore((s) => s.updateForm);
+
+  const [maxResponses, setMaxResponses] = useState(() => currentForm?.maxResponses ?? 0);
+  const [closeDate, setCloseDate] = useState(() => currentForm?.closeDate ? currentForm.closeDate.split('T')[0] : '');
+  const [metaTitle, setMetaTitle] = useState(() => currentForm?.metaTitle || '');
+  const [metaDescription, setMetaDescription] = useState(() => currentForm?.metaDescription || '');
+
+  if (!currentForm) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-5"
+    >
+      {/* Header */}
+      <div className="space-y-1">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Form Settings
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Configure how your form behaves and appears.
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* Progress Bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-sm">Progress Bar</Label>
+          <p className="text-xs text-muted-foreground">Show progress indicator at top</p>
+        </div>
+        <Switch
+          checked={currentForm.progressbar}
+          onCheckedChange={(checked) =>
+            updateForm(currentForm.id, { progressbar: checked })
+          }
+        />
+      </div>
+
+      {/* Question Numbers */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-sm">Question Numbers</Label>
+          <p className="text-xs text-muted-foreground">Display &quot;1 of 5&quot; labels</p>
+        </div>
+        <Switch
+          checked={currentForm.showQuestionNumbers}
+          onCheckedChange={(checked) =>
+            updateForm(currentForm.id, { showQuestionNumbers: checked })
+          }
+        />
+      </div>
+
+      {/* Back Navigation */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-sm">Back Navigation</Label>
+          <p className="text-xs text-muted-foreground">Allow respondents to go back</p>
+        </div>
+        <Switch
+          checked={currentForm.allowBackNavigation}
+          onCheckedChange={(checked) =>
+            updateForm(currentForm.id, { allowBackNavigation: checked })
+          }
+        />
+      </div>
+
+      <Separator />
+
+      {/* Form Status */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Form Status
+        </Label>
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+          <div>
+            <p className="text-sm font-medium">
+              {currentForm.published ? 'Published' : 'Draft'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {currentForm.published
+                ? 'Your form is live and accepting responses'
+                : 'Your form is not visible to respondents'}
+            </p>
+          </div>
+          <Switch
+            checked={currentForm.published}
+            onCheckedChange={(checked) =>
+              updateForm(currentForm.id, { published: checked })
+            }
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Response Limits */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Response Limits
+        </Label>
+        <div className="flex items-center gap-3">
+          <Input
+            type="number"
+            min={0}
+            value={maxResponses}
+            onChange={(e) => setMaxResponses(parseInt(e.target.value) || 0)}
+            onBlur={() => {
+              if (maxResponses !== (currentForm.maxResponses ?? 0)) {
+                updateForm(currentForm.id, { maxResponses });
+              }
+            }}
+            className="text-sm w-24"
+          />
+          <p className="text-xs text-muted-foreground">
+            Max responses (0 = unlimited)
+          </p>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Close Date */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <CalendarClock className="size-3.5 inline mr-1" />
+          Auto-Close Date
+        </Label>
+        <Input
+          type="date"
+          value={closeDate}
+          onChange={(e) => setCloseDate(e.target.value)}
+          onBlur={() => {
+            const newValue = closeDate || null;
+            const currentValue = currentForm.closeDate ? currentForm.closeDate.split('T')[0] : '';
+            if (closeDate !== currentValue) {
+              updateForm(currentForm.id, { closeDate: newValue });
+            }
+          }}
+          className="text-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Form will stop accepting responses after this date. Leave empty for no auto-close.
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* SEO Settings */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Search className="size-3.5 inline mr-1" />
+          SEO Settings
+        </Label>
+        <div className="space-y-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Meta Title</Label>
+            <Input
+              value={metaTitle}
+              onChange={(e) => setMetaTitle(e.target.value)}
+              onBlur={() => {
+                if (metaTitle !== (currentForm.metaTitle || '')) {
+                  updateForm(currentForm.id, { metaTitle });
+                }
+              }}
+              placeholder={currentForm.title || 'Form title'}
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Meta Description</Label>
+            <Textarea
+              value={metaDescription}
+              onChange={(e) => setMetaDescription(e.target.value)}
+              onBlur={() => {
+                if (metaDescription !== (currentForm.metaDescription || '')) {
+                  updateForm(currentForm.id, { metaDescription });
+                }
+              }}
+              placeholder="A brief description of your form for search engines and social sharing"
+              rows={2}
+              className="text-sm resize-none"
+            />
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }

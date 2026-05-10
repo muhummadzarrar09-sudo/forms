@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import type { Form } from '@/types/form';
+import type { Form, Workspace } from '@/types/form';
 import { ShareDialog } from '@/components/forms/share-dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ import {
   Tag,
   X,
   Plus,
+  Folder,
+  FolderInput,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -84,6 +86,8 @@ interface FormCardProps {
   onFavorite?: (formId: string, favorite: boolean) => void;
   onArchive?: (formId: string, archived: boolean) => void;
   onAddTag?: (formId: string, tags: string[]) => void;
+  onMoveToWorkspace?: (formId: string, workspaceId: string | null) => void;
+  workspaces?: Workspace[];
   index: number;
   viewMode: 'grid' | 'list';
   timeAgoText?: string;
@@ -125,6 +129,8 @@ export function FormCard({
   onFavorite,
   onArchive,
   onAddTag,
+  onMoveToWorkspace,
+  workspaces,
   index,
   viewMode,
   timeAgoText,
@@ -140,6 +146,21 @@ export function FormCard({
   const themeColor = getThemeColor(form.backgroundColor);
   const responseCount = form._count?.responses ?? 0;
   const formTags = form.tags || [];
+  const formWorkspace = form.workspace;
+
+  // Workspace indicator component
+  const WorkspaceIndicator = () => {
+    if (!formWorkspace) return null;
+    return (
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <div
+          className="size-2 rounded-full shrink-0"
+          style={{ backgroundColor: formWorkspace.color }}
+        />
+        <span className="truncate max-w-[100px]">{formWorkspace.name}</span>
+      </div>
+    );
+  };
 
   const handleTitleSave = () => {
     const trimmed = editTitle.trim();
@@ -535,6 +556,11 @@ export function FormCard({
                       <TagPills maxVisible={2} />
                     </div>
                   )}
+                  {formWorkspace && (
+                    <div className="mt-1">
+                      <WorkspaceIndicator />
+                    </div>
+                  )}
                   {timeAgoText && (
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                       Edited {timeAgoText}
@@ -620,6 +646,41 @@ export function FormCard({
                       </DropdownMenuItem>
                       <TagPopover />
                       <DropdownMenuSeparator />
+                      {/* Move to Workspace */}
+                      {onMoveToWorkspace && workspaces && workspaces.length > 0 && (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={(e) => e.preventDefault()}
+                            className="p-0"
+                          >
+                            <div className="w-full px-2 py-1.5 text-sm flex items-center gap-2 cursor-default">
+                              <FolderInput className="size-4" />
+                              Move to...
+                            </div>
+                          </DropdownMenuItem>
+                          <div className="pl-6">
+                            <DropdownMenuItem
+                              onClick={() => onMoveToWorkspace(form.id, null)}
+                              className={!form.workspaceId ? 'text-primary' : ''}
+                            >
+                              <span className="size-2 rounded-full bg-muted-foreground/30 shrink-0" />
+                              No Workspace
+                            </DropdownMenuItem>
+                            {workspaces.map((ws) => (
+                              <DropdownMenuItem
+                                key={ws.id}
+                                onClick={() => onMoveToWorkspace(form.id, ws.id)}
+                                className={form.workspaceId === ws.id ? 'text-primary' : ''}
+                              >
+                                <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: ws.color }} />
+                                {ws.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={handleDuplicate}
                         disabled={isDuplicating}
@@ -694,17 +755,29 @@ export function FormCard({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.25, delay: index * 0.05 }}
-        whileHover={{ y: -4 }}
+        whileHover={{ y: -6 }}
         className="h-full"
       >
-        <Card className="group relative overflow-hidden border transition-all duration-300 hover:shadow-lg hover:border-border/80 h-full flex flex-col py-0 gap-0">
-          {/* Large colored area with title */}
+        <Card className="group relative overflow-hidden border transition-all duration-300 hover:shadow-xl hover:border-border/80 h-full flex flex-col py-0 gap-0">
+          {/* Large colored area with gradient overlay for depth */}
           <div
-            className="h-20 w-full shrink-0 relative flex flex-col justify-between p-3"
+            className="h-28 w-full shrink-0 relative flex flex-col justify-between p-3 overflow-hidden"
             style={{ backgroundColor: themeColor }}
           >
-            {/* Status indicator dot */}
-            <div className="absolute top-2 right-2">
+            {/* Subtle gradient overlay for depth */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%, rgba(0,0,0,0.08) 100%)`,
+              }}
+            />
+            {/* Favorite heart in top-left corner */}
+            <div className="absolute top-2 left-2">
+              <FavoriteButton className={form.favorite ? '' : ''} />
+            </div>
+
+            {/* Status indicator dot (after the favorite heart) */}
+            <div className="absolute top-2 left-10">
               <span className={`relative flex size-2.5 ${form.published ? '' : ''}`}>
                 {form.published && (
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -713,13 +786,8 @@ export function FormCard({
               </span>
             </div>
 
-            {/* Favorite heart in top-left corner */}
-            <div className="absolute top-2 left-2">
-              <FavoriteButton className={form.favorite ? '' : ''} />
-            </div>
-
             {/* Title inside colored area */}
-            <div className="flex-1 min-w-0 pl-6 pr-6">
+            <div className="flex-1 min-w-0 pl-6 pr-6 relative z-10">
               {isEditingTitle ? (
                 <Input
                   value={editTitle}
@@ -727,14 +795,14 @@ export function FormCard({
                   onBlur={handleTitleSave}
                   onKeyDown={handleTitleKeyDown}
                   autoFocus
-                  className={`h-6 text-sm font-semibold bg-white/20 border-white/30 placeholder:text-white/50 ${titleOnColorClass}`}
+                  className={`h-6 text-base font-bold bg-white/20 border-white/30 placeholder:text-white/50 ${titleOnColorClass}`}
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <h3
-                  className={`text-sm font-semibold leading-snug cursor-pointer hover:opacity-80 transition-opacity line-clamp-2 ${titleOnColorClass}`}
-                  onClick={() => setIsEditingTitle(true)}
-                  title="Click to edit title"
+                  className={`text-base font-bold leading-snug cursor-pointer hover:opacity-80 transition-opacity line-clamp-2 ${titleOnColorClass}`}
+                  onClick={() => onEdit(form.id)}
+                  title="Open in builder"
                 >
                   {form.title}
                 </h3>
@@ -802,6 +870,45 @@ export function FormCard({
                 </DropdownMenuItem>
                 <TagPopover />
                 <DropdownMenuSeparator />
+                {/* Move to Workspace */}
+                {onMoveToWorkspace && workspaces && workspaces.length > 0 && (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="p-0"
+                    >
+                      <div className="w-full px-2 py-1.5 text-sm flex items-center gap-2 cursor-default">
+                        <FolderInput className="size-4" />
+                        Move to...
+                      </div>
+                    </DropdownMenuItem>
+                    <div className="pl-6">
+                      <DropdownMenuItem
+                        onClick={() => onMoveToWorkspace(form.id, null)}
+                        className={!form.workspaceId ? 'text-primary' : ''}
+                      >
+                        <span className="size-2 rounded-full bg-muted-foreground/30 shrink-0" />
+                        No Workspace
+                      </DropdownMenuItem>
+                      {workspaces.map((ws) => (
+                        <DropdownMenuItem
+                          key={ws.id}
+                          onClick={() => onMoveToWorkspace(form.id, ws.id)}
+                          className={form.workspaceId === ws.id ? 'text-primary' : ''}
+                        >
+                          <div className="size-2 rounded-full shrink-0" style={{ backgroundColor: ws.color }} />
+                          {ws.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setIsEditingTitle(true)}>
+                  <Pencil className="size-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDuplicate}
                   disabled={isDuplicating}
@@ -830,9 +937,21 @@ export function FormCard({
               {form.description || 'No description'}
             </p>
 
+            {/* Last edited subtitle */}
+            {timeAgoText && (
+              <p className="text-[10px] text-muted-foreground/60">
+                Last edited {timeAgoText}
+              </p>
+            )}
+
             {/* Tags */}
             {formTags.length > 0 && (
               <TagPills maxVisible={2} />
+            )}
+
+            {/* Workspace indicator */}
+            {formWorkspace && (
+              <WorkspaceIndicator />
             )}
 
             {/* Spacer */}

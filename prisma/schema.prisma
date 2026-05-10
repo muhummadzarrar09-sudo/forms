@@ -30,10 +30,27 @@ model Form {
   favorite    Boolean    @default(false)
   archived    Boolean    @default(false)
   tags        String     @default("[]") // JSON array of tag strings
+  maxResponses Int       @default(0) // 0 = unlimited
+  closeDate   DateTime?  // auto-close date, null = no auto-close
+  metaTitle   String     @default("") // SEO meta title
+  metaDescription String @default("") // SEO meta description
+  workspaceId String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   questions   Question[]
   responses   Response[]
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+}
+
+model Workspace {
+  id          String     @id @default(cuid())
+  name        String
+  color       String     @default("#6366f1")
+  icon        String     @default("Folder")
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  forms       Form[]
 }
 
 model Question {

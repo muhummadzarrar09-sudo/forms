@@ -45,6 +45,10 @@ export async function POST(
         progressbar: originalForm.progressbar,
         showQuestionNumbers: originalForm.showQuestionNumbers,
         allowBackNavigation: originalForm.allowBackNavigation,
+        workspaceId: originalForm.workspaceId, // Copy workspace assignment
+        maxResponses: originalForm.maxResponses,
+        metaTitle: originalForm.metaTitle,
+        metaDescription: originalForm.metaDescription,
         questions: {
           create: originalForm.questions.map((q) => ({
             type: q.type,
@@ -63,12 +67,23 @@ export async function POST(
       include: {
         _count: { select: { responses: true } },
         questions: { orderBy: { order: 'asc' } },
+        workspace: true,
       },
     });
 
     const serialized = {
       ...duplicatedForm,
       tags: JSON.parse(duplicatedForm.tags || '[]'),
+      closeDate: duplicatedForm.closeDate ? duplicatedForm.closeDate.toISOString() : null,
+      workspace: duplicatedForm.workspace ? {
+        id: duplicatedForm.workspace.id,
+        name: duplicatedForm.workspace.name,
+        color: duplicatedForm.workspace.color,
+        icon: duplicatedForm.workspace.icon,
+        order: duplicatedForm.workspace.order,
+        createdAt: duplicatedForm.workspace.createdAt.toISOString(),
+        updatedAt: duplicatedForm.workspace.updatedAt.toISOString(),
+      } : null,
       questions: duplicatedForm.questions.map((q) => ({
         ...q,
         options: JSON.parse(q.options),

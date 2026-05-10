@@ -39,10 +39,13 @@ import {
   ExternalLink,
   MessageSquare,
   Trash2,
+  FileDown,
+  TrendingDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay } from 'date-fns';
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Line, LineChart } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import {
   AlertDialog,
@@ -56,6 +59,13 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const responseChartConfig = {
+  responses: {
+    label: 'Responses',
+    color: 'hsl(var(--primary))',
+  },
+} satisfies ChartConfig;
+
+const lineChartConfig = {
   responses: {
     label: 'Responses',
     color: 'hsl(var(--primary))',
@@ -114,7 +124,7 @@ interface DisplayResponse {
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export function ResponsesViewer() {
-  const { selectedFormId, openBuilder, openFiller, currentForm, setCurrentForm } = useFormStore();
+  const { selectedFormId, openBuilder, openFiller, currentForm, setCurrentForm, openResponses } = useFormStore();
 
   // Data state
   const [summary, setSummary] = useState<FormSummary | null>(null);
@@ -356,6 +366,44 @@ export function ResponsesViewer() {
     }));
   }, [responses]);
 
+  // ─── Drop-off Analysis ──────────────────────────────────────────────────
+  const dropOffData = useMemo(() => {
+    if (!questions.length || !responses.length) return [];
+    const sortedQs = [...questions].sort((a, b) => a.order - b.order);
+    const totalResponses = responses.length;
+
+    return sortedQs.map((q, index) => {
+      const answersForQ = responses.filter((r) =>
+        r.answers.some((a) => a.questionId === q.id && a.value.trim() !== '')
+      );
+      const answerCount = answersForQ.length;
+      const answerRate = totalResponses > 0 ? (answerCount / totalResponses) * 100 : 0;
+      const dropOffRate = 100 - answerRate;
+
+      // Calculate drop-off from previous question
+      let dropFromPrev = 0;
+      if (index > 0) {
+        const prevQ = sortedQs[index - 1];
+        const prevAnswers = responses.filter((r) =>
+          r.answers.some((a) => a.questionId === prevQ.id && a.value.trim() !== '')
+        );
+        dropFromPrev = prevAnswers.length > 0 ? ((prevAnswers.length - answerCount) / prevAnswers.length) * 100 : 0;
+      } else {
+        dropFromPrev = totalResponses > 0 ? ((totalResponses - answerCount) / totalResponses) * 100 : 0;
+      }
+
+      return {
+        questionId: q.id,
+        questionTitle: q.title.length > 30 ? q.title.slice(0, 30) + '…' : q.title,
+        answerCount,
+        answerRate: Math.round(answerRate),
+        dropOffRate: Math.round(dropOffRate),
+        dropFromPrev: Math.round(Math.max(0, dropFromPrev)),
+        questionIndex: index + 1,
+      };
+    });
+  }, [questions, responses]);
+
   // ─── Loading State ────────────────────────────────────────────────────────
 
   if (isLoading) {
@@ -435,6 +483,25 @@ export function ResponsesViewer() {
                 Preview Form
               </Button>
             </div>
+            {/* Share CTA */}
+            <div className="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/10 max-w-sm">
+              <p className="text-sm font-medium mb-2">Share your form to collect responses</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Copy the share link and send it to your audience to start gathering data.
+              </p>
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  const url = `${window.location.origin}?form=${selectedFormId}`;
+                  navigator.clipboard.writeText(url);
+                  toast({ title: 'Link copied!', description: 'Share link has been copied to your clipboard.' });
+                }}
+              >
+                <ExternalLink className="size-3.5" />
+                Copy Share Link
+              </Button>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -445,7 +512,7 @@ export function ResponsesViewer() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
+      {/* Header with form title and colored accent */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
@@ -453,8 +520,14 @@ export function ResponsesViewer() {
               <Button variant="ghost" size="icon" onClick={openBuilder} className="shrink-0">
                 <ArrowLeft className="size-4" />
               </Button>
+              {/* Colored accent dot + form title */}
+              <div
+                className="size-3 rounded-full shrink-0"
+                style={{ backgroundColor: currentForm?.backgroundColor || 'hsl(var(--primary))' }}
+              />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold truncate">{currentForm?.title || 'Form'}</h1>
+                <p className="text-[10px] text-muted-foreground">Response Analytics</p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -479,6 +552,15 @@ export function ResponsesViewer() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => toast({ title: 'Coming soon', description: 'PDF export will be available in a future update.' })}
+                className="gap-1.5"
+              >
+                <FileDown className="size-3.5" />
+                <span className="hidden sm:inline">PDF</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowClearAllDialog(true)}
                 className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30"
               >
@@ -492,7 +574,7 @@ export function ResponsesViewer() {
 
       {/* Main content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Stats cards */}
+        {/* Stats cards with completion rate as circular indicator */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <Card className="overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
@@ -521,8 +603,34 @@ export function ResponsesViewer() {
                       <span className="text-lg text-muted-foreground">%</span>
                     </div>
                   </div>
-                  <div className="size-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="size-5 text-emerald-600" />
+                  {/* Circular progress indicator */}
+                  <div className="relative size-14">
+                    <svg className="size-14 -rotate-90" viewBox="0 0 56 56">
+                      <circle
+                        cx="28"
+                        cy="28"
+                        r="22"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        className="text-emerald-500/10"
+                      />
+                      <circle
+                        cx="28"
+                        cy="28"
+                        r="22"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(completionRate / 100) * 138.23} 138.23`}
+                        className="text-emerald-500"
+                        style={{ transition: 'stroke-dasharray 0.8s ease-out' }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <CheckCircle2 className="size-4 text-emerald-600" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -592,11 +700,129 @@ export function ResponsesViewer() {
                     <Bar
                       dataKey="responses"
                       fill="url(#barGradientFill)"
-                      radius={[4, 4, 0, 0]}
+                      radius={[6, 6, 0, 0]}
                       maxBarSize={40}
                     />
                   </BarChart>
                 </ChartContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Responses Line Chart */}
+        {responseTrendData.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <Card className="rounded-xl shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="size-4 text-muted-foreground" />
+                  Daily Response Trend
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <ChartContainer config={lineChartConfig} className="h-[180px] w-full">
+                  <LineChart data={responseTrendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      tickMargin={4}
+                      interval={Math.max(0, Math.floor(responseTrendData.length / 8) - 1)}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={11}
+                      allowDecimals={false}
+                      tickMargin={4}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                      labelFormatter={(label) => label}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="responses"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: 'hsl(var(--primary))' }}
+                      activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Drop-off Analysis */}
+        {dropOffData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.25 }}
+          >
+            <Card className="rounded-xl shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingDown className="size-4 text-muted-foreground" />
+                  Drop-off Analysis
+                </CardTitle>
+                <p className="text-xs text-muted-foreground font-normal">
+                  See which questions cause respondents to abandon the form
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {dropOffData
+                    .filter((d) => d.dropFromPrev > 0)
+                    .sort((a, b) => b.dropFromPrev - a.dropFromPrev)
+                    .map((d) => (
+                      <div key={d.questionId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="size-5 rounded text-[10px] font-bold flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+                            {d.questionIndex}
+                          </span>
+                          <span className="text-sm truncate">{d.questionTitle}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="w-20">
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-amber-500"
+                                  style={{ width: `${d.answerRate}%` }}
+                                />
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+                              {d.answerRate}% answer rate
+                            </p>
+                          </div>
+                          <Badge
+                            variant={d.dropFromPrev > 20 ? 'destructive' : 'outline'}
+                            className="text-[10px] shrink-0 gap-1"
+                          >
+                            {d.dropFromPrev > 20 && <AlertTriangle className="size-2.5" />}
+                            -{d.dropFromPrev}%
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  {dropOffData.filter((d) => d.dropFromPrev > 0).length === 0 && (
+                    <div className="py-4 text-center">
+                      <p className="text-sm text-muted-foreground">No significant drop-off detected</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Great job! Your form has a smooth flow.</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -854,7 +1080,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="overflow-hidden relative">
+      <Card className="overflow-hidden relative transition-all duration-200 hover:shadow-md">
         {/* Left color accent border */}
         <div
           className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/40 rounded-r-full"

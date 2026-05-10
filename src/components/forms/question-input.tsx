@@ -10,6 +10,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   ArrowRight,
+  Upload,
+  File,
   X,
 } from 'lucide-react';
 
@@ -186,6 +188,17 @@ export function QuestionInput({
     case 'legal':
       return (
         <LegalInput
+          question={question}
+          value={value}
+          onChange={onChange}
+          onAdvance={onAdvance}
+          theme={theme}
+          isActive={isActive}
+        />
+      );
+    case 'file_upload':
+      return (
+        <FileUploadInput
           question={question}
           value={value}
           onChange={onChange}
@@ -372,13 +385,13 @@ function MultipleChoiceInput({
   const handleSelect = useCallback(
     (option: QuestionOption) => {
       if (question.settings.allowMultiple) {
-        const currentValues = value ? value.split(',') : [];
-        const newValues = currentValues.includes(option.label)
-          ? currentValues.filter((v) => v !== option.label)
-          : [...currentValues, option.label];
-        onChange(newValues.join(','));
+        const currentIds = value ? value.split(',') : [];
+        const newIds = currentIds.includes(option.id)
+          ? currentIds.filter((v) => v !== option.id)
+          : [...currentIds, option.id];
+        onChange(newIds.join(','));
       } else {
-        onChange(option.label);
+        onChange(option.id);
       }
     },
     [value, onChange, question.settings.allowMultiple]
@@ -390,8 +403,8 @@ function MultipleChoiceInput({
     <div className="w-full max-w-2xl space-y-2">
       {options.map((option, idx) => {
         const isSelected = question.settings.allowMultiple
-          ? value.split(',').includes(option.label)
-          : value === option.label;
+          ? value.split(',').includes(option.id)
+          : value === option.id;
 
         return (
           <motion.button
@@ -479,13 +492,13 @@ function PictureChoiceInput({
   const handleSelect = useCallback(
     (option: QuestionOption) => {
       if (question.settings.allowMultiple) {
-        const currentValues = value ? value.split(',') : [];
-        const newValues = currentValues.includes(option.label)
-          ? currentValues.filter((v) => v !== option.label)
-          : [...currentValues, option.label];
-        onChange(newValues.join(','));
+        const currentIds = value ? value.split(',') : [];
+        const newIds = currentIds.includes(option.id)
+          ? currentIds.filter((v) => v !== option.id)
+          : [...currentIds, option.id];
+        onChange(newIds.join(','));
       } else {
-        onChange(option.label);
+        onChange(option.id);
       }
     },
     [value, onChange, question.settings.allowMultiple]
@@ -495,8 +508,8 @@ function PictureChoiceInput({
     <div className="w-full max-w-3xl grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {options.map((option, idx) => {
         const isSelected = question.settings.allowMultiple
-          ? value.split(',').includes(option.label)
-          : value === option.label;
+          ? value.split(',').includes(option.id)
+          : value === option.id;
         const imageUrl = images[idx] || option.image;
 
         return (
@@ -592,9 +605,13 @@ function DropdownInput({
   }, [value, onAdvance]);
 
   const handleSelect = (option: QuestionOption) => {
-    onChange(option.label);
+    onChange(option.id);
     setIsOpen(false);
   };
+
+  // Find the label of the currently selected option for display
+  const selectedOption = options.find((opt) => opt.id === value);
+  const displayValue = selectedOption?.label || '';
 
   return (
     <div className="w-full max-w-2xl relative" ref={dropdownRef}>
@@ -603,11 +620,11 @@ function DropdownInput({
         className={`w-full text-left px-4 py-3.5 rounded-lg border-2 transition-all duration-150 ${ff} text-lg flex items-center justify-between`}
         style={{
           borderColor: isOpen ? theme.buttonColor : `${theme.textColor}22`,
-          color: value ? theme.textColor : `${theme.textColor}55`,
+          color: displayValue ? theme.textColor : `${theme.textColor}55`,
           backgroundColor: isOpen ? `${theme.buttonColor}08` : 'transparent',
         }}
       >
-        <span>{value || question.placeholder || 'Select an option...'}</span>
+        <span>{displayValue || question.placeholder || 'Select an option...'}</span>
         <motion.span
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.2 }}
@@ -1199,6 +1216,285 @@ function LegalInput({
           {labelText}
         </span>
       </button>
+    </div>
+  );
+}
+
+/* ─── File Upload ─────────────────────────────────────────────────────── */
+
+function FileUploadInput({
+  question,
+  value,
+  onChange,
+  onAdvance,
+  theme,
+}: QuestionInputProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const ff = fontFamilyClass(theme.fontFamily);
+  const maxFileSize = question.settings.maxFileSize ?? 10;
+  const allowedTypes = question.settings.allowedTypes || '*';
+
+  const formatFileSize = useCallback((bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }, []);
+
+  const isTypeAllowed = useCallback((file: File): boolean => {
+    if (allowedTypes === '*') return true;
+    const allowed = allowedTypes.split(',').map((t) => t.trim().toLowerCase());
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const mime = file.type.toLowerCase();
+    return allowed.some(
+      (t) =>
+        ext === t ||
+        mime.startsWith(t) ||
+        (t.includes('/') && mime === t) ||
+        (t === 'jpg' && (ext === 'jpg' || ext === 'jpeg')) ||
+        (t === 'doc' && ext === 'doc') ||
+        (t === 'docx' && ext === 'docx')
+    );
+  }, [allowedTypes]);
+
+  const handleFile = useCallback(
+    (file: File) => {
+      setError('');
+
+      // Validate file size
+      if (file.size > maxFileSize * 1024 * 1024) {
+        setError(`File is too large. Maximum size is ${maxFileSize}MB.`);
+        return;
+      }
+
+      // Validate file type
+      if (!isTypeAllowed(file)) {
+        setError(`File type not allowed. Allowed: ${allowedTypes === '*' ? 'all' : allowedTypes}`);
+        return;
+      }
+
+      // Simulate upload
+      setIsUploading(true);
+      setUploadProgress(0);
+      setUploadComplete(false);
+
+      // Simulate progress
+      const steps = [10, 25, 45, 65, 80, 95, 100];
+      steps.forEach((progress, i) => {
+        setTimeout(() => {
+          setUploadProgress(progress);
+          if (progress === 100) {
+            setIsUploading(false);
+            setUploadComplete(true);
+            // Store file name as answer
+            onChange(`${file.name} (${formatFileSize(file.size)})`);
+            // Auto-advance after upload completes
+            setTimeout(onAdvance, 500);
+          }
+        }, (i + 1) * 200);
+      });
+    },
+    [maxFileSize, allowedTypes, isTypeAllowed, formatFileSize, onChange, onAdvance]
+  );
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const handleRemoveFile = () => {
+    onChange('');
+    setUploadComplete(false);
+    setUploadProgress(0);
+    setError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Show uploaded file info
+  if (uploadComplete && value) {
+    return (
+      <div className="w-full max-w-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 p-4 rounded-xl border-2"
+          style={{
+            borderColor: theme.buttonColor,
+            backgroundColor: `${theme.buttonColor}10`,
+          }}
+        >
+          <div
+            className="size-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
+          >
+            <File className="size-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-base font-medium truncate ${ff}`} style={{ color: theme.textColor }}>
+              {value}
+            </p>
+            <p className={`text-xs opacity-50 ${ff}`} style={{ color: theme.textColor }}>
+              Upload complete
+            </p>
+          </div>
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          >
+            <Check className="size-5" style={{ color: theme.buttonColor }} />
+          </motion.div>
+          <button
+            onClick={handleRemoveFile}
+            className="size-6 rounded-full flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+            style={{ color: theme.textColor }}
+          >
+            <X className="size-4" />
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Show upload progress
+  if (isUploading) {
+    return (
+      <div className="w-full max-w-2xl">
+        <div
+          className="p-4 rounded-xl border-2"
+          style={{
+            borderColor: `${theme.buttonColor}40`,
+            backgroundColor: `${theme.buttonColor}08`,
+          }}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="size-8 rounded-lg flex items-center justify-center animate-pulse"
+              style={{ backgroundColor: `${theme.buttonColor}20`, color: theme.buttonColor }}
+            >
+              <Upload className="size-4" />
+            </div>
+            <span className={`text-sm font-medium ${ff}`} style={{ color: theme.textColor }}>
+              Uploading...
+            </span>
+            <span className={`text-sm opacity-50 ml-auto ${ff}`} style={{ color: theme.textColor }}>
+              {uploadProgress}%
+            </span>
+          </div>
+          <div
+            className="h-2 rounded-full overflow-hidden"
+            style={{ backgroundColor: `${theme.textColor}15` }}
+          >
+            <motion.div
+              className="h-full rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${uploadProgress}%` }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              style={{ backgroundColor: theme.buttonColor }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-2xl">
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="text-red-500 text-sm mb-2"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative flex flex-col items-center justify-center py-10 px-6 rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer ${ff}`}
+        style={{
+          borderColor: isDragging ? theme.buttonColor : `${theme.textColor}30`,
+          backgroundColor: isDragging ? `${theme.buttonColor}10` : `${theme.textColor}05`,
+        }}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleInputChange}
+          accept={allowedTypes === '*' ? undefined : allowedTypes}
+        />
+        <motion.div
+          animate={{ y: isDragging ? -4 : 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          className="flex flex-col items-center gap-3"
+        >
+          <div
+            className="size-14 rounded-full flex items-center justify-center transition-colors duration-200"
+            style={{
+              backgroundColor: isDragging ? `${theme.buttonColor}20` : `${theme.textColor}10`,
+              color: isDragging ? theme.buttonColor : `${theme.textColor}50`,
+            }}
+          >
+            <Upload className="size-6" />
+          </div>
+          <div className="text-center">
+            <p className="text-base font-medium" style={{ color: theme.textColor }}>
+              {isDragging ? 'Drop your file here' : 'Drag and drop your file here'}
+            </p>
+            <p className="text-sm opacity-50 mt-1" style={{ color: theme.textColor }}>
+              or
+            </p>
+          </div>
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full text-sm font-medium transition-all duration-150 hover:opacity-90"
+            style={{
+              backgroundColor: theme.buttonColor,
+              color: theme.buttonTextColor,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+          >
+            Browse files
+          </button>
+          <p className="text-xs opacity-40 mt-1" style={{ color: theme.textColor }}>
+            Max file size: {maxFileSize}MB
+            {allowedTypes !== '*' && ` · Allowed: ${allowedTypes}`}
+          </p>
+        </motion.div>
+      </div>
     </div>
   );
 }

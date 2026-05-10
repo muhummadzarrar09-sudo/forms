@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Square,
   Search,
+  Upload,
   X,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -45,15 +46,17 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
   MessageSquare,
   Square,
+  Upload,
 };
 
-const CATEGORY_ORDER = ['Text', 'Choices', 'Fields', 'Rating', 'Other'];
+const CATEGORY_ORDER = ['Text', 'Choices', 'Fields', 'Rating', 'Upload & Media', 'Other'];
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   Text: 'Free-form text inputs',
   Choices: 'Select from options',
   Fields: 'Specialized input fields',
   Rating: 'Scales and ratings',
+  'Upload & Media': 'File uploads and media',
   Other: 'Special question types',
 };
 
@@ -73,6 +76,7 @@ const TYPE_PREVIEW: Record<string, string> = {
   rating: '★★',
   opinion_scale: '0-10',
   legal: '☐',
+  file_upload: '📎',
   statement: '💬',
   ending: '🏁',
 };

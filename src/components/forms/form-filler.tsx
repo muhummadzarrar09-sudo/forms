@@ -109,16 +109,19 @@ interface FillerState {
 const slideVariants = {
   enter: (direction: number) => ({
     y: direction > 0 ? 80 : -80,
+    x: direction > 0 ? 10 : -10,
     opacity: 0,
     scale: 0.98,
   }),
   center: {
     y: 0,
+    x: 0,
     opacity: 1,
     scale: 1,
   },
   exit: (direction: number) => ({
     y: direction > 0 ? -80 : 80,
+    x: direction > 0 ? -10 : 10,
     opacity: 0,
     scale: 0.98,
   }),
@@ -745,10 +748,9 @@ export function FormFiller() {
       {state.form.progressbar && (
         <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
           <motion.div
-            className="h-full relative"
+            className="h-full relative progress-bar-glow"
             style={{
               backgroundColor: theme.buttonColor,
-              boxShadow: `0 0 8px ${theme.buttonColor}4D`,
             }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
@@ -967,8 +969,8 @@ export function FormFiller() {
 
       {/* ── Bottom Bar ── */}
       <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 flex items-center justify-between z-20">
-        {/* Back button */}
-        <div className="min-w-[80px]">
+        {/* Back button + connection indicator */}
+        <div className="flex items-center gap-4 min-w-[80px]">
           {state.form.allowBackNavigation &&
             (state.screen === 'question' || state.screen === 'ending') && (
               <motion.button
@@ -984,15 +986,22 @@ export function FormFiller() {
                 Back
               </motion.button>
             )}
+          {/* Connection indicator (live dot) */}
+          {state.screen === 'question' && (
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-green-500 live-dot-pulse" />
+              <span className="text-[10px] opacity-30" style={{ color: theme.textColor }}>Live</span>
+            </div>
+          )}
         </div>
 
         {/* Welcome: Start button | Question: OK button */}
         <div className="min-w-[80px] flex justify-end">
           {state.screen === 'welcome' && (
             <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.4 }}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.5, duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
               onClick={goNext}
               className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-base font-medium transition-all hover:opacity-90"
               whileTap={{ scale: 0.97 }}
