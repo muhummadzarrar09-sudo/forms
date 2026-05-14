@@ -529,7 +529,7 @@ export function FormBuilder() {
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* ── Top Bar ── */}
-      <header className="h-12 border-b bg-background/95 backdrop-blur-sm flex items-center px-3 gap-2 shrink-0 z-20">
+      <header className="h-12 border-b bg-background/95 backdrop-blur-sm flex items-center px-3 gap-1.5 shrink-0 z-20">
         {/* Back */}
         <TooltipProvider>
           <Tooltip>
@@ -769,14 +769,14 @@ export function FormBuilder() {
           showLeftPanel ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } fixed md:relative h-[calc(100vh-3rem)] md:h-auto`}>
           {/* Welcome Screen item */}
-          <div className="px-3 pt-3 pb-1">
+          <div className="px-3 pt-3 pb-0.5">
             <button
               onClick={() => {
                 setSelectedQuestionId(null);
                 setShowEndingScreen(false);
                 setShowLeftPanel(false);
               }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
                 !selectedQuestionId && !showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
@@ -824,31 +824,31 @@ export function FormBuilder() {
           </ScrollArea>
 
           {/* Add question button */}
-          <div className="p-3 border-t">
+          <div className="px-3 py-2 border-t">
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               <Button
                 variant="outline"
-                className="w-full gap-2 text-sm border-dashed hover:border-primary/50 hover:bg-primary/5 group/btn"
+                className="w-full gap-1.5 text-xs h-8 border-dashed hover:border-primary/50 hover:bg-primary/5 group/btn"
                 onClick={() => setShowTypePicker(true)}
               >
-                <Plus className="size-4 transition-colors group-hover/btn:text-primary" />
+                <Plus className="size-3.5 transition-colors group-hover/btn:text-primary" />
                 Add question
               </Button>
             </motion.div>
           </div>
 
           {/* Ending Screen item */}
-          <div className="px-3 pb-3">
+          <div className="px-3 pb-3 pt-0.5">
             <button
               onClick={() => {
                 setSelectedQuestionId(null);
                 setShowEndingScreen(true);
                 setShowLeftPanel(false);
               }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-all ${
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
                 showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'

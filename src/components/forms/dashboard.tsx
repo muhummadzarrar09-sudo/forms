@@ -900,13 +900,13 @@ export function Dashboard() {
         )}
 
         {/* Navigation */}
-        <nav className="py-2 px-2 space-y-0.5">
+        <nav className="py-2 px-2 space-y-1">
           {navItems.map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveNav(key)}
               className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-all relative ${
-                sidebarExpanded ? 'px-3 py-2.5' : 'px-0 py-2.5 justify-center'
+                sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
               } ${
                 activeNav === key
                   ? 'bg-primary/10 text-primary'
@@ -949,7 +949,7 @@ export function Dashboard() {
           <button
             onClick={() => setActiveWorkspaceId(null)}
             className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
-              sidebarExpanded ? 'px-2.5 py-2' : 'px-0 py-2 justify-center'
+              sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
             } ${
               !activeWorkspaceId
                 ? 'bg-primary/10 text-primary font-medium'
@@ -970,7 +970,7 @@ export function Dashboard() {
               <button
                 onClick={() => setActiveWorkspaceId(activeWorkspaceId === ws.id ? null : ws.id)}
                 className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
-                  sidebarExpanded ? 'px-2.5 py-2' : 'px-0 py-2 justify-center'
+                  sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
                 } ${
                   activeWorkspaceId === ws.id
                     ? 'bg-primary/10 text-primary font-medium'
@@ -1095,7 +1095,7 @@ export function Dashboard() {
               <div className="flex-1 lg:hidden" />
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <NotificationBell />
 
                 <Button
@@ -1105,19 +1105,19 @@ export function Dashboard() {
                     setImportError('');
                     setShowImportDialog(true);
                   }}
-                  size="default"
-                  className="gap-2"
+                  size="sm"
+                  className="gap-1.5 h-8"
                 >
-                  <Upload className="size-4" />
+                  <Upload className="size-3.5" />
                   <span className="hidden sm:inline">Import</span>
                 </Button>
 
                 <Button
                   onClick={handleOpenNewFormDialog}
-                  size="default"
-                  className="gap-2"
+                  size="sm"
+                  className="gap-1.5 h-8"
                 >
-                  <Plus className="size-4" />
+                  <Plus className="size-3.5" />
                   <span className="hidden sm:inline">New Form</span>
                 </Button>
               </div>

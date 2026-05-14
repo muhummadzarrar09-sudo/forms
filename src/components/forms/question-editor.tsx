@@ -202,32 +202,6 @@ export function QuestionEditor({
         className="flex-1 flex flex-col items-center justify-center px-8 md:px-12 py-10 relative overflow-hidden"
         style={{ backgroundColor: formBackgroundColor, color: formTextColor }}
       >
-        {/* Question number */}
-        <motion.div
-          key={`num-${question.id}`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-          className="absolute top-6 left-6"
-        >
-          <span
-            className="text-sm font-medium opacity-60"
-            style={{ color: formTextColor }}
-          >
-            {questionIndex + 1}/{totalQuestions}
-          </span>
-        </motion.div>
-
-        {/* Required indicator */}
-        {question.required && question.type !== 'statement' && question.type !== 'ending' && (
-          <div className="absolute top-6 right-6">
-            <span className="text-xs font-medium opacity-50 uppercase tracking-wider">
-              Required
-            </span>
-          </div>
-        )}
-
         <div className="w-full max-w-2xl space-y-6">
           <AnimatePresence mode="wait">
             <motion.div
@@ -238,6 +212,21 @@ export function QuestionEditor({
               transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
               className="space-y-5"
             >
+              {/* Question number + Required indicator row */}
+              <div className="flex items-center justify-between">
+                <span
+                  className="text-xs font-medium opacity-50"
+                  style={{ color: formTextColor }}
+                >
+                  {questionIndex + 1} of {totalQuestions}
+                </span>
+                {question.required && question.type !== 'statement' && question.type !== 'ending' && (
+                  <span className="text-xs font-medium opacity-50 uppercase tracking-wider">
+                    Required
+                  </span>
+                )}
+              </div>
+
               {/* Title */}
               <div className="space-y-2">
                 {isEditingTitle ? (
@@ -339,21 +328,21 @@ export function QuestionEditor({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-3 mt-2"
                 >
                   <Button
-                    size="lg"
-                    className="gap-2 rounded-full px-8 h-12 text-base font-medium"
+                    size="default"
+                    className="gap-2 rounded-full px-6 h-10 text-sm font-medium"
                     style={{
                       backgroundColor: formButtonColor,
                       color: formButtonTextColor,
                     }}
                   >
                     OK
-                    <CheckCircle2 className="size-5" />
+                    <CheckCircle2 className="size-4" />
                   </Button>
                   <span
-                    className="text-sm opacity-40"
+                    className="text-xs opacity-40"
                     style={{ color: formTextColor }}
                   >
                     press <strong>Enter ↵</strong>
@@ -367,17 +356,18 @@ export function QuestionEditor({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
+                  className="mt-2"
                 >
                   <Button
-                    size="lg"
-                    className="gap-2 rounded-full px-8 h-12 text-base font-medium"
+                    size="default"
+                    className="gap-2 rounded-full px-6 h-10 text-sm font-medium"
                     style={{
                       backgroundColor: formButtonColor,
                       color: formButtonTextColor,
                     }}
                   >
                     Continue
-                    <ArrowRight className="size-5" />
+                    <ArrowRight className="size-4" />
                   </Button>
                 </motion.div>
               )}

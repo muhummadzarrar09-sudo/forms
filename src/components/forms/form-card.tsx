@@ -761,7 +761,7 @@ export function FormCard({
         <Card className="group relative overflow-hidden border transition-all duration-300 hover:shadow-xl hover:border-border/80 h-full flex flex-col py-0 gap-0">
           {/* Large colored area with gradient overlay for depth */}
           <div
-            className="h-28 w-full shrink-0 relative flex flex-col justify-between p-3 overflow-hidden"
+            className="h-24 w-full shrink-0 relative flex flex-col justify-between p-3 overflow-hidden"
             style={{ backgroundColor: themeColor }}
           >
             {/* Subtle gradient overlay for depth */}
@@ -931,7 +931,7 @@ export function FormCard({
             </DropdownMenu>
           </div>
 
-          <CardContent className="p-4 flex flex-col flex-1 gap-2">
+          <CardContent className="p-3.5 flex flex-col flex-1 gap-1.5">
             {/* Description */}
             <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
               {form.description || 'No description'}
@@ -958,7 +958,7 @@ export function FormCard({
             <div className="flex-1" />
 
             {/* Footer row */}
-            <div className="flex items-center justify-between pt-2 border-t">
+            <div className="flex items-center justify-between pt-1.5 border-t">
               <div className="flex items-center gap-2">
                 <Badge
                   variant={form.published ? 'default' : 'secondary'}
@@ -982,29 +982,29 @@ export function FormCard({
             </div>
 
             {/* Quick action buttons (visible on hover) */}
-            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 h-7 text-xs"
+                className="flex-1 h-7 text-[11px] gap-1"
                 onClick={() => onEdit(form.id)}
               >
-                <Pencil className="size-3 mr-1" />
+                <Pencil className="size-3" />
                 Edit
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 h-7 text-xs"
+                className="flex-1 h-7 text-[11px] gap-1"
                 onClick={() => onPreview(form.id)}
               >
-                <Eye className="size-3 mr-1" />
+                <Eye className="size-3" />
                 Preview
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2 text-xs"
+                className="h-7 px-2 text-[11px]"
                 onClick={() => onViewResponses(form.id)}
               >
                 <BarChart3 className="size-3" />

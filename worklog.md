@@ -110,3 +110,62 @@
 - The form builder center panel could benefit from a more refined Typeform-like preview experience
 - Dashboard could benefit from better card hover animations and loading states
 - Mobile responsiveness could be further refined for the form builder 3-panel layout
+
+---
+
+## Session: UI Padding Fix — Surgical Padding Corrections
+
+### Task ID: 1-6
+### Agent: main
+
+### Project Status
+- All v7 critical fixes (FIX 1-7) in place
+- Auth working correctly, NOT touched in this session
+- ESLint passes clean, dev server compiles without errors
+
+### UI Padding Fixes Applied
+
+**1. Dashboard Sidebar Nav Items — `dashboard.tsx`**
+- Changed nav `space-y-0.5` to `space-y-1` for more breathing room between nav items
+- Unified nav button padding from `px-3 py-2.5` to `px-3 py-2` for all nav items (Home, Templates, Themes, Resources) — consistent height
+- Unified workspace button padding from `px-2.5 py-2` to `px-3 py-2` — matches nav items
+
+**2. Dashboard Top Bar Buttons — `dashboard.tsx`**
+- Changed button gap from `gap-2` to `gap-1.5` for tighter, more consistent spacing
+- Changed Import/New Form buttons from `size="default"` + `gap-2` to `size="sm"` + `h-8` + `gap-1.5` — consistent with the header height
+- Reduced icon sizes from `size-4` to `size-3.5` on Import/New Form buttons for visual balance
+
+**3. Form Builder Left Sidebar — `form-builder.tsx`**
+- Reduced Welcome Screen section `pb-1` to `pb-0.5` — less wasted space
+- Reduced button padding from `px-3 py-2` to `px-2.5 py-1.5` for Welcome/Ending screen items — more compact, in sync with question items
+- Changed "Add question" button from `p-3` to `px-3 py-2` and from `text-sm` to `text-xs h-8 gap-1.5` — more compact, less visual weight
+- Changed "Add question" button icon from `size-4` to `size-3.5` — proportional
+- Added `pt-0.5` to Ending Screen section — tighter gap between Add question and Ending Screen
+
+**4. Form Builder Top Bar — `form-builder.tsx`**
+- Changed gap from `gap-2` to `gap-1.5` for more consistent button spacing
+
+**5. Form Builder Right Sidebar — `design-panel.tsx`**
+- Changed all `space-y-5` to `space-y-4` across QuestionSettingsTab, LogicTab, FormSettingsTab, DesignTabContent — tighter, more consistent section spacing
+- Changed tabs content `space-y-5` to `space-y-4` — matches the rest
+
+**6. Form Builder Center Content — `question-editor.tsx`**
+- Removed absolute-positioned question number and Required indicator
+- Added them as a flex row at the top of the editor content — properly aligned and in-flow
+- Question counter now shows "1 of 2" format (matching the preview) instead of "1/2" — consistent between preview and editor
+- Reduced OK button from `size="lg" px-8 h-12` to `size="default" px-6 h-10 text-sm` — tighter, more proportional
+- Reduced OK button icon from `size-5` to `size-4` — proportional
+- Reduced "press Enter" text from `text-sm` to `text-xs` — less visual noise
+- Added `mt-2` to OK button and Continue button — consistent tight spacing from input to button
+
+**7. Form Card — `form-card.tsx`**
+- Reduced colored header from `h-28` to `h-24` — more compact card
+- Reduced CardContent padding from `p-4` to `p-3.5` and gap from `gap-2` to `gap-1.5` — tighter internals
+- Reduced footer border-top padding from `pt-2` to `pt-1.5` — tighter footer
+- Changed quick action buttons from `text-xs mr-1` to `text-[11px] gap-1` — more compact, consistent icon+text spacing
+
+### Verification
+- ESLint: passes with zero errors
+- Dev server: compiles without errors, all pages render 200
+- Auth: NOT modified, still working
+- No logic changes — only padding/spacing CSS adjustments

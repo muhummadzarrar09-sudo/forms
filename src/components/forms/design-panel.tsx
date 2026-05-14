@@ -120,7 +120,7 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
         </TabsList>
 
         <ScrollArea className="flex-1">
-          <TabsContent value="question" className="m-0 p-4 space-y-5">
+          <TabsContent value="question" className="m-0 p-4 space-y-4">
             {selectedQuestion ? (
               <QuestionSettingsTab
                 key={selectedQuestion.id}
@@ -229,7 +229,7 @@ function LogicTab({ question }: { question: FormQuestion }) {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-5"
+      className="space-y-4"
     >
       {/* Header */}
       <div className="space-y-1">
@@ -596,7 +596,7 @@ function QuestionSettingsTab({
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-5"
+      className="space-y-4"
     >
       {/* Question Type Selector */}
       <div className="space-y-2">
@@ -1124,7 +1124,7 @@ function FormSettingsTab() {
   if (!currentForm) return null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="space-y-3">
         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Welcome Screen
@@ -1626,7 +1626,7 @@ function FormSettingsAdvancedTab() {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-5"
+      className="space-y-4"
     >
       {/* Header */}
       <div className="space-y-1">
