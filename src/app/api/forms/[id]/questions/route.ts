@@ -22,7 +22,10 @@ export async function PUT(
     const { id } = await params;
 
     // Verify ownership
-    const existingForm = await db.form.findUnique({ where: { id }, select: { userId: true } });
+    const existingForm = await db.form.findUnique({
+      where: { id },
+      select: { userId: true, endings: { orderBy: { order: 'asc' } } },
+    });
     if (!existingForm) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
     }

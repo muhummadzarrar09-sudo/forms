@@ -122,6 +122,8 @@ export function getAvailableOperators(question: FormQuestion): { value: string; 
     return [
       { value: 'equals', label: 'equals' },
       { value: 'not_equals', label: 'does not equal' },
+      { value: 'is_filled', label: 'is filled' },
+      { value: 'is_empty', label: 'is empty' },
     ];
   }
   if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
@@ -130,12 +132,16 @@ export function getAvailableOperators(question: FormQuestion): { value: string; 
       { value: 'not_equals', label: 'does not equal' },
       { value: 'greater_than', label: 'is greater than' },
       { value: 'less_than', label: 'is less than' },
+      { value: 'is_filled', label: 'is filled' },
+      { value: 'is_empty', label: 'is empty' },
     ];
   }
   return [
     { value: 'equals', label: 'equals' },
     { value: 'not_equals', label: 'does not equal' },
     { value: 'contains', label: 'contains' },
+    { value: 'is_filled', label: 'is filled' },
+    { value: 'is_empty', label: 'is empty' },
   ];
 }
 

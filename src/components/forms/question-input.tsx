@@ -267,7 +267,7 @@ function ShortTextInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="text"
@@ -317,7 +317,7 @@ function LongTextInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <textarea
         ref={textareaRef}
         value={value}
@@ -387,7 +387,7 @@ function MultipleChoiceInput({
   if (options.length === 0) return null;
 
   return (
-    <div className="w-full max-w-2xl space-y-2">
+    <div className="w-full space-y-2">
       {options.map((option, idx) => {
         const isSelected = question.settings.allowMultiple
           ? value.split(',').includes(option.id)
@@ -492,7 +492,7 @@ function PictureChoiceInput({
   );
 
   return (
-    <div className="w-full max-w-3xl grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+    <div className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {options.map((option, idx) => {
         const isSelected = question.settings.allowMultiple
           ? value.split(',').includes(option.id)
@@ -601,7 +601,7 @@ function DropdownInput({
   const displayValue = selectedOption?.label || '';
 
   return (
-    <div className="w-full max-w-2xl relative" ref={dropdownRef}>
+    <div className="w-full relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full text-left px-4 py-3.5 rounded-lg border-2 transition-all duration-150 ${ff} text-lg flex items-center justify-between`}
@@ -685,7 +685,7 @@ function YesNoInput({
   };
 
   return (
-    <div className="w-full max-w-2xl flex gap-4">
+    <div className="w-full flex gap-4">
       <motion.button
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
@@ -763,7 +763,7 @@ function EmailInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="email"
@@ -825,7 +825,7 @@ function PhoneInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="tel"
@@ -883,7 +883,7 @@ function NumberInput({
   };
 
   return (
-    <div className="w-full max-w-2xl flex items-end gap-3">
+    <div className="w-full flex items-end gap-3">
       <input
         ref={inputRef}
         type="number"
@@ -951,7 +951,7 @@ function WebsiteInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="url"
@@ -1001,7 +1001,7 @@ function DateInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <input
         ref={inputRef}
         type="date"
@@ -1054,7 +1054,7 @@ function RatingInput({
   };
 
   return (
-    <div className="w-full max-w-2xl flex gap-2">
+    <div className="w-full flex gap-2">
       {Array.from({ length: steps }, (_, i) => i + 1).map((star) => {
         const filled = star <= (hoveredStar ?? currentRating);
         return (
@@ -1117,7 +1117,7 @@ function OpinionScaleInput({
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <div className="flex gap-2 flex-wrap">
         {numbers.map((num) => {
           const isSelected = num === currentValue;
@@ -1177,7 +1177,7 @@ function LegalInput({
   };
 
   return (
-    <div className="w-full max-w-2xl space-y-6">
+    <div className="w-full space-y-6">
       <button
         onClick={handleToggle}
         className={`flex items-center gap-3 text-left ${ff}`}

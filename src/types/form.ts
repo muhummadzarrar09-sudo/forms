@@ -26,12 +26,12 @@ export interface LogicRule {
   id: string;
   condition: {
     field: string; // which option/value to check - for choice questions, this is the option id
-    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_filled' | 'is_empty';
     value: string;
   };
   action: {
-    type: 'jump_to'; // future: could add 'show' | 'hide'
-    targetQuestionId: string; // which question to jump to
+    type: 'jump_to' | 'show_ending'; // jump_to a question, or show_ending to show a specific ending
+    targetQuestionId: string; // which question to jump to, or ending id if type is show_ending
   };
 }
 
@@ -51,6 +51,11 @@ export interface QuestionSettings {
   redirectUrl?: string;
   // Default jump target if no logic rule matches
   jumpToQuestionId?: string;
+  // Scoring
+  scoringEnabled?: boolean;
+  scoreValues?: Record<string, number>; // optionId -> score value for choice questions
+  correctAnswer?: string; // correct answer value for scoring
+  points?: number; // points for correct answer
 }
 
 export interface FormQuestion {
@@ -93,10 +98,29 @@ export interface Workspace {
   };
 }
 
+export interface FormEnding {
+  id: string;
+  formId: string;
+  title: string;
+  message: string;
+  redirectUrl: string | null;
+  showScore: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HiddenField {
+  id: string;
+  name: string;
+  defaultValue?: string;
+}
+
 export interface Form {
   id: string;
   title: string;
   description: string;
+  slug: string | null;
   published: boolean;
   welcomeTitle: string;
   welcomeMessage: string;
@@ -116,6 +140,7 @@ export interface Form {
   favorite: boolean;
   archived: boolean;
   tags: string[];
+  hiddenFields: HiddenField[];
   maxResponses: number;
   closeDate: string | null;
   metaTitle: string;
@@ -126,6 +151,7 @@ export interface Form {
   createdAt: string;
   updatedAt: string;
   questions: FormQuestion[];
+  endings: FormEnding[];
   _count?: {
     responses: number;
   };
@@ -136,6 +162,8 @@ export interface FormResponse {
   formId: string;
   startedAt: string;
   completedAt: string | null;
+  isPartial: boolean;
+  score: number;
   metadata: Record<string, unknown>;
   answers: FormAnswer[];
 }
@@ -145,6 +173,7 @@ export interface FormAnswer {
   responseId: string;
   questionId: string;
   value: string;
+  score: number;
   question?: FormQuestion;
 }
 

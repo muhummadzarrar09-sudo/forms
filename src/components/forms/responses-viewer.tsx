@@ -42,6 +42,8 @@ import {
   FileDown,
   TrendingDown,
   AlertTriangle,
+  Trophy,
+  FilterX,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay } from 'date-fns';
@@ -113,11 +115,14 @@ interface DisplayResponse {
   number: number;
   submittedAt: string;
   timeTaken: number | null;
+  score: number;
+  isPartial: boolean;
   answers: {
     questionId: string;
     questionTitle: string;
     questionType: string;
     value: string;
+    score: number;
   }[];
 }
 
@@ -140,6 +145,7 @@ export function ResponsesViewer() {
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
   const [showClearAllDialog, setShowClearAllDialog] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const [showPartial, setShowPartial] = useState(true); // filter for partial responses
 
   // Fetch form data + summary + responses
   useEffect(() => {
@@ -188,6 +194,9 @@ export function ResponsesViewer() {
   const displayResponses: DisplayResponse[] = useMemo(() => {
     return responses
       .filter((r) => {
+        // Partial response filter
+        if (!showPartial && r.isPartial) return false;
+
         // Date range filter
         if (dateFrom || dateTo) {
           const submittedDate = r.completedAt ? new Date(r.completedAt) : new Date(r.startedAt);
@@ -222,15 +231,18 @@ export function ResponsesViewer() {
           number: responses.length - index,
           submittedAt: r.completedAt || r.startedAt,
           timeTaken,
+          score: r.score || 0,
+          isPartial: r.isPartial ?? false,
           answers: r.answers.map((a) => ({
             questionId: a.questionId,
             questionTitle: a.question?.title || 'Unknown Question',
             questionType: a.question?.type || 'short_text',
             value: a.value,
+            score: a.score || 0,
           })),
         };
       });
-  }, [responses, dateFrom, dateTo, searchQuery]);
+  }, [responses, dateFrom, dateTo, searchQuery, showPartial]);
 
   // ─── CSV Export ────────────────────────────────────────────────────────────
 
@@ -324,6 +336,18 @@ export function ResponsesViewer() {
   const totalResponses = summary?.totalResponses ?? 0;
   const completionRate = summary?.completionRate ?? 0;
   const averageTime = summary?.averageTime ?? 0;
+
+  // Average score from responses
+  const averageScore = useMemo(() => {
+    const scoredResponses = responses.filter((r) => (r.score || 0) > 0);
+    if (scoredResponses.length === 0) return 0;
+    const total = scoredResponses.reduce((sum, r) => sum + (r.score || 0), 0);
+    return Math.round((total / scoredResponses.length) * 10) / 10;
+  }, [responses]);
+
+  const hasScoring = useMemo(() => {
+    return responses.some((r) => (r.score || 0) > 0);
+  }, [responses]);
 
   // Animated stats
   const animatedTotalResponses = useAnimatedCounter(totalResponses);
@@ -575,7 +599,7 @@ export function ResponsesViewer() {
       {/* Main content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Stats cards with completion rate as circular indicator */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${hasScoring ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <Card className="overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
               <CardContent className="p-5">
@@ -652,6 +676,28 @@ export function ResponsesViewer() {
               </CardContent>
             </Card>
           </motion.div>
+
+          {/* Avg Score card - only shown when scoring is enabled */}
+          {hasScoring && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
+              <Card className="overflow-hidden bg-gradient-to-br from-violet-500/5 to-transparent">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Avg. Score</p>
+                      <div className="flex items-baseline gap-1.5">
+                        <p className="text-3xl font-bold tabular-nums">{averageScore}</p>
+                        <span className="text-lg text-muted-foreground">pts</span>
+                      </div>
+                    </div>
+                    <div className="size-11 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                      <BarChart3 className="size-5 text-violet-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
 
         {/* Response Trend Chart */}
@@ -840,9 +886,24 @@ export function ResponsesViewer() {
                 <List className="size-3.5" />
                 Individual
               </TabsTrigger>
+              <TabsTrigger value="funnel" className="gap-1.5">
+                <TrendingDown className="size-3.5" />
+                Funnel
+              </TabsTrigger>
             </TabsList>
 
             <div className="flex items-center gap-2 flex-1 w-full sm:w-auto sm:justify-end">
+              {/* Partial response filter */}
+              <Button
+                variant={showPartial ? 'outline' : 'default'}
+                size="sm"
+                className="h-8 text-xs gap-1.5 shrink-0"
+                onClick={() => setShowPartial(!showPartial)}
+              >
+                <Filter className="size-3.5" />
+                {showPartial ? 'All' : 'Complete only'}
+              </Button>
+
               {/* Search */}
               <div className="relative flex-1 sm:flex-initial sm:w-56">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -898,6 +959,7 @@ export function ResponsesViewer() {
                           setDateTo(undefined);
                         }}
                       >
+                        <FilterX className="size-3 mr-1" />
                         Clear
                       </Button>
                     </div>
@@ -988,6 +1050,11 @@ export function ResponsesViewer() {
                 </AnimatePresence>
               </div>
             )}
+          </TabsContent>
+
+          {/* Funnel Tab */}
+          <TabsContent value="funnel" className="mt-0">
+            <FunnelTab questions={questions} responses={responses} />
           </TabsContent>
         </Tabs>
       </main>
@@ -1104,6 +1171,17 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                   {formatDuration(response.timeTaken)}
                 </Badge>
               )}
+              {response.isPartial && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950">
+                  Partial
+                </Badge>
+              )}
+              {response.score > 0 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-violet-600 border-violet-200 bg-violet-50">
+                  <BarChart3 className="size-2.5" />
+                  {response.score} pts
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {format(new Date(response.submittedAt), 'MMM d, yyyy · h:mm a')}
@@ -1141,6 +1219,11 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                         <p className="text-sm text-muted-foreground">
                           {answer.questionTitle}
                         </p>
+                        {answer.score > 0 && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 text-violet-600 border-violet-200 bg-violet-50">
+                            +{answer.score}
+                          </Badge>
+                        )}
                       </div>
                       <div className="pl-5">
                         {answer.value ? (
@@ -1199,5 +1282,155 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
         </AlertDialog>
       </Card>
     </motion.div>
+  );
+}
+
+// ─── Funnel Tab ────────────────────────────────────────────────────────────
+
+function FunnelTab({ questions, responses }: { questions: FormQuestion[]; responses: FormResponse[] }) {
+  const funnelData = useMemo(() => {
+    if (!questions.length || !responses.length) return [];
+    const sortedQs = [...questions].sort((a, b) => a.order - b.order);
+    const total = responses.length;
+
+    return sortedQs.map((q, index) => {
+      const answersForQ = responses.filter((r) =>
+        r.answers.some((a) => a.questionId === q.id && a.value.trim() !== '')
+      );
+      const answerCount = answersForQ.length;
+      const completionRate = total > 0 ? (answerCount / total) * 100 : 0;
+
+      let dropFromPrev = 0;
+      if (index > 0) {
+        const prevQ = sortedQs[index - 1];
+        const prevAnswers = responses.filter((r) =>
+          r.answers.some((a) => a.questionId === prevQ.id && a.value.trim() !== '')
+        );
+        dropFromPrev = prevAnswers.length > 0 ? ((prevAnswers.length - answerCount) / prevAnswers.length) * 100 : 0;
+      } else {
+        dropFromPrev = total > 0 ? ((total - answerCount) / total) * 100 : 0;
+      }
+
+      return {
+        questionId: q.id,
+        questionTitle: q.title,
+        answerCount,
+        viewedCount: total,
+        completionRate: Math.round(completionRate),
+        dropFromPrev: Math.round(Math.max(0, dropFromPrev)),
+        questionIndex: index + 1,
+      };
+    });
+  }, [questions, responses]);
+
+  if (funnelData.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <TrendingDown className="size-10 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="text-muted-foreground">No funnel data available</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Funnel data will appear once you have responses.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const maxCount = funnelData[0]?.viewedCount || 1;
+
+  return (
+    <div className="space-y-4">
+      {/* Visual funnel */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <TrendingDown className="size-4 text-muted-foreground" />
+            Response Funnel
+          </CardTitle>
+          <p className="text-xs text-muted-foreground font-normal">
+            See how many respondents reached and answered each question
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {funnelData.map((d) => {
+              const widthPercent = maxCount > 0 ? (d.answerCount / maxCount) * 100 : 0;
+              const colorClass =
+                d.completionRate >= 80 ? 'bg-emerald-500' :
+                d.completionRate >= 50 ? 'bg-amber-500' :
+                'bg-red-500';
+              const textColor =
+                d.completionRate >= 80 ? 'text-emerald-700' :
+                d.completionRate >= 50 ? 'text-amber-700' :
+                'text-red-700';
+
+              return (
+                <div key={d.questionId} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="size-5 rounded text-[10px] font-bold flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+                        {d.questionIndex}
+                      </span>
+                      <span className="text-sm truncate">{d.questionTitle}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-semibold ${textColor}`}>
+                        {d.answerCount}/{d.viewedCount}
+                      </span>
+                      {d.dropFromPrev > 0 && (
+                        <Badge
+                          variant={d.dropFromPrev > 20 ? 'destructive' : 'outline'}
+                          className="text-[10px] shrink-0 gap-0.5"
+                        >
+                          {d.dropFromPrev > 20 && <AlertTriangle className="size-2.5" />}
+                          -{d.dropFromPrev}%
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {/* Bar */}
+                  <div className="relative h-8 rounded-md bg-muted/30 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${widthPercent}%` }}
+                      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: d.questionIndex * 0.05 }}
+                      className={`h-full rounded-md ${colorClass} flex items-center justify-end pr-2`}
+                    >
+                      <span className="text-[10px] font-bold text-white drop-shadow-sm">
+                        {d.completionRate}%
+                      </span>
+                    </motion.div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Trophy className="size-5 text-emerald-600 mx-auto mb-1" />
+            <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate >= 80).length}</p>
+            <p className="text-[10px] text-muted-foreground">High completion</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <AlertTriangle className="size-5 text-amber-600 mx-auto mb-1" />
+            <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate >= 50 && d.completionRate < 80).length}</p>
+            <p className="text-[10px] text-muted-foreground">Moderate</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <TrendingDown className="size-5 text-red-600 mx-auto mb-1" />
+            <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate < 50).length}</p>
+            <p className="text-[10px] text-muted-foreground">High drop-off</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

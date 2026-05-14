@@ -1,12 +1,8 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
-import bcrypt from 'bcryptjs';
-import { checkRateLimit, recordRateLimitAttempt } from './rate-limit';
-
-function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 12);
-}
+import { verifyPassword } from './crypto';
+import { checkRateLimit, recordRateLimitAttempt, resetRateLimit } from './rate-limit';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -21,34 +17,47 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Check if this email is locked out due to too many failed attempts
-        // 10 failed attempts per 15-minute window
-        const loginLimit = checkRateLimit(credentials.email, { maxRequests: 10, windowSeconds: 900 });
-        if (!loginLimit.success) {
+        const email = credentials.email.trim().toLowerCase();
+
+        // Per-email rate limit: 20 failed attempts per 15-minute window
+        const emailKey = `login:email:${email}`;
+        const limitCheck = checkRateLimit(emailKey, { maxRequests: 20, windowSeconds: 900 });
+        if (!limitCheck.success) {
+          console.log(`[AUTH] Rate limited: ${email} — retry in ${limitCheck.retryAfter}s`);
           return null;
         }
 
-        const user = await db.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          const user = await db.user.findUnique({ where: { email } });
 
-        if (!user) {
-          // Record failed attempt even when user not found (don't leak user existence)
-          recordRateLimitAttempt(credentials.email);
+          if (!user) {
+            // Record attempt even for missing users (prevents user enumeration timing)
+            recordRateLimitAttempt(emailKey);
+            return null;
+          }
+
+          const passwordMatch = verifyPassword(credentials.password, user.password);
+
+          if (!passwordMatch) {
+            recordRateLimitAttempt(emailKey);
+            return null;
+          }
+
+          // Successful login — reset the email rate limit counter
+          resetRateLimit(emailKey);
+
+          // Note: bcrypt hashes from pre-PBKDF2 versions are not supported.
+          // Affected users must re-register.
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        } catch (error) {
+          console.error('[AUTH] Error during authorization:', error);
           return null;
         }
-
-        if (!bcrypt.compareSync(credentials.password, user.password)) {
-          // Record failed attempt
-          recordRateLimitAttempt(credentials.email);
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
       },
     }),
   ],
@@ -75,6 +84,5 @@ export const authOptions: NextAuthOptions = {
     signIn: '/',
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: false,
 };
-
-export { hashPassword };

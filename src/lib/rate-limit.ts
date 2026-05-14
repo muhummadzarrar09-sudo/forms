@@ -112,3 +112,10 @@ export function recordRateLimitAttempt(key: string): void {
   timestamps.push(now);
   store.set(key, timestamps);
 }
+
+/**
+ * Reset the rate limit for a given key (e.g. after a successful login).
+ */
+export function resetRateLimit(key: string): void {
+  store.delete(key);
+}

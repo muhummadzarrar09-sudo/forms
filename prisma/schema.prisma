@@ -22,6 +22,7 @@ model Form {
   id          String     @id @default(cuid())
   title       String     @default("Untitled Form")
   description String     @default("")
+  slug        String?    @unique // URL-friendly identifier for sharing
   published   Boolean    @default(false)
   welcomeTitle String    @default("Welcome!")
   welcomeMessage String  @default("Thanks for taking the time to fill this out.")
@@ -41,6 +42,7 @@ model Form {
   favorite    Boolean    @default(false)
   archived    Boolean    @default(false)
   tags        String     @default("[]") // JSON array of tag strings
+  hiddenFields String    @default("[]") // JSON array of hidden field definitions
   maxResponses Int       @default(0) // 0 = unlimited
   closeDate   DateTime?  // auto-close date, null = no auto-close
   metaTitle   String     @default("") // SEO meta title
@@ -51,6 +53,7 @@ model Form {
   updatedAt   DateTime   @updatedAt
   questions   Question[]
   responses   Response[]
+  endings     FormEnding[]
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 }
@@ -92,6 +95,8 @@ model Response {
   formId      String
   startedAt   DateTime @default(now())
   completedAt DateTime?
+  isPartial   Boolean  @default(false) // true = abandoned/in-progress
+  score       Int      @default(0) // total score if scoring is enabled
   metadata    String   @default("{}") // JSON: userAgent, ip, referer, etc.
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
@@ -102,6 +107,20 @@ model Answer {
   responseId String
   questionId String
   value      String   @default("") // The answer value (stringified for flexibility)
+  score      Int      @default(0) // score awarded for this answer
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model FormEnding {
+  id          String   @id @default(cuid())
+  formId      String
+  title       String   @default("Thank you!")
+  message     String   @default("Your response has been recorded.")
+  redirectUrl String?
+  showScore   Boolean  @default(false) // show calculated score on ending screen
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 }

@@ -1,28 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hashPassword } from '@/lib/auth';
-import { rateLimit } from '@/lib/rate-limit';
-import { z } from 'zod';
-
-const registerSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  name: z.string().max(100).optional(),
-});
+import { hashPassword } from '@/lib/crypto';
 
 // POST /api/auth/register - Register a new user
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit by IP — 5 registrations per 15 minutes
-    const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown';
-    const limit = rateLimit(ip, { maxRequests: 5, windowSeconds: 900 });
-    if (!limit.success) {
-      return NextResponse.json(
-        { error: 'Too many requests', retryAfter: limit.retryAfter },
-        { status: 429 }
-      );
-    }
-
     let body;
     try {
       body = await request.json();
@@ -30,18 +12,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const validation = registerSchema.safeParse(body);
-    if (!validation.success) {
+    const { email, password, name } = body;
+
+    // Manual validation
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
+        { error: 'Please enter a valid email address' },
         { status: 400 }
       );
     }
 
-    const { email, password, name } = validation.data;
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
+        { status: 400 }
+      );
+    }
+
+    if (name && typeof name === 'string' && name.length > 100) {
+      return NextResponse.json(
+        { error: 'Name must be less than 100 characters' },
+        { status: 400 }
+      );
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Check if user already exists
-    const existingUser = await db.user.findUnique({ where: { email } });
+    const existingUser = await db.user.findUnique({
+      where: { email: normalizedEmail },
+    });
     if (existingUser) {
       return NextResponse.json(
         { error: 'An account with this email already exists' },
@@ -49,15 +49,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user
+    // Create user with hashed password
     const hashedPassword = hashPassword(password);
     const user = await db.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
-        name: name || '',
+        name: (name && typeof name === 'string') ? name.trim() : '',
       },
     });
+
+    console.log('[REGISTER] User created:', normalizedEmail);
 
     return NextResponse.json({
       id: user.id,
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
       name: user.name,
     }, { status: 201 });
   } catch (error) {
-    console.error('Error registering user:', error);
+    console.error('[REGISTER] Error:', error);
     return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });
   }
 }

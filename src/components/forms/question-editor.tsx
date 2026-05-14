@@ -199,7 +199,7 @@ export function QuestionEditor({
 
       {/* ── Editor Section ── */}
       <div
-        className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative overflow-hidden"
+        className="flex-1 flex flex-col items-center justify-center px-8 md:px-12 py-10 relative overflow-hidden"
         style={{ backgroundColor: formBackgroundColor, color: formTextColor }}
       >
         {/* Question number */}
@@ -228,7 +228,7 @@ export function QuestionEditor({
           </div>
         )}
 
-        <div className="w-full max-w-2xl space-y-8">
+        <div className="w-full max-w-2xl space-y-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={question.id}
@@ -236,7 +236,7 @@ export function QuestionEditor({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -30 }}
               transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-              className="space-y-6"
+              className="space-y-5"
             >
               {/* Title */}
               <div className="space-y-2">

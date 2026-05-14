@@ -18,11 +18,12 @@ export async function POST(
 
     const { id } = await params;
 
-    // Find the original form with its questions
+    // Find the original form with its questions and endings
     const originalForm = await db.form.findUnique({
       where: { id },
       include: {
         questions: { orderBy: { order: 'asc' } },
+        endings: { orderBy: { order: 'asc' } },
       },
     });
 
@@ -35,14 +36,17 @@ export async function POST(
     }
 
     // Create the duplicated form (scoped to the same user)
+    // Note: slug is NOT copied — duplicates get no slug by default
     const duplicatedForm = await db.form.create({
       data: {
         title: `Copy of ${originalForm.title}`,
         description: originalForm.description,
+        slug: null, // Don't copy slug
         published: false, // Duplicates are always drafts
         favorite: false, // Don't copy favorite
         archived: false, // Don't copy archived
         tags: originalForm.tags, // Copy tags as-is (already JSON string)
+        hiddenFields: originalForm.hiddenFields, // Copy hidden fields (already JSON string)
         welcomeTitle: originalForm.welcomeTitle,
         welcomeMessage: originalForm.welcomeMessage,
         endingTitle: originalForm.endingTitle,
@@ -77,10 +81,20 @@ export async function POST(
             placeholder: q.placeholder,
           })),
         },
+        endings: {
+          create: originalForm.endings.map((e) => ({
+            title: e.title,
+            message: e.message,
+            redirectUrl: e.redirectUrl,
+            showScore: e.showScore,
+            order: e.order,
+          })),
+        },
       },
       include: {
         _count: { select: { responses: true } },
         questions: { orderBy: { order: 'asc' } },
+        endings: { orderBy: { order: 'asc' } },
         workspace: true,
       },
     });

@@ -24,11 +24,11 @@ const logicRuleSchema = z.object({
   id: z.string(),
   condition: z.object({
     field: z.string(),
-    operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than']),
+    operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_filled', 'is_empty']),
     value: z.string(),
   }),
   action: z.object({
-    type: z.literal('jump_to'),
+    type: z.enum(['jump_to', 'show_ending']),
     targetQuestionId: z.string(),
   }),
 });
@@ -40,6 +40,7 @@ const logicRuleSchema = z.object({
 export const createFormSchema = z.object({
   title: z.string().min(1).max(200).optional().default('Untitled Form'),
   description: z.string().max(2000).optional().default(''),
+  slug: z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens').optional().nullable(),
   welcomeTitle: z.string().max(200).optional(),
   welcomeMessage: z.string().max(1000).optional(),
   endingTitle: z.string().max(200).optional(),
@@ -53,6 +54,7 @@ export const createFormSchema = z.object({
   progressbar: z.boolean().optional(),
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
+  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
   workspaceId: z.string().optional(),
 });
 
@@ -64,6 +66,7 @@ export const updateFormSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   published: z.boolean().optional(),
+  slug: z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens').optional().nullable(),
   welcomeTitle: z.string().max(200).optional(),
   welcomeMessage: z.string().max(1000).optional(),
   endingTitle: z.string().max(200).optional(),
@@ -82,6 +85,7 @@ export const updateFormSchema = z.object({
   favorite: z.boolean().optional(),
   archived: z.boolean().optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
+  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
   workspaceId: z.string().nullable().optional(),
   maxResponses: z.number().int().min(0).optional(),
   closeDate: z.string().nullable().optional(),

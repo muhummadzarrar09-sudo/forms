@@ -5,6 +5,36 @@ import { db } from '@/lib/db';
 import { serializeForm } from '@/lib/api-serialization';
 import { updateFormSchema } from '@/lib/validations';
 
+// Helper: generate a URL-friendly slug from a title
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+// Helper: ensure slug uniqueness — must check GLOBALLY because slug has @unique constraint
+async function ensureUniqueSlug(baseSlug: string, _userId: string, excludeId: string): Promise<string> {
+  let slug = baseSlug;
+  let attempts = 0;
+
+  while (attempts < 10) {
+    const existing = await db.form.findFirst({
+      where: { slug, id: { not: excludeId } },
+      select: { id: true },
+    });
+
+    if (!existing) return slug;
+
+    const suffix = Math.random().toString(36).substring(2, 6);
+    slug = `${baseSlug}-${suffix}`;
+    attempts++;
+  }
+
+  return `${baseSlug}-${Date.now().toString(36)}`;
+}
+
 // GET /api/forms/[id]
 // Public for published forms (form filler), protected for drafts (owner only)
 export async function GET(
@@ -18,6 +48,7 @@ export async function GET(
       include: {
         _count: { select: { responses: true } },
         questions: { orderBy: { order: 'asc' } },
+        endings: { orderBy: { order: 'asc' } },
         workspace: true,
       },
     });
@@ -90,44 +121,104 @@ export async function PUT(
 
     const data = validation.data;
 
-    const form = await db.form.update({
-      where: { id },
-      data: {
-        ...(data.title !== undefined && { title: data.title }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.published !== undefined && { published: data.published }),
-        ...(data.welcomeTitle !== undefined && { welcomeTitle: data.welcomeTitle }),
-        ...(data.welcomeMessage !== undefined && { welcomeMessage: data.welcomeMessage }),
-        ...(data.endingTitle !== undefined && { endingTitle: data.endingTitle }),
-        ...(data.endingMessage !== undefined && { endingMessage: data.endingMessage }),
-        ...(data.theme !== undefined && { theme: data.theme }),
-        ...(data.backgroundColor !== undefined && { backgroundColor: data.backgroundColor }),
-        ...(data.textColor !== undefined && { textColor: data.textColor }),
-        ...(data.buttonColor !== undefined && { buttonColor: data.buttonColor }),
-        ...(data.buttonTextColor !== undefined && { buttonTextColor: data.buttonTextColor }),
-        ...(data.fontFamily !== undefined && { fontFamily: data.fontFamily }),
-        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
-        ...(data.coverUrl !== undefined && { coverUrl: data.coverUrl }),
-        ...(data.progressbar !== undefined && { progressbar: data.progressbar }),
-        ...(data.showQuestionNumbers !== undefined && { showQuestionNumbers: data.showQuestionNumbers }),
-        ...(data.allowBackNavigation !== undefined && { allowBackNavigation: data.allowBackNavigation }),
-        ...(data.favorite !== undefined && { favorite: data.favorite }),
-        ...(data.archived !== undefined && { archived: data.archived }),
-        ...(data.tags !== undefined && { tags: JSON.stringify(data.tags) }),
-        ...(data.workspaceId !== undefined && { workspaceId: data.workspaceId || null }),
-        ...(data.maxResponses !== undefined && { maxResponses: data.maxResponses }),
-        ...(data.closeDate !== undefined && { closeDate: data.closeDate ? new Date(data.closeDate) : null }),
-        ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle }),
-        ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
-      },
-      include: {
-        _count: { select: { responses: true } },
-        questions: { orderBy: { order: 'asc' } },
-        workspace: true,
-      },
+    // Handle slug: validate uniqueness if provided
+    let slugValue: string | null | undefined = undefined;
+    if (data.slug !== undefined) {
+      if (data.slug === null || data.slug === '') {
+        // Clear the slug
+        slugValue = null;
+      } else {
+        // Validate uniqueness
+        slugValue = await ensureUniqueSlug(data.slug, session.user.id, id);
+      }
+    }
+
+    // Build endings CRUD if provided
+    // We handle endings separately after the form update
+    const { endings } = data as typeof data & { endings?: Array<{ id?: string; title: string; message: string; redirectUrl?: string | null; showScore?: boolean; order: number; _delete?: boolean }> };
+
+    const updatedForm = await db.$transaction(async (tx) => {
+      await tx.form.update({
+        where: { id },
+        data: {
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.published !== undefined && { published: data.published }),
+          ...(slugValue !== undefined && { slug: slugValue }),
+          ...(data.welcomeTitle !== undefined && { welcomeTitle: data.welcomeTitle }),
+          ...(data.welcomeMessage !== undefined && { welcomeMessage: data.welcomeMessage }),
+          ...(data.endingTitle !== undefined && { endingTitle: data.endingTitle }),
+          ...(data.endingMessage !== undefined && { endingMessage: data.endingMessage }),
+          ...(data.theme !== undefined && { theme: data.theme }),
+          ...(data.backgroundColor !== undefined && { backgroundColor: data.backgroundColor }),
+          ...(data.textColor !== undefined && { textColor: data.textColor }),
+          ...(data.buttonColor !== undefined && { buttonColor: data.buttonColor }),
+          ...(data.buttonTextColor !== undefined && { buttonTextColor: data.buttonTextColor }),
+          ...(data.fontFamily !== undefined && { fontFamily: data.fontFamily }),
+          ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+          ...(data.coverUrl !== undefined && { coverUrl: data.coverUrl }),
+          ...(data.progressbar !== undefined && { progressbar: data.progressbar }),
+          ...(data.showQuestionNumbers !== undefined && { showQuestionNumbers: data.showQuestionNumbers }),
+          ...(data.allowBackNavigation !== undefined && { allowBackNavigation: data.allowBackNavigation }),
+          ...(data.favorite !== undefined && { favorite: data.favorite }),
+          ...(data.archived !== undefined && { archived: data.archived }),
+          ...(data.tags !== undefined && { tags: JSON.stringify(data.tags) }),
+          ...(data.hiddenFields !== undefined && { hiddenFields: JSON.stringify(data.hiddenFields) }),
+          ...(data.workspaceId !== undefined && { workspaceId: data.workspaceId || null }),
+          ...(data.maxResponses !== undefined && { maxResponses: data.maxResponses }),
+          ...(data.closeDate !== undefined && { closeDate: data.closeDate ? new Date(data.closeDate) : null }),
+          ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle }),
+          ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
+        },
+      });
+
+      if (endings && Array.isArray(endings)) {
+        const toDelete = endings.filter((e) => e._delete && e.id);
+        for (const e of toDelete) {
+          await tx.formEnding.delete({ where: { id: e.id! } });
+        }
+
+        const toUpsert = endings.filter((e) => !e._delete);
+        for (const e of toUpsert) {
+          if (e.id) {
+            await tx.formEnding.update({
+              where: { id: e.id },
+              data: {
+                title: e.title,
+                message: e.message,
+                redirectUrl: e.redirectUrl ?? null,
+                showScore: e.showScore ?? false,
+                order: e.order,
+              },
+            });
+          } else {
+            await tx.formEnding.create({
+              data: {
+                formId: id,
+                title: e.title,
+                message: e.message,
+                redirectUrl: e.redirectUrl ?? null,
+                showScore: e.showScore ?? false,
+                order: e.order,
+              },
+            });
+          }
+        }
+      }
+
+      // Re-fetch with updated endings inside the same transaction
+      return tx.form.findUnique({
+        where: { id },
+        include: {
+          _count: { select: { responses: true } },
+          questions: { orderBy: { order: 'asc' } },
+          endings: { orderBy: { order: 'asc' } },
+          workspace: true,
+        },
+      });
     });
 
-    return NextResponse.json(serializeForm(form));
+    return NextResponse.json(serializeForm(updatedForm!));
   } catch (error) {
     console.error('Error updating form:', error);
     return NextResponse.json({ error: 'Failed to update form' }, { status: 500 });

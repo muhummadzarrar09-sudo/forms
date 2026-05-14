@@ -44,9 +44,11 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const updateForm = useFormStore((s) => s.updateForm);
 
+  // Use slug-based URL when available, fall back to ID-based URL
+  const formPath = form.slug ? `/f/${form.slug}` : `?form=${form.id}`;
   const shareUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}?form=${form.id}`
-    : `?form=${form.id}`;
+    ? `${window.location.origin}${formPath}`
+    : formPath;
 
   const embedCode = `<iframe src="${shareUrl}" width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>`;
 

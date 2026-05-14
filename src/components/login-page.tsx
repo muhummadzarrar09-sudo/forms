@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, AlertCircle } from 'lucide-react';
+import { Loader2, FileText, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('login');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -30,13 +32,16 @@ export function LoginPage() {
 
     try {
       const result = await signIn('credentials', {
-        email: loginEmail,
+        email: loginEmail.trim().toLowerCase(),
         password: loginPassword,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        setError('Invalid email or password. Please try again.');
+      } else {
+        // Login successful — force a full page reload to refresh the session
+        window.location.href = '/';
       }
     } catch {
       setError('An error occurred. Please try again.');
@@ -57,6 +62,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
+      // Step 1: Create the account
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,22 +77,28 @@ export function LoginPage() {
 
       if (!res.ok) {
         setError(data.error || 'Registration failed');
+        setIsLoading(false);
         return;
       }
 
-      // Auto sign in after registration
+      // Step 2: Auto sign in after successful registration
       const result = await signIn('credentials', {
-        email: registerEmail,
+        email: registerEmail.trim().toLowerCase(),
         password: registerPassword,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Account created but sign-in failed. Please refresh and try logging in.');
+        // Account was created but auto sign-in failed
+        // Still redirect to home - the user can sign in manually
+        console.warn('[REGISTER] Auto sign-in failed after registration, redirecting anyway');
       }
+
+      // Always redirect to home page after successful registration
+      // Even if auto sign-in fails, the account was created
+      window.location.href = '/';
     } catch {
       setError('An error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -117,10 +129,10 @@ export function LoginPage() {
 
         <Card className="border-border/50 shadow-lg">
           <CardHeader className="pb-4">
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setError(''); }} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Sign In</TabsTrigger>
-                <TabsTrigger value="register">Create Account</TabsTrigger>
+                <TabsTrigger value="register">Sign Up</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -129,14 +141,14 @@ export function LoginPage() {
               </TabsContent>
 
               <TabsContent value="register">
-                <CardTitle className="text-xl mt-4">Get started</CardTitle>
+                <CardTitle className="text-xl mt-4">Sign Up</CardTitle>
                 <CardDescription>Create a free account to start building forms</CardDescription>
               </TabsContent>
             </Tabs>
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setError(''); }} className="w-full">
               {/* Login Form */}
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -154,15 +166,26 @@ export function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      required
-                      autoComplete="current-password"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        required
+                        autoComplete="current-password"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {error && (
@@ -186,6 +209,17 @@ export function LoginPage() {
                       'Sign In'
                     )}
                   </Button>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    Don&apos;t have an account?{' '}
+                    <button
+                      type="button"
+                      className="text-primary hover:underline font-medium"
+                      onClick={() => { setActiveTab('register'); setError(''); }}
+                    >
+                      Sign Up
+                    </button>
+                  </p>
                 </form>
               </TabsContent>
 
@@ -217,16 +251,27 @@ export function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="register-password">Password</Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="Minimum 6 characters"
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="register-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Minimum 6 characters"
+                        value={registerPassword}
+                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        autoComplete="new-password"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {error && (
@@ -247,9 +292,20 @@ export function LoginPage() {
                         Creating account...
                       </>
                     ) : (
-                      'Create Account'
+                      'Sign Up'
                     )}
                   </Button>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      className="text-primary hover:underline font-medium"
+                      onClick={() => { setActiveTab('login'); setError(''); }}
+                    >
+                      Sign In
+                    </button>
+                  </p>
                 </form>
               </TabsContent>
             </Tabs>

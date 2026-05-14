@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { FormQuestion, QuestionType, LogicRule } from '@/types/form';
+import type { FormQuestion, QuestionType, LogicRule, FormEnding, HiddenField } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
@@ -48,6 +48,12 @@ import {
   Cog,
   CalendarClock,
   Search,
+  ImageIcon,
+  EyeOff,
+  HandMetal,
+  Trash2,
+  Pencil,
+  Save,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -406,75 +412,144 @@ function LogicRuleEditor({
               </SelectContent>
             </Select>
 
-            {/* Value input or selector */}
-            {isChoiceQuestion(question) && (rule.condition.operator === 'equals' || rule.condition.operator === 'not_equals') ? (
-              <Select
-                value={rule.condition.value}
-                onValueChange={(val) =>
-                  onUpdate({
-                    condition: { ...rule.condition, value: val },
-                  })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <SelectValue placeholder="Select option" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getChoiceOptions(question).map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={rule.condition.value}
-                onChange={(e) =>
-                  onUpdate({
-                    condition: { ...rule.condition, value: e.target.value },
-                  })
-                }
-                placeholder="Value..."
-                className="h-8 text-xs flex-1"
-              />
+            {/* Value input or selector — hidden for is_filled/is_empty since they don't need a value */}
+            {rule.condition.operator !== 'is_filled' && rule.condition.operator !== 'is_empty' && (
+              <>
+                {isChoiceQuestion(question) && (rule.condition.operator === 'equals' || rule.condition.operator === 'not_equals') ? (
+                  <Select
+                    value={rule.condition.value}
+                    onValueChange={(val) =>
+                      onUpdate({
+                        condition: { ...rule.condition, value: val },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getChoiceOptions(question).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={rule.condition.value}
+                    onChange={(e) =>
+                      onUpdate({
+                        condition: { ...rule.condition, value: e.target.value },
+                      })
+                    }
+                    placeholder="Value..."
+                    className="h-8 text-xs flex-1"
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* THEN action */}
+      {/* THEN action type */}
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground font-medium">THEN JUMP TO</Label>
+        <Label className="text-xs text-muted-foreground font-medium">THEN</Label>
         <Select
-          value={rule.action.targetQuestionId}
+          value={rule.action.type}
           onValueChange={(val) =>
             onUpdate({
-              action: { ...rule.action, targetQuestionId: val },
+              action: { type: val as 'jump_to' | 'show_ending', targetQuestionId: val === 'show_ending' ? '' : rule.action.targetQuestionId },
             })
           }
         >
           <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Select target question" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {targetQuestions.map((q) => (
-              <SelectItem key={q.id} value={q.id}>
-                <div className="flex items-center gap-2">
-                  <ArrowRight className="size-3.5 opacity-50" />
-                  <span className="truncate">{q.title}</span>
-                </div>
-              </SelectItem>
-            ))}
-            <SelectItem value="__submit__">
+            <SelectItem value="jump_to">
               <div className="flex items-center gap-2">
-                <Check className="size-3.5 opacity-50" />
-                Submit form
+                <ArrowRight className="size-3.5 opacity-50" />
+                Jump to question
+              </div>
+            </SelectItem>
+            <SelectItem value="show_ending">
+              <div className="flex items-center gap-2">
+                <HandMetal className="size-3.5 opacity-50" />
+                Show ending screen
               </div>
             </SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* THEN target (conditional on action type) */}
+      {rule.action.type === 'jump_to' ? (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground font-medium">JUMP TO</Label>
+          <Select
+            value={rule.action.targetQuestionId}
+            onValueChange={(val) =>
+              onUpdate({
+                action: { ...rule.action, targetQuestionId: val },
+              })
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select target question" />
+            </SelectTrigger>
+            <SelectContent>
+              {targetQuestions.map((q) => (
+                <SelectItem key={q.id} value={q.id}>
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="size-3.5 opacity-50" />
+                    <span className="truncate">{q.title}</span>
+                  </div>
+                </SelectItem>
+              ))}
+              <SelectItem value="__submit__">
+                <div className="flex items-center gap-2">
+                  <Check className="size-3.5 opacity-50" />
+                  Submit form
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground font-medium">SHOW ENDING</Label>
+          <Select
+            value={rule.action.targetQuestionId}
+            onValueChange={(val) =>
+              onUpdate({
+                action: { ...rule.action, targetQuestionId: val },
+              })
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select ending" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__default__">
+                <div className="flex items-center gap-2">
+                  <HandMetal className="size-3.5 opacity-50" />
+                  Default ending
+                </div>
+              </SelectItem>
+              {(useFormStore.getState().currentForm?.endings || []).map((ending) => (
+                <SelectItem key={ending.id} value={ending.id}>
+                  <div className="flex items-center gap-2">
+                    <HandMetal className="size-3.5 opacity-50" />
+                    <span className="truncate">{ending.title}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }
@@ -751,6 +826,286 @@ function QuestionSettingsTab({
         </div>
       )}
 
+      {/* Picture Choice - Image URLs per option */}
+      {question.type === 'picture_choice' && (
+        <div className="space-y-3">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Option Images
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Add an image URL for each picture choice option.
+          </p>
+          <div className="space-y-2">
+            {question.options.map((option) => (
+              <div key={option.id} className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">{option.label}</Label>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="size-8 rounded border shrink-0 overflow-hidden bg-muted/30 flex items-center justify-center"
+                  >
+                    {option.image ? (
+                      <img src={option.image} alt={option.label} className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="size-4 text-muted-foreground/40" />
+                    )}
+                  </div>
+                  <Input
+                    value={option.image || ''}
+                    onChange={(e) => {
+                      const newOptions = question.options.map((opt) =>
+                        opt.id === option.id ? { ...opt, image: e.target.value || undefined } : opt
+                      );
+                      updateQuestion(question.id, { options: newOptions });
+                    }}
+                    placeholder="https://example.com/image.jpg"
+                    className="h-8 text-xs flex-1"
+                  />
+                  {option.image && (
+                    <button
+                      onClick={() => {
+                        const newOptions = question.options.map((opt) =>
+                          opt.id === option.id ? { ...opt, image: undefined } : opt
+                        );
+                        updateQuestion(question.id, { options: newOptions });
+                      }}
+                      className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scoring */}
+      {!isStatement && !isEnding && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Scoring
+                </Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Assign points to answers for quizzes
+                </p>
+              </div>
+              <Switch
+                checked={question.settings?.scoringEnabled ?? false}
+                onCheckedChange={(checked) =>
+                  updateQuestion(question.id, {
+                    settings: { ...question.settings, scoringEnabled: checked },
+                  })
+                }
+              />
+            </div>
+
+            {question.settings?.scoringEnabled && (
+              <div className="space-y-3">
+                {/* Choice questions: score per option */}
+                {hasOptions && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Points per option</Label>
+                    {question.options.map((opt) => (
+                      <div key={opt.id} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+                          {opt.label}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={question.settings?.scoreValues?.[opt.id] ?? 0}
+                          onChange={(e) =>
+                            updateQuestion(question.id, {
+                              settings: {
+                                ...question.settings,
+                                scoreValues: {
+                                  ...(question.settings?.scoreValues || {}),
+                                  [opt.id]: parseInt(e.target.value) || 0,
+                                },
+                              },
+                            })
+                          }
+                          className="w-20 h-7 text-xs text-right"
+                          placeholder="0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Yes/No: score per answer */}
+                {question.type === 'yes_no' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Points per answer</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground flex-1">Yes</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={question.settings?.scoreValues?.['yes'] ?? 0}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: {
+                              ...question.settings,
+                              scoreValues: {
+                                ...(question.settings?.scoreValues || {}),
+                                yes: parseInt(e.target.value) || 0,
+                              },
+                            },
+                          })
+                        }
+                        className="w-20 h-7 text-xs text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground flex-1">No</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={question.settings?.scoreValues?.['no'] ?? 0}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: {
+                              ...question.settings,
+                              scoreValues: {
+                                ...(question.settings?.scoreValues || {}),
+                                no: parseInt(e.target.value) || 0,
+                              },
+                            },
+                          })
+                        }
+                        className="w-20 h-7 text-xs text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Rating / Opinion Scale: points per unit or correct answer */}
+                {hasSteps && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Points per unit</Label>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        Score = value × points (e.g., 4 stars × 5 pts = 20)
+                      </p>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={question.settings?.points ?? 0}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: { ...question.settings, points: parseFloat(e.target.value) || 0 },
+                          })
+                        }
+                        className="w-24 h-7 text-xs text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Correct answer (optional)</Label>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        If set, points are only awarded for the exact correct answer
+                      </p>
+                      <Input
+                        type="number"
+                        value={question.settings?.correctAnswer || ''}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: { ...question.settings, correctAnswer: e.target.value },
+                          })
+                        }
+                        className="w-24 h-7 text-xs text-right"
+                        placeholder="—"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Number question: points per unit or correct answer */}
+                {hasNumberRange && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Points per unit</Label>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        Score = answer value × points
+                      </p>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={question.settings?.points ?? 0}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: { ...question.settings, points: parseFloat(e.target.value) || 0 },
+                          })
+                        }
+                        className="w-24 h-7 text-xs text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Correct answer (optional)</Label>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        If set, full points are only awarded for the exact correct answer
+                      </p>
+                      <Input
+                        type="number"
+                        value={question.settings?.correctAnswer || ''}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            settings: { ...question.settings, correctAnswer: e.target.value },
+                          })
+                        }
+                        className="w-24 h-7 text-xs text-right"
+                        placeholder="—"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Text-based questions: correct answer + points */}
+                {!hasOptions && !hasSteps && !hasNumberRange && question.type !== 'yes_no' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Correct answer</Label>
+                    <Input
+                      value={question.settings?.correctAnswer || ''}
+                      onChange={(e) =>
+                        updateQuestion(question.id, {
+                          settings: { ...question.settings, correctAnswer: e.target.value },
+                        })
+                      }
+                      placeholder="Enter correct answer..."
+                      className="text-sm"
+                    />
+                    <Label className="text-xs text-muted-foreground">Points for correct answer</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={question.settings?.points ?? 0}
+                      onChange={(e) =>
+                        updateQuestion(question.id, {
+                          settings: { ...question.settings, points: parseInt(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 h-7 text-xs text-right"
+                      placeholder="0"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
     </motion.div>
   );
 }
@@ -832,6 +1187,57 @@ function FormSettingsTab() {
 
       <Separator />
 
+      {/* Custom Endings */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Custom Endings
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Add multiple ending screens that can be shown based on logic rules.
+        </p>
+        {(currentForm.endings || []).length === 0 ? (
+          <div className="border border-dashed rounded-lg p-4 text-center bg-muted/20">
+            <HandMetal className="size-5 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No custom endings yet</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {(currentForm.endings || []).map((ending) => (
+              <EndingEditor
+                key={ending.id}
+                ending={ending}
+                formId={currentForm.id}
+              />
+            ))}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={async () => {
+            try {
+              const res = await fetch(`/api/forms/${currentForm.id}/endings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: 'Custom Ending', message: 'Your response has been recorded.' }),
+              });
+              if (res.ok) {
+                const newEnding = await res.json();
+                updateForm(currentForm.id, {
+                  endings: [...(currentForm.endings || []), newEnding],
+                });
+              }
+            } catch { /* ignore */ }
+          }}
+        >
+          <Plus className="size-3.5" />
+          Add Ending
+        </Button>
+      </div>
+
+      <Separator />
+
       <div className="flex items-center justify-between">
         <Label className="text-sm">Progress bar</Label>
         <Switch
@@ -861,6 +1267,100 @@ function FormSettingsTab() {
           }
         />
       </div>
+    </div>
+  );
+}
+
+// ── Ending Editor ──────────────────────────────────────────────────────────
+
+function EndingEditor({ ending, formId }: { ending: FormEnding; formId: string }) {
+  const { updateForm } = useFormStore();
+  const currentForm = useFormStore((s) => s.currentForm);
+  const [title, setTitle] = useState(ending.title);
+  const [message, setMessage] = useState(ending.message);
+  const [redirectUrl, setRedirectUrl] = useState(ending.redirectUrl || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/forms/${formId}/endings/${ending.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, message, redirectUrl: redirectUrl || null }),
+      });
+      if (res.ok && currentForm) {
+        const updatedEnding = await res.json();
+        updateForm(formId, {
+          endings: (currentForm.endings || []).map((e) =>
+            e.id === ending.id ? updatedEnding : e
+          ),
+        });
+      }
+    } catch { /* ignore */ } finally {
+      setIsSaving(false);
+    }
+  }, [formId, ending.id, title, message, redirectUrl, currentForm, updateForm]);
+
+  const handleDelete = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/forms/${formId}/endings/${ending.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok && currentForm) {
+        updateForm(formId, {
+          endings: (currentForm.endings || []).filter((e) => e.id !== ending.id),
+        });
+      }
+    } catch { /* ignore */ }
+  }, [formId, ending.id, currentForm, updateForm]);
+
+  return (
+    <div className="border rounded-lg p-3 space-y-2 bg-muted/20">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          {ending.title || 'Custom Ending'}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="size-6 rounded flex items-center justify-center hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+            title="Save"
+          >
+            <Save className="size-3" />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        </div>
+      </div>
+      <Input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Ending title"
+        className="h-7 text-xs"
+        onBlur={handleSave}
+      />
+      <Textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Ending message"
+        rows={2}
+        className="text-xs resize-none"
+        onBlur={handleSave}
+      />
+      <Input
+        value={redirectUrl}
+        onChange={(e) => setRedirectUrl(e.target.value)}
+        placeholder="Redirect URL (optional)"
+        className="h-7 text-xs"
+        onBlur={handleSave}
+      />
     </div>
   );
 }
@@ -1087,7 +1587,39 @@ function FormSettingsAdvancedTab() {
   const [metaTitle, setMetaTitle] = useState(() => currentForm?.metaTitle || '');
   const [metaDescription, setMetaDescription] = useState(() => currentForm?.metaDescription || '');
 
+  // Hidden fields state
+  const hiddenFields = useMemo(() => (currentForm?.hiddenFields || []) as HiddenField[], [currentForm?.hiddenFields]);
+  const [editingFields, setEditingFields] = useState<Record<string, { name: string; defaultValue: string }>>({});
+
   if (!currentForm) return null;
+
+  const addHiddenField = () => {
+    const newField: HiddenField = {
+      id: `hf_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      name: '',
+      defaultValue: '',
+    };
+    const updated = [...hiddenFields, newField];
+    updateForm(currentForm.id, { hiddenFields: updated });
+    setEditingFields((prev) => ({ ...prev, [newField.id]: { name: '', defaultValue: '' } }));
+  };
+
+  const updateHiddenField = (fieldId: string, updates: Partial<HiddenField>) => {
+    const updated = hiddenFields.map((f) =>
+      f.id === fieldId ? { ...f, ...updates } : f
+    );
+    updateForm(currentForm.id, { hiddenFields: updated });
+  };
+
+  const removeHiddenField = (fieldId: string) => {
+    const updated = hiddenFields.filter((f) => f.id !== fieldId);
+    updateForm(currentForm.id, { hiddenFields: updated });
+    setEditingFields((prev) => {
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  };
 
   return (
     <motion.div
@@ -1104,6 +1636,98 @@ function FormSettingsAdvancedTab() {
         <p className="text-xs text-muted-foreground">
           Configure how your form behaves and appears.
         </p>
+      </div>
+
+      <Separator />
+
+      {/* Hidden Fields */}
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <EyeOff className="size-3.5 inline mr-1" />
+            Hidden Fields
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Pass data from URL parameters into your form responses. Use query params like <code className="text-[10px] bg-muted px-1 rounded">?source=twitter</code> to pre-fill hidden values.
+          </p>
+        </div>
+
+        {hiddenFields.length === 0 ? (
+          <div className="border border-dashed rounded-lg p-4 text-center bg-muted/20">
+            <EyeOff className="size-5 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No hidden fields yet</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {hiddenFields.map((field) => {
+              const editing = editingFields[field.id];
+              const name = editing ? editing.name : field.name;
+              const defaultValue = editing ? editing.defaultValue : (field.defaultValue || '');
+
+              return (
+                <div key={field.id} className="border rounded-lg p-2.5 space-y-2 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {field.name || 'New Field'}
+                    </span>
+                    <button
+                      onClick={() => removeHiddenField(field.id)}
+                      className="size-5 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={name}
+                      onChange={(e) =>
+                        setEditingFields((prev) => ({
+                          ...prev,
+                          [field.id]: { ...prev[field.id]!, name: e.target.value },
+                        }))
+                      }
+                      onBlur={() => {
+                        if (name !== field.name) {
+                          updateHiddenField(field.id, { name });
+                        }
+                      }}
+                      placeholder="Field name"
+                      className="h-7 text-xs flex-1"
+                    />
+                    <Input
+                      value={defaultValue}
+                      onChange={(e) =>
+                        setEditingFields((prev) => ({
+                          ...prev,
+                          [field.id]: { ...prev[field.id]!, defaultValue: e.target.value },
+                        }))
+                      }
+                      onBlur={() => {
+                        if (defaultValue !== (field.defaultValue || '')) {
+                          updateHiddenField(field.id, { defaultValue: defaultValue || undefined });
+                        }
+                      }}
+                      placeholder="Default value"
+                      className="h-7 text-xs flex-1"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60">
+                    URL param: <code className="bg-muted px-0.5 rounded">?{name || 'fieldname'}=value</code>
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={addHiddenField}
+        >
+          <Plus className="size-3.5" />
+          Add Hidden Field
+        </Button>
       </div>
 
       <Separator />

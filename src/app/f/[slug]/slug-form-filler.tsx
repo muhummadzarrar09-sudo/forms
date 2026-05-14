@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useFormStore } from '@/store/form-store';
-import type { Form, FormQuestion, FormEnding, LogicRule } from '@/types/form';
+import type { Form, FormEnding, FormQuestion, LogicRule } from '@/types/form';
 import { QuestionInput } from '@/components/forms/question-input';
 import {
   ArrowLeft,
@@ -15,16 +14,12 @@ import {
 } from 'lucide-react';
 import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
 
-/* ─── Blinking cursor animation ────────────────────────────────────────── */
-
 /* ─── Confetti particle ────────────────────────────────────────────────── */
-
-
 
 function ConfettiParticles() {
   const particles = useMemo(() =>
     Array.from({ length: 35 }, (_, i) => {
-      const isStar = i < 6; // First 6 are stars
+      const isStar = i < 6;
       return {
         id: i,
         x: Math.random() * 100,
@@ -97,15 +92,12 @@ type FillerScreen = 'welcome' | 'question' | 'ending' | 'submitting' | 'error' |
 interface FillerState {
   form: Form | null;
   screen: FillerScreen;
-  currentIndex: number; // -1 = welcome, 0..n-1 = questions
+  currentIndex: number;
   answers: Record<string, string>;
-  scores: Record<string, number>; // questionId -> score
-  direction: 1 | -1; // 1 = forward, -1 = backward
+  direction: 1 | -1;
   isLoading: boolean;
   errorMessage: string;
-  activeEnding: FormEnding | null; // custom ending to display (null = default)
-  partialResponseId: string | null; // ID of the partial response being tracked
-  hiddenFieldValues: Record<string, string>; // hidden field values from URL params
+  activeEnding: FormEnding | null;
 }
 
 /* ─── Animation variants ─────────────────────────────────────────────── */
@@ -164,33 +156,19 @@ function fontFamilyClass(ff: string) {
 
 /* ─── Main Component ─────────────────────────────────────────────────── */
 
-export function FormFiller() {
-  const { selectedFormId, openDashboard, shareMode } = useFormStore();
-
+export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   const [showConfetti, setShowConfetti] = useState(false);
 
   const [state, setState] = useState<FillerState>({
-    form: null,
+    form: initialForm,
     screen: 'welcome',
     currentIndex: -1,
     answers: {},
-    scores: {},
     direction: 1,
-    isLoading: true,
+    isLoading: false,
     errorMessage: '',
     activeEnding: null,
-    partialResponseId: null,
-    hiddenFieldValues: {},
   });
-
-  const handleClose = useCallback(() => {
-    if (shareMode) {
-      // In share mode, close the tab/window
-      window.close();
-    } else {
-      openDashboard();
-    }
-  }, [shareMode, openDashboard]);
 
   // Auto-hide confetti after animation
   useEffect(() => {
@@ -208,99 +186,13 @@ export function FormFiller() {
       screen: 'welcome' as const,
       currentIndex: -1,
       answers: {},
-      scores: {},
       direction: 1 as const,
       isLoading: false,
       errorMessage: '',
-      activeEnding: null,
-      partialResponseId: null,
     }));
   }, []);
 
-  // Extract hidden field values from URL query parameters
-  const hiddenFieldValues = useMemo(() => {
-    if (typeof window === 'undefined') return {};
-    const urlParams = new URLSearchParams(window.location.search);
-    const values: Record<string, string> = {};
-    // We'll populate this after form loads — stored in state instead
-    return values;
-  }, []);
-
-  // Fetch form
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchForm = async () => {
-      if (!selectedFormId) {
-        if (!cancelled) {
-          setState((s) => ({ ...s, isLoading: false, screen: 'not-found', errorMessage: 'No form selected.' }));
-        }
-        return;
-      }
-
-      setState((s) => ({ ...s, isLoading: true }));
-      try {
-        const res = await fetch(`/api/forms/${selectedFormId}`);
-        if (!res.ok) {
-          if (!cancelled) {
-            setState((s) => ({
-              ...s,
-              isLoading: false,
-              screen: 'not-found',
-              errorMessage: 'This form could not be found.',
-            }));
-          }
-          return;
-        }
-        const data: Form = await res.json();
-        if (!cancelled) {
-          // Extract hidden field values from URL query parameters
-          const urlParams = new URLSearchParams(window.location.search);
-          const hfValues: Record<string, string> = {};
-          for (const hf of (data.hiddenFields || [])) {
-            const paramValue = urlParams.get(hf.name);
-            if (paramValue !== null) {
-              hfValues[hf.id] = paramValue;
-            } else if (hf.defaultValue) {
-              hfValues[hf.id] = hf.defaultValue;
-            }
-          }
-
-          if (!data.published && shareMode) {
-            setState((s) => ({
-              ...s,
-              isLoading: false,
-              form: data,
-              screen: 'not-published',
-              hiddenFieldValues: hfValues,
-            }));
-          } else {
-            setState((s) => ({
-              ...s,
-              isLoading: false,
-              form: data,
-              screen: 'welcome',
-              hiddenFieldValues: hfValues,
-            }));
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setState((s) => ({
-            ...s,
-            isLoading: false,
-            screen: 'error',
-            errorMessage: 'Failed to load the form. Please try again.',
-          }));
-        }
-      }
-    };
-
-    fetchForm();
-    return () => { cancelled = true; };
-  }, [selectedFormId]);
-
-  // Sorted questions (exclude ending type, those are handled by the ending screen)
+  // Sorted questions (exclude ending type)
   const questions = useMemo(() => {
     if (!state.form) return [];
     return state.form.questions
@@ -314,14 +206,13 @@ export function FormFiller() {
   }, [state.currentIndex, questions]);
 
   // ── Submit ──
-  // Use a ref to always have the latest answers (avoids stale closure)
   const answersRef = useRef(state.answers);
   const formRef = useRef(state.form);
-  
+
   useEffect(() => {
     answersRef.current = state.answers;
   }, [state.answers]);
-  
+
   useEffect(() => {
     formRef.current = state.form;
   }, [state.form]);
@@ -333,23 +224,8 @@ export function FormFiller() {
 
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    // In preview mode with unpublished form, skip API call and show ending directly
-    if (!shareMode && !currentForm.published) {
-      // Simulate a brief delay then show ending screen
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
-      setShowConfetti(true);
-      return;
-    }
-
     const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
       questionId,
-      value,
-    }));
-
-    // Include hidden field values in answers (using hidden field ID as questionId prefix)
-    const hiddenFieldAnswers = Object.entries(state.hiddenFieldValues).map(([fieldId, value]) => ({
-      questionId: `__hidden_${fieldId}`,
       value,
     }));
 
@@ -358,7 +234,7 @@ export function FormFiller() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          answers: [...answerList, ...hiddenFieldAnswers],
+          answers: answerList,
           metadata: {
             submittedAt: new Date().toISOString(),
           },
@@ -366,8 +242,7 @@ export function FormFiller() {
       });
 
       if (res.ok) {
-        // Mark partial response as complete if we have one
-        setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null, partialResponseId: null }));
+        setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
         const data = await res.json().catch(() => ({}));
@@ -384,7 +259,59 @@ export function FormFiller() {
         errorMessage: 'Network error. Please check your connection and try again.',
       }));
     }
-  }, [shareMode, state.hiddenFieldValues]);
+  }, []);
+
+  const handleSubmitWithEnding = useCallback(async (endingId: string) => {
+    const currentForm = formRef.current;
+    const currentAnswers = answersRef.current;
+    if (!currentForm) return;
+
+    setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
+
+    const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
+      questionId,
+      value,
+    }));
+
+    try {
+      const res = await fetch(`/api/forms/${currentForm.id}/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          answers: answerList,
+          metadata: { submittedAt: new Date().toISOString() },
+        }),
+      });
+
+      if (res.ok) {
+        // Find the target ending; fall back to default form ending fields if not found
+        const targetEnding = endingId && endingId !== '__default__'
+          ? currentForm.endings?.find((e) => e.id === endingId) ?? null
+          : null;
+
+        setState((s) => ({
+          ...s,
+          screen: 'ending',
+          direction: 1,
+          activeEnding: targetEnding,
+        }));
+        setShowConfetti(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setState((s) => ({
+          ...s,
+          screen: 'error',
+          errorMessage: data.error || 'Something went wrong submitting your response.',
+        }));
+      }
+    } catch {
+      setState((s) => ({
+        ...s,
+        screen: 'error',
+        errorMessage: 'Network error. Please check your connection and try again.',
+      }));
+    }
+  }, []);
 
   // ── Logic Evaluation ──
 
@@ -404,18 +331,8 @@ export function FormFiller() {
       return !answer || answer.trim() === '';
     }
 
-    // For choice questions, the answer is the selected option ID
-    // For yes_no, the answer is "yes" or "no"
-    // For numeric types, the answer is a number string
-    // For text types, the answer is text
-
-    let answerToCompare = answer;
-
-    // For choice questions: the condition field is the option ID,
-    // and we check if the answer (option ID) matches
+    // For choice questions
     if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
-      // The answer is the selected option ID(s)
-      // If allowMultiple, answer could be comma-separated IDs
       const selectedIds = answer.split(',').map((s: string) => s.trim());
       if (operator === 'equals') {
         return selectedIds.includes(field) && selectedIds.length === 1;
@@ -432,18 +349,18 @@ export function FormFiller() {
       if (operator === 'equals') {
         if (field === 'yes') return isYes;
         if (field === 'no') return isNo;
-        return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
+        return answer.toLowerCase() === conditionValue.toLowerCase();
       }
       if (operator === 'not_equals') {
         if (field === 'yes') return !isYes;
         if (field === 'no') return !isNo;
-        return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
+        return answer.toLowerCase() !== conditionValue.toLowerCase();
       }
       return false;
     }
 
     if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-      const numAnswer = parseFloat(answerToCompare);
+      const numAnswer = parseFloat(answer);
       const numCondition = parseFloat(conditionValue);
       if (isNaN(numAnswer) || isNaN(numCondition)) return false;
       switch (operator) {
@@ -455,21 +372,20 @@ export function FormFiller() {
       }
     }
 
-    // Text-based questions (short_text, long_text, email, phone, website, date, legal)
+    // Text-based questions
     switch (operator) {
-      case 'equals': return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
-      case 'not_equals': return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
-      case 'contains': return answerToCompare.toLowerCase().includes(conditionValue.toLowerCase());
+      case 'equals': return answer.toLowerCase() === conditionValue.toLowerCase();
+      case 'not_equals': return answer.toLowerCase() !== conditionValue.toLowerCase();
+      case 'contains': return answer.toLowerCase().includes(conditionValue.toLowerCase());
       default: return false;
     }
   }, []);
 
   // ── Navigation ──
 
-  const goNext = useCallback(async () => {
+  const goNext = useCallback(() => {
     if (state.screen === 'welcome') {
       if (questions.length === 0) {
-        // Skip to ending if no questions
         setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
@@ -479,12 +395,10 @@ export function FormFiller() {
     }
 
     if (state.screen === 'question') {
-      // Validate current answer if required - use ref for latest state
       const currentAnswers = answersRef.current;
       if (currentQuestion?.required) {
         const answer = currentAnswers[currentQuestion.id];
         if (!answer || answer.trim() === '') {
-          // Don't advance - required question not answered
           return;
         }
       }
@@ -493,71 +407,21 @@ export function FormFiller() {
       if (currentQuestion && (currentQuestion.logic?.length > 0 || currentQuestion.settings?.jumpToQuestionId)) {
         const currentAnswer = currentAnswers[currentQuestion.id] || '';
 
-        // Check logic rules in order
         for (const rule of currentQuestion.logic || []) {
           if (evaluateLogicRule(rule, currentQuestion, currentAnswer)) {
-            // Handle show_ending action type
+            // Handle show_ending action
             if (rule.action.type === 'show_ending') {
-              const endingId = rule.action.targetQuestionId;
-              if (endingId === '__default__' || !endingId) {
-                // Show default ending
-                handleSubmit();
-                return;
-              }
-              // Find the custom ending
-              const ending = state.form?.endings?.find((e) => e.id === endingId);
-              if (ending) {
-                // Submit the form first, then show the custom ending
-                const currentForm = formRef.current;
-                const currentAnsw = answersRef.current;
-
-                if (shareMode && currentForm?.published) {
-                  // Submit response via API
-                  const answerList = Object.entries(currentAnsw).map(([questionId, value]) => ({
-                    questionId,
-                    value,
-                  }));
-                  const hiddenFieldAnswers = Object.entries(state.hiddenFieldValues).map(([fieldId, value]) => ({
-                    questionId: `__hidden_${fieldId}`,
-                    value,
-                  }));
-
-                  try {
-                    await fetch(`/api/forms/${currentForm.id}/responses`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        answers: [...answerList, ...hiddenFieldAnswers],
-                        metadata: { submittedAt: new Date().toISOString() },
-                      }),
-                    });
-                  } catch { /* still show ending */ }
-                }
-
-                setState((s) => ({
-                  ...s,
-                  screen: 'ending',
-                  direction: 1,
-                  activeEnding: ending,
-                  partialResponseId: null,
-                }));
-                setShowConfetti(true);
-                return;
-              }
-              // Fallback: submit form normally
-              handleSubmit();
+              handleSubmitWithEnding(rule.action.targetQuestionId);
               return;
             }
 
             const targetId = rule.action.targetQuestionId;
 
-            // Submit form target
             if (targetId === '__submit__') {
               handleSubmit();
               return;
             }
 
-            // Find the target question index
             const targetIndex = questions.findIndex((q) => q.id === targetId);
             if (targetIndex !== -1) {
               setState((s) => ({
@@ -570,7 +434,6 @@ export function FormFiller() {
           }
         }
 
-        // No rule matched - check for default jump target
         const jumpToQuestionId = currentQuestion.settings?.jumpToQuestionId;
         if (jumpToQuestionId) {
           if (jumpToQuestionId === '__submit__') {
@@ -590,7 +453,7 @@ export function FormFiller() {
         }
       }
 
-      // Default behavior: advance to next question or submit
+      // Default behavior
       if (state.currentIndex < questions.length - 1) {
         setState((s) => ({
           ...s,
@@ -598,11 +461,10 @@ export function FormFiller() {
           direction: 1,
         }));
       } else {
-        // All questions done, submit
         handleSubmit();
       }
     }
-  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, shareMode, evaluateLogicRule, state.form?.endings, state.hiddenFieldValues]);
+  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding, evaluateLogicRule]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -623,152 +485,23 @@ export function FormFiller() {
     }
   }, [state.screen, state.currentIndex, questions.length]);
 
-  // ── Score calculation ──
-
-  const calculateScoreForAnswer = useCallback((
-    question: FormQuestion,
-    answerValue: string
-  ): number => {
-    const settings = question.settings || {};
-    if (!settings.scoringEnabled) return 0;
-
-    // Choice questions
-    if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
-      const scoreValues = settings.scoreValues || {};
-      const selectedIds = answerValue.split(',').map((s) => s.trim());
-      let total = 0;
-      for (const id of selectedIds) {
-        total += scoreValues[id] || 0;
-      }
-      return total;
-    }
-
-    // Yes/No
-    if (question.type === 'yes_no') {
-      const scoreValues = settings.scoreValues || {};
-      const key = answerValue.toLowerCase();
-      return scoreValues[key] || 0;
-    }
-
-    // Rating / Opinion Scale / Number
-    if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-      const numValue = parseFloat(answerValue);
-      if (isNaN(numValue)) return 0;
-      if (settings.correctAnswer) {
-        const correctNum = parseFloat(settings.correctAnswer);
-        if (!isNaN(correctNum) && numValue === correctNum) {
-          return settings.points || 0;
-        }
-        return 0;
-      }
-      if (settings.points && settings.points > 0) {
-        return numValue * settings.points;
-      }
-      return 0;
-    }
-
-    // Text-based: correct answer matching
-    if (settings.correctAnswer) {
-      const isCorrect = answerValue.trim().toLowerCase() === settings.correctAnswer.trim().toLowerCase();
-      return isCorrect ? (settings.points || 0) : 0;
-    }
-
-    return 0;
-  }, []);
-
-  // ── Total score ──
-
-  const totalScore = useMemo(() => {
-    return Object.values(state.scores).reduce((sum, s) => sum + s, 0);
-  }, [state.scores]);
-
   // ── Answer handler ──
 
   const setAnswer = useCallback((questionId: string, value: string) => {
-    setState((s) => {
-      // Find the question to calculate score
-      const question = s.form?.questions.find((q) => q.id === questionId);
-      const score = question ? calculateScoreForAnswer(question, value) : 0;
-      return {
-        ...s,
-        answers: { ...s.answers, [questionId]: value },
-        scores: { ...s.scores, [questionId]: score },
-      };
-    });
-  }, [calculateScoreForAnswer]);
-
-  // ── Partial response saving ──
-
-  const partialResponseRef = useRef<string | null>(null);
-
-  // Create partial response when form starts
-  useEffect(() => {
-    if (state.screen !== 'question' || !state.form || !shareMode || !state.form.published) return;
-    if (partialResponseRef.current) return; // Already created
-
-    const createPartial = async () => {
-      try {
-        const res = await fetch(`/api/forms/${state.form!.id}/responses`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            isPartial: true,
-            answers: [],
-            metadata: { startedAt: new Date().toISOString() },
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          partialResponseRef.current = data.id;
-          setState((s) => ({ ...s, partialResponseId: data.id }));
-        }
-      } catch { /* ignore */ }
-    };
-
-    createPartial();
-  }, [state.screen, state.form, shareMode]);
-
-  // Periodically update partial response with current answers
-  useEffect(() => {
-    if (!state.partialResponseId || !state.form || !shareMode) return;
-
-    const interval = setInterval(async () => {
-      const currentAnswers = answersRef.current;
-      const currentScores = { ...state.scores };
-      const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
-        questionId,
-        value,
-      }));
-
-      if (answerList.length === 0) return;
-
-      try {
-        await fetch(`/api/forms/${state.form!.id}/responses`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            responseId: state.partialResponseId,
-            answers: answerList,
-            isPartial: true,
-          }),
-        });
-      } catch { /* ignore */ }
-    }, 5000); // Save every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [state.partialResponseId, state.form, shareMode, state.scores]);
+    setState((s) => ({
+      ...s,
+      answers: { ...s.answers, [questionId]: value },
+    }));
+  }, []);
 
   // ── Keyboard shortcuts ──
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture when typing in inputs (except Enter)
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-        // Let inputs handle Enter normally (they call onAdvance from within)
-        // But for non-input elements (or welcome/ending), handle here
         if (!isInput) {
           e.preventDefault();
           goNext();
@@ -822,144 +555,8 @@ export function FormFiller() {
 
   const ff = fontFamilyClass(theme.fontFamily);
 
-  // ── Render ──
-
-  // Loading
-  if (state.isLoading) {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{ backgroundColor: theme.backgroundColor }}
-      >
-        <div className="flex flex-col items-center gap-4">
-          <Loader2
-            className="size-8 animate-spin"
-            style={{ color: theme.textColor }}
-          />
-          <p className={`text-sm opacity-50 ${ff}`} style={{ color: theme.textColor }}>
-            Loading form...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Not found
-  if (state.screen === 'not-found') {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{ backgroundColor: theme.backgroundColor }}
-      >
-        <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-20" style={{ color: theme.textColor }} />
-          <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
-            Form not found
-          </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
-            {state.errorMessage || 'This form doesn\'t exist or has been removed.'}
-          </p>
-          {!shareMode && (
-            <button
-              onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-            >
-              <ArrowLeft className="size-4" />
-              Go back
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Not published
-  if (state.screen === 'not-published') {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{ backgroundColor: theme.backgroundColor }}
-      >
-        <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-20" style={{ color: theme.textColor }} />
-          <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
-            This form is not accepting responses
-          </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
-            The form owner has not published this form yet.
-          </p>
-          {!shareMode && (
-            <button
-              onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-            >
-              <ArrowLeft className="size-4" />
-              Go back
-            </button>
-          )}
-        </div>
-        {shareMode && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
-              Powered by <span className="font-semibold">Forms</span>
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Error
-  if (state.screen === 'error') {
-    return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{ backgroundColor: theme.backgroundColor }}
-      >
-        <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-30" style={{ color: '#ef4444' }} />
-          <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
-            Something went wrong
-          </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
-            {state.errorMessage}
-          </p>
-          {!shareMode ? (
-            <button
-              onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-            >
-              <ArrowLeft className="size-4" />
-              Go back
-            </button>
-          ) : (
-            <button
-              onClick={() => setState((s) => ({ ...s, screen: 'welcome', direction: -1 }))}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
-              style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
-            >
-              <RotateCcw className="size-4" />
-              Try again
-            </button>
-          )}
-        </div>
-        {shareMode && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
-              Powered by <span className="font-semibold">Forms</span>
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   if (!state.form) return null;
 
-  // ── Main content key for AnimatePresence ──
   const screenKey = state.screen === 'question'
     ? `question-${state.currentIndex}`
     : state.screen;
@@ -984,7 +581,6 @@ export function FormFiller() {
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
           >
-            {/* Dot indicator at current progress position */}
             <div
               className="absolute right-0 top-1/2 -translate-y-1/2 size-3 rounded-full border-2"
               style={{
@@ -998,36 +594,19 @@ export function FormFiller() {
       )}
 
       {/* ── Close button ── */}
-      {!shareMode && (
+      {state.screen !== 'ending' && (
         <button
-          onClick={openDashboard}
+          onClick={() => window.close()}
           className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
           style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
           aria-label="Close form"
         >
           <X className="size-5" />
         </button>
-      )}
-      {shareMode && state.screen !== 'ending' && (
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
-          aria-label="Close form"
-        >
-          <X className="size-5" />
-        </button>
-      )}
-
-      {/* ── Preview mode banner for unpublished forms ── */}
-      {!state.form.published && !shareMode && (
-        <div className="absolute top-0 left-0 right-0 z-40 bg-amber-500/90 text-white text-center py-1.5 text-xs font-medium backdrop-blur-sm">
-          Preview mode — This form is not published
-        </div>
       )}
 
       {/* ── Main content area ── */}
-      <div className={`flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 pb-20 relative overflow-hidden ${!state.form.published && !shareMode ? 'pt-8' : ''}`}>
+      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 pb-20 relative overflow-hidden">
         <AnimatePresence mode="wait" custom={state.direction}>
           {/* Welcome Screen */}
           {state.screen === 'welcome' && (
@@ -1050,7 +629,6 @@ export function FormFiller() {
                   style={{ color: theme.textColor }}
                 >
                   {state.form.welcomeTitle || state.form.title || 'Welcome!'}
-                  {/* Blinking cursor */}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
                     style={{ backgroundColor: theme.textColor }}
@@ -1081,7 +659,7 @@ export function FormFiller() {
               transition={questionTransition}
               className="max-w-2xl mx-auto w-full"
             >
-              <QuestionScreen
+              <SlugQuestionScreen
                 question={currentQuestion}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
@@ -1137,7 +715,6 @@ export function FormFiller() {
                 className="mx-auto mb-8 size-24 rounded-full flex items-center justify-center relative"
                 style={{ backgroundColor: theme.buttonColor }}
               >
-                {/* Golden glow behind checkmark */}
                 <div
                   className="absolute inset-0 rounded-full"
                   style={{
@@ -1158,74 +735,65 @@ export function FormFiller() {
               >
                 {state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.'}
               </p>
-
-              {/* Show redirect link if custom ending has one */}
               {state.activeEnding?.redirectUrl && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                  className="mt-6"
+                <a
+                  href={state.activeEnding.redirectUrl}
+                  className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `0 4px 14px ${theme.buttonColor}40` }}
                 >
-                  <a
-                    href={state.activeEnding.redirectUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
-                    style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `0 4px 14px ${theme.buttonColor}40` }}
-                  >
-                    Continue
-                    <ArrowRight className="size-4" />
-                  </a>
-                </motion.div>
+                  Continue
+                  <ArrowRight className="size-4" />
+                </a>
               )}
 
-              {/* Show score if scoring is enabled */}
-              {totalScore > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                  style={{ backgroundColor: `${theme.buttonColor}15`, color: theme.buttonColor }}
+              {/* Submit another response button */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="mt-8"
+              >
+                <button
+                  onClick={handleSubmitAnother}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
+                  style={{ borderColor: `${theme.textColor}20`, color: theme.textColor, backgroundColor: 'transparent' }}
                 >
-                  <span className="text-sm font-medium">Your score:</span>
-                  <span className="text-xl font-bold">{totalScore}</span>
-                  <span className="text-sm opacity-60">points</span>
-                </motion.div>
-              )}
+                  <RotateCcw className="size-4" />
+                  Submit another response
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
 
-              {/* Preview mode indicator */}
-              {!shareMode && !state.form.published && (
-                <motion.p
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
-                  className={`text-sm opacity-40 mt-4 ${ff}`}
-                  style={{ color: theme.textColor }}
+          {/* Error Screen */}
+          {state.screen === 'error' && (
+            <motion.div
+              key="error"
+              custom={state.direction}
+              variants={fadeVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4 }}
+              className="max-w-2xl mx-auto w-full text-center"
+            >
+              <div className="flex flex-col items-center gap-4">
+                <X className="size-16 opacity-30" style={{ color: '#ef4444' }} />
+                <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
+                  Something went wrong
+                </h2>
+                <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
+                  {state.errorMessage}
+                </p>
+                <button
+                  onClick={() => setState((s) => ({ ...s, screen: 'welcome', direction: -1 }))}
+                  className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+                  style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
                 >
-                  Preview — No data was saved
-                </motion.p>
-              )}
-
-              {/* Submit another response button (share mode only) */}
-              {shareMode && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="mt-8"
-                >
-                  <button
-                    onClick={handleSubmitAnother}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
-                    style={{ borderColor: `${theme.textColor}20`, color: theme.textColor, backgroundColor: 'transparent' }}
-                  >
-                    <RotateCcw className="size-4" />
-                    Submit another response
-                  </button>
-                </motion.div>
-              )}
+                  <RotateCcw className="size-4" />
+                  Try again
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1233,7 +801,6 @@ export function FormFiller() {
 
       {/* ── Bottom Bar ── */}
       <div className="absolute bottom-0 left-0 right-0 px-8 md:px-16 lg:px-24 py-4 md:py-6 flex items-center justify-between z-20">
-        {/* Back button + connection indicator */}
         <div className="flex items-center gap-4 min-w-[80px]">
           {state.form.allowBackNavigation &&
             (state.screen === 'question' || state.screen === 'ending') && (
@@ -1250,7 +817,6 @@ export function FormFiller() {
                 Back
               </motion.button>
             )}
-          {/* Connection indicator (live dot) */}
           {state.screen === 'question' && (
             <div className="flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-green-500 live-dot-pulse" />
@@ -1259,7 +825,6 @@ export function FormFiller() {
           )}
         </div>
 
-        {/* Welcome: Start button | Question: OK button */}
         <div className="min-w-[80px] flex justify-end">
           {state.screen === 'welcome' && (
             <motion.button
@@ -1293,20 +858,18 @@ export function FormFiller() {
         </div>
       </div>
 
-      {/* ── "Powered by Forms" branding (share mode) ── */}
-      {shareMode && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20">
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.35 }}
-            transition={{ delay: 1 }}
-            className={`text-xs ${ff} flex items-center gap-1`}
-            style={{ color: theme.textColor }}
-          >
-            Powered by <span className="font-semibold">Forms</span>
-          </motion.p>
-        </div>
-      )}
+      {/* ── "Powered by Forms" branding ── */}
+      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.35 }}
+          transition={{ delay: 1 }}
+          className={`text-xs ${ff} flex items-center gap-1`}
+          style={{ color: theme.textColor }}
+        >
+          Powered by <span className="font-semibold">Forms</span>
+        </motion.p>
+      </div>
 
       {/* ── Keyboard shortcut hints ── */}
       {state.screen === 'question' && (
@@ -1342,7 +905,7 @@ export function FormFiller() {
 
 /* ─── Question Screen Sub-component ──────────────────────────────────── */
 
-function QuestionScreen({
+function SlugQuestionScreen({
   question,
   questionIndex,
   totalQuestions,
@@ -1368,19 +931,6 @@ function QuestionScreen({
   showQuestionNumbers: boolean;
 }) {
   const ff = fontFamilyClass(theme.fontFamily);
-  const [attemptedEmpty, setAttemptedEmpty] = useState(false);
-
-  // Derive required hint from answer and attempted state
-  const showRequiredHint = attemptedEmpty && question.required && (!answer || answer.trim() === '');
-
-  const handleAdvance = useCallback(() => {
-    if (question.required && (!answer || answer.trim() === '')) {
-      setAttemptedEmpty(true);
-      return;
-    }
-    setAttemptedEmpty(false);
-    onAdvance();
-  }, [question.required, answer, onAdvance]);
 
   return (
     <div className="space-y-6">
@@ -1404,7 +954,7 @@ function QuestionScreen({
         )}
       </div>
 
-      {/* Question title */}
+      {/* Title */}
       <h2
         className={`text-2xl md:text-4xl font-bold leading-snug ${ff}`}
         style={{ color: theme.textColor }}
@@ -1412,7 +962,7 @@ function QuestionScreen({
         {question.title}
       </h2>
 
-      {/* Question description */}
+      {/* Description */}
       {question.description && (
         <p
           className={`text-base md:text-lg opacity-50 ${ff}`}
@@ -1422,32 +972,17 @@ function QuestionScreen({
         </p>
       )}
 
-      {/* Answer input */}
+      {/* Input */}
       <div className="pt-2">
         <QuestionInput
           question={question}
           value={answer}
           onChange={onAnswerChange}
-          onAdvance={handleAdvance}
+          onAdvance={onAdvance}
           theme={theme}
           isActive={true}
         />
       </div>
-
-      {/* Required hint */}
-      <AnimatePresence>
-        {showRequiredHint && (
-          <motion.p
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            className="text-sm font-medium"
-            style={{ color: theme.buttonColor }}
-          >
-            This question requires an answer
-          </motion.p>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
