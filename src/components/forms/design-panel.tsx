@@ -7,6 +7,7 @@ import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -88,38 +89,56 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
   return (
     <div className="h-full bg-background border-l flex flex-col">
       <Tabs defaultValue="question" className="flex flex-col h-full">
-        <TabsList className="w-full rounded-none border-b bg-transparent h-11 p-0">
-          <TabsTrigger
-            value="question"
-            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <Settings2 className="size-4 mr-1.5" />
-            Question
-          </TabsTrigger>
-          <TabsTrigger
-            value="logic"
-            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <GitBranch className="size-4 mr-1.5" />
-            Logic
-          </TabsTrigger>
-          <TabsTrigger
-            value="design"
-            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <Palette className="size-4 mr-1.5" />
-            Design
-          </TabsTrigger>
-          <TabsTrigger
-            value="settings"
-            className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <Cog className="size-4 mr-1.5" />
-            Settings
-          </TabsTrigger>
-        </TabsList>
+        <TooltipProvider delayDuration={300}>
+          <TabsList className="w-full rounded-none border-b bg-transparent h-11 p-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger
+                  value="question"
+                  className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                >
+                  <Settings2 className="size-4" />
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Question</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger
+                  value="logic"
+                  className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                >
+                  <GitBranch className="size-4" />
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Logic</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger
+                  value="design"
+                  className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                >
+                  <Palette className="size-4" />
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Design</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <TabsTrigger
+                  value="settings"
+                  className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                >
+                  <Cog className="size-4" />
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+          </TabsList>
+        </TooltipProvider>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <TabsContent value="question" className="m-0 p-4 space-y-4">
             {selectedQuestion ? (
               <QuestionSettingsTab
@@ -155,7 +174,7 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
           <TabsContent value="settings" className="m-0 p-4">
             <FormSettingsAdvancedTab />
           </TabsContent>
-        </ScrollArea>
+        </div>
       </Tabs>
     </div>
   );
@@ -1409,7 +1428,7 @@ function DesignTabContent() {
         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Theme Presets
         </Label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-2.5">
           {THEME_PRESETS.map((preset) => {
             const isActive = currentForm.theme === preset.name;
             return (

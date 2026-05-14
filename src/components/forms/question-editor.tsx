@@ -111,7 +111,7 @@ export function QuestionEditor({
       : 'font-sans';
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto">
+    <div className="h-full flex flex-col overflow-y-auto">
       {/* ── Live Preview Section ── */}
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between mb-2">

@@ -237,12 +237,20 @@ export function getCompletionRate(total: number, completed: number): number {
 
 // Theme presets
 export const THEME_PRESETS = [
-  { name: 'default', backgroundColor: '#FFFFFF', textColor: '#333333', buttonColor: '#1A1A1A', buttonTextColor: '#FFFFFF' },
-  { name: 'dark', backgroundColor: '#1A1A2E', textColor: '#FFFFFF', buttonColor: '#E94560', buttonTextColor: '#FFFFFF' },
-  { name: 'warm', backgroundColor: '#FFF8F0', textColor: '#5D4037', buttonColor: '#FF6B35', buttonTextColor: '#FFFFFF' },
-  { name: 'cool', backgroundColor: '#F0F4F8', textColor: '#2D3748', buttonColor: '#4299E1', buttonTextColor: '#FFFFFF' },
-  { name: 'nature', backgroundColor: '#F0FFF4', textColor: '#22543D', buttonColor: '#38A169', buttonTextColor: '#FFFFFF' },
-  { name: 'purple', backgroundColor: '#FAF5FF', textColor: '#44337A', buttonColor: '#805AD5', buttonTextColor: '#FFFFFF' },
-  { name: 'sunset', backgroundColor: '#FFFAF0', textColor: '#7B341E', buttonColor: '#ED8936', buttonTextColor: '#FFFFFF' },
-  { name: 'ocean', backgroundColor: '#EBF8FF', textColor: '#2A4365', buttonColor: '#3182CE', buttonTextColor: '#FFFFFF' },
+  { name: 'default',   backgroundColor: '#FFFFFF', textColor: '#333333', buttonColor: '#1A1A1A', buttonTextColor: '#FFFFFF' },
+  { name: 'dark',      backgroundColor: '#1A1A2E', textColor: '#FFFFFF', buttonColor: '#E94560', buttonTextColor: '#FFFFFF' },
+  { name: 'midnight',  backgroundColor: '#0F172A', textColor: '#CBD5E1', buttonColor: '#7C3AED', buttonTextColor: '#FFFFFF' },
+  { name: 'warm',      backgroundColor: '#FFF8F0', textColor: '#5D4037', buttonColor: '#FF6B35', buttonTextColor: '#FFFFFF' },
+  { name: 'cool',      backgroundColor: '#F0F4F8', textColor: '#2D3748', buttonColor: '#4299E1', buttonTextColor: '#FFFFFF' },
+  { name: 'nature',    backgroundColor: '#F0FFF4', textColor: '#22543D', buttonColor: '#38A169', buttonTextColor: '#FFFFFF' },
+  { name: 'purple',    backgroundColor: '#FAF5FF', textColor: '#44337A', buttonColor: '#805AD5', buttonTextColor: '#FFFFFF' },
+  { name: 'sunset',    backgroundColor: '#FFFAF0', textColor: '#7B341E', buttonColor: '#ED8936', buttonTextColor: '#FFFFFF' },
+  { name: 'ocean',     backgroundColor: '#EBF8FF', textColor: '#2A4365', buttonColor: '#3182CE', buttonTextColor: '#FFFFFF' },
+  { name: 'rose',      backgroundColor: '#FFF0F3', textColor: '#4A0010', buttonColor: '#E11D48', buttonTextColor: '#FFFFFF' },
+  { name: 'sand',      backgroundColor: '#FAF7F2', textColor: '#3D2B1F', buttonColor: '#A16207', buttonTextColor: '#FFFFFF' },
+  { name: 'forest',    backgroundColor: '#052E16', textColor: '#DCFCE7', buttonColor: '#22C55E', buttonTextColor: '#052E16' },
+  { name: 'charcoal',  backgroundColor: '#18181B', textColor: '#F4F4F5', buttonColor: '#FAFAFA', buttonTextColor: '#18181B' },
+  { name: 'indigo',    backgroundColor: '#EEF2FF', textColor: '#312E81', buttonColor: '#4F46E5', buttonTextColor: '#FFFFFF' },
+  { name: 'slate',     backgroundColor: '#F8FAFC', textColor: '#0F172A', buttonColor: '#334155', buttonTextColor: '#FFFFFF' },
+  { name: 'neon',      backgroundColor: '#050505', textColor: '#FFFFFF', buttonColor: '#00FF94', buttonTextColor: '#050505' },
 ];
