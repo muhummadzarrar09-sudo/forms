@@ -1398,14 +1398,29 @@ function DesignTabContent() {
   const localBtn = currentForm.buttonColor;
   const localBtnText = currentForm.buttonTextColor;
 
+  // Persist design changes to DB — store alone is not enough
+  const saveDesign = async (updates: Record<string, string>) => {
+    try {
+      await fetch(`/api/forms/${currentForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch {
+      // silent fail — store already updated optimistically
+    }
+  };
+
   const applyPreset = (preset: (typeof THEME_PRESETS)[number]) => {
-    updateForm(currentForm.id, {
+    const updates = {
       backgroundColor: preset.backgroundColor,
       textColor: preset.textColor,
       buttonColor: preset.buttonColor,
       buttonTextColor: preset.buttonTextColor,
       theme: preset.name,
-    });
+    };
+    updateForm(currentForm.id, updates);
+    saveDesign(updates);
   };
 
   const handleColorChange = (field: string, value: string) => {
@@ -1418,6 +1433,7 @@ function DesignTabContent() {
     // Only save when it's a complete hex
     if (value.length === 7 && /^#[0-9A-Fa-f]{6}$/.test(value)) {
       updateForm(currentForm.id, updates);
+      saveDesign(updates);
     }
   };
 
@@ -1512,7 +1528,10 @@ function DesignTabContent() {
         </Label>
         <Select
           value={currentForm.fontFamily || 'sans'}
-          onValueChange={(val) => updateForm(currentForm.id, { fontFamily: val })}
+          onValueChange={(val) => {
+            updateForm(currentForm.id, { fontFamily: val });
+            saveDesign({ fontFamily: val });
+          }}
         >
           <SelectTrigger className="w-full">
             <SelectValue />
