@@ -1072,10 +1072,21 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
   const welcomeTitle = localTitle !== null ? localTitle : (form.welcomeTitle || '');
   const welcomeMessage = localMessage !== null ? localMessage : (form.welcomeMessage || '');
 
+  const saveToApi = async (updates: Record<string, string>) => {
+    try {
+      await fetch(`/api/forms/${form.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch { /* silent */ }
+  };
+
   const handleTitleBlur = () => {
     setEditingField(null);
     if (localTitle !== null && localTitle !== (form.welcomeTitle || '')) {
       updateForm(form.id, { welcomeTitle: localTitle });
+      saveToApi({ welcomeTitle: localTitle });
     }
     setLocalTitle(null);
   };
@@ -1084,6 +1095,7 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
     setEditingField(null);
     if (localMessage !== null && localMessage !== (form.welcomeMessage || '')) {
       updateForm(form.id, { welcomeMessage: localMessage });
+      saveToApi({ welcomeMessage: localMessage });
     }
     setLocalMessage(null);
   };
@@ -1234,10 +1246,21 @@ function EndingScreenEditor({ form }: { form: Form }) {
   const endingTitle = localTitle !== null ? localTitle : (form.endingTitle || '');
   const endingMessage = localMessage !== null ? localMessage : (form.endingMessage || '');
 
+  const saveToApi = async (updates: Record<string, string>) => {
+    try {
+      await fetch(`/api/forms/${form.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch { /* silent */ }
+  };
+
   const handleTitleBlur = () => {
     setEditingField(null);
     if (localTitle !== null && localTitle !== (form.endingTitle || '')) {
       updateForm(form.id, { endingTitle: localTitle });
+      saveToApi({ endingTitle: localTitle });
     }
     setLocalTitle(null);
   };
@@ -1246,6 +1269,7 @@ function EndingScreenEditor({ form }: { form: Form }) {
     setEditingField(null);
     if (localMessage !== null && localMessage !== (form.endingMessage || '')) {
       updateForm(form.id, { endingMessage: localMessage });
+      saveToApi({ endingMessage: localMessage });
     }
     setLocalMessage(null);
   };
