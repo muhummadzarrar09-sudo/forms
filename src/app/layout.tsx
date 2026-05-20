@@ -16,17 +16,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Forms — Beautiful Conversational Forms",
-  description: "Create beautiful, conversational forms that feel like a natural conversation. Like Typeform, but yours.",
+  title: {
+    default: "Forms — Beautiful Conversational Forms",
+    template: "%s · Forms",
+  },
+  description:
+    "Create beautiful, conversational forms that feel like a natural conversation. Like Typeform, but yours.",
   keywords: ["forms", "surveys", "typeform", "conversational", "questionnaires"],
   authors: [{ name: "Forms" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
   },
   openGraph: {
     title: "Forms — Beautiful Conversational Forms",
-    description: "Create beautiful, conversational forms that feel like a natural conversation.",
+    description:
+      "Create beautiful, conversational forms that feel like a natural conversation.",
     type: "website",
+    siteName: "Forms",
   },
 };
 
