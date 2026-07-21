@@ -94,6 +94,18 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data;
 
+    // A workspace is part of a user's private namespace. Never attach a form
+    // to a workspace merely because its opaque ID was supplied by the client.
+    if (data.workspaceId) {
+      const workspace = await db.workspace.findFirst({
+        where: { id: data.workspaceId, userId: session.user.id },
+        select: { id: true },
+      });
+      if (!workspace) {
+        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      }
+    }
+
     // Auto-generate slug from title if not provided
     let slug: string | null = null;
     if (data.slug !== undefined) {

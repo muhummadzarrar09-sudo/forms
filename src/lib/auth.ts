@@ -1,8 +1,12 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
-import { verifyPassword } from './crypto';
+import { hashPassword, verifyPassword } from './crypto';
 import { checkRateLimit, recordRateLimitAttempt, resetRateLimit } from './rate-limit';
+
+// Keep missing-account attempts on the same PBKDF2 path as wrong passwords.
+// This value is intentionally process-local and contains no user credential.
+const DUMMY_PASSWORD_HASH = hashPassword('forms-auth-enumeration-dummy');
 
 export const authOptions: NextAuthOptions = {
   providers: [

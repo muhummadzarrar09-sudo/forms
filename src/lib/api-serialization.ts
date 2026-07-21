@@ -4,6 +4,8 @@
  * tags, options, imageUrls, settings, logic, workspace, closeDate, metadata.
  */
 
+import type { FormQuestion, QuestionType } from '@/types/form';
+
 // ── Type for a raw Prisma question row (before JSON fields are parsed) ──────
 interface RawQuestion {
   id: string;
@@ -29,10 +31,10 @@ interface RawWorkspace {
   color: string;
   icon: string;
   order: number;
+  userId: string;
   createdAt: Date | string;
   updatedAt: Date | string;
   _count?: { forms: number };
-  forms?: unknown[];
 }
 
 // ── Type for a raw Prisma form row ──────────────────────────────────────────
@@ -84,6 +86,7 @@ interface RawResponse {
   isPartial: boolean;
   score: number;
   metadata: string;     // JSON string
+  editToken?: string | null;
   answers: RawAnswer[];
 }
 
@@ -113,9 +116,12 @@ interface RawFormEnding {
 /**
  * Serialize a raw Prisma question row, parsing JSON fields.
  */
-export function serializeQuestion(q: RawQuestion) {
+export function serializeQuestion(q: RawQuestion): FormQuestion {
   return {
     ...q,
+    type: q.type as QuestionType,
+    createdAt: q.createdAt instanceof Date ? q.createdAt.toISOString() : q.createdAt,
+    updatedAt: q.updatedAt instanceof Date ? q.updatedAt.toISOString() : q.updatedAt,
     options: JSON.parse(q.options),
     imageUrls: JSON.parse(q.imageUrls),
     settings: JSON.parse(q.settings),
@@ -134,10 +140,10 @@ export function serializeWorkspace(ws: RawWorkspace | null) {
     color: ws.color,
     icon: ws.icon,
     order: ws.order,
+    userId: ws.userId,
     createdAt: ws.createdAt instanceof Date ? ws.createdAt.toISOString() : ws.createdAt,
     updatedAt: ws.updatedAt instanceof Date ? ws.updatedAt.toISOString() : ws.updatedAt,
     ...(ws._count !== undefined && { _count: ws._count }),
-    ...(ws.forms !== undefined && { forms: ws.forms }),
   };
 }
 
@@ -152,6 +158,8 @@ export function serializeForm(form: RawForm) {
     closeDate: form.closeDate instanceof Date
       ? form.closeDate.toISOString()
       : form.closeDate,
+    createdAt: form.createdAt instanceof Date ? form.createdAt.toISOString() : form.createdAt,
+    updatedAt: form.updatedAt instanceof Date ? form.updatedAt.toISOString() : form.updatedAt,
     workspace: serializeWorkspace(form.workspace),
     questions: form.questions.map(serializeQuestion),
     endings: (form.endings || []).map(serializeEnding),
@@ -162,8 +170,10 @@ export function serializeForm(form: RawForm) {
  * Serialize a raw Prisma response row, parsing metadata and question JSON fields.
  */
 export function serializeResponse(r: RawResponse) {
+  // The anonymous resume token must never be exposed in owner response listings.
+  const { editToken: _editToken, ...response } = r;
   return {
-    ...r,
+    ...response,
     isPartial: r.isPartial ?? false,
     score: r.score ?? 0,
     metadata: JSON.parse(r.metadata),

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { Form, FormEnding, FormQuestion, LogicRule } from '@/types/form';
-import { QuestionInput } from '@/components/forms/question-input';
+import { motion, AnimatePresence, type Transition, type Variants } from 'framer-motion';
+import type { Form, FormEnding, FormQuestion } from '@/types/form';
+import { FillerQuestionScreen } from '@/components/forms/filler-question-screen';
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,78 +12,9 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
-
-/* ─── Confetti particle ────────────────────────────────────────────────── */
-
-function ConfettiParticles() {
-  const particles = useMemo(() =>
-    Array.from({ length: 35 }, (_, i) => {
-      const isStar = i < 6;
-      return {
-        id: i,
-        x: Math.random() * 100,
-        delay: Math.random() * 0.3,
-        duration: 2 + Math.random() * 2,
-        color: isStar
-          ? STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)]
-          : CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-        size: isStar ? 8 + Math.random() * 8 : 4 + Math.random() * 6,
-        rotation: Math.random() * 360,
-        drift: (Math.random() - 0.5) * 40,
-        isCircle: !isStar && Math.random() > 0.5,
-        isStar,
-      };
-    }),
-  []);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-30">
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          initial={{
-            x: `${p.x}vw`,
-            y: '-5vh',
-            rotate: 0,
-            opacity: 1,
-          }}
-          animate={{
-            y: '105vh',
-            x: `calc(${p.x}vw + ${p.drift}px)`,
-            rotate: p.rotation + 720,
-            opacity: [1, 1, 0.5, 0],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            ease: [0.25, 0.46, 0.45, 0.94],
-          }}
-          className="absolute"
-          style={{ width: p.size, height: p.size }}
-        >
-          {p.isStar ? (
-            <svg viewBox="0 0 24 24" width="100%" height="100%" style={{ filter: `drop-shadow(0 0 3px ${p.color})` }}>
-              <path
-                d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"
-                fill={p.color}
-              />
-            </svg>
-          ) : (
-            <div
-              className={p.isCircle ? 'rounded-full' : 'rounded-sm'}
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: p.color,
-              }}
-            />
-          )}
-        </motion.div>
-      ))}
-    </div>
-  );
-}
+import { FillerConfetti, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
+import { submitFillerResponse } from '@/lib/filler-submission';
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
@@ -123,7 +54,7 @@ const slideVariants = {
   }),
 };
 
-const questionTransition = {
+const questionTransition: Transition = {
   duration: 0.5,
   ease: [0.22, 1, 0.36, 1],
 };
@@ -134,7 +65,7 @@ const fadeVariants = {
   exit: { opacity: 0, y: -20 },
 };
 
-const checkmarkVariants = {
+const checkmarkVariants: Variants = {
   hidden: { scale: 0, opacity: 0 },
   visible: {
     scale: 1,
@@ -192,18 +123,19 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     }));
   }, []);
 
-  // Sorted questions (exclude ending type)
-  const questions = useMemo(() => {
-    if (!state.form) return [];
-    return state.form.questions
-      .filter((q) => q.type !== 'ending')
-      .sort((a, b) => a.order - b.order);
-  }, [state.form]);
+  const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
+  const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
 
-  const currentQuestion = useMemo(() => {
-    if (state.currentIndex < 0 || state.currentIndex >= questions.length) return null;
-    return questions[state.currentIndex];
-  }, [state.currentIndex, questions]);
+  // Public links can carry configured hidden-field values. Keep them in response
+  // metadata rather than fabricating Answer.questionId values.
+  const hiddenFieldValues = useMemo(() => {
+    if (typeof window === 'undefined' || !state.form) return {};
+    const params = new URLSearchParams(window.location.search);
+    return Object.fromEntries((state.form.hiddenFields || []).flatMap((field) => {
+      const value = params.get(field.name) ?? field.defaultValue;
+      return value !== undefined && value !== '' ? [[field.id, value]] : [];
+    }));
+  }, [state.form]);
 
   // ── Submit ──
   const answersRef = useRef(state.answers);
@@ -219,252 +151,59 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
 
   const handleSubmit = useCallback(async () => {
     const currentForm = formRef.current;
-    const currentAnswers = answersRef.current;
     if (!currentForm) return;
-
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
-      questionId,
-      value,
-    }));
-
-    try {
-      const res = await fetch(`/api/forms/${currentForm.id}/responses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: answerList,
-          metadata: {
-            submittedAt: new Date().toISOString(),
-          },
-        }),
-      });
-
-      if (res.ok) {
-        setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
-        setShowConfetti(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setState((s) => ({
-          ...s,
-          screen: 'error',
-          errorMessage: data.error || 'Something went wrong submitting your response.',
-        }));
-      }
-    } catch {
-      setState((s) => ({
-        ...s,
-        screen: 'error',
-        errorMessage: 'Network error. Please check your connection and try again.',
-      }));
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    if (!result.ok) {
+      setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
+      return;
     }
-  }, []);
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
+    setShowConfetti(true);
+  }, [hiddenFieldValues]);
 
   const handleSubmitWithEnding = useCallback(async (endingId: string) => {
     const currentForm = formRef.current;
-    const currentAnswers = answersRef.current;
     if (!currentForm) return;
-
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
-      questionId,
-      value,
-    }));
-
-    try {
-      const res = await fetch(`/api/forms/${currentForm.id}/responses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: answerList,
-          metadata: { submittedAt: new Date().toISOString() },
-        }),
-      });
-
-      if (res.ok) {
-        // Find the target ending; fall back to default form ending fields if not found
-        const targetEnding = endingId && endingId !== '__default__'
-          ? currentForm.endings?.find((e) => e.id === endingId) ?? null
-          : null;
-
-        setState((s) => ({
-          ...s,
-          screen: 'ending',
-          direction: 1,
-          activeEnding: targetEnding,
-        }));
-        setShowConfetti(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setState((s) => ({
-          ...s,
-          screen: 'error',
-          errorMessage: data.error || 'Something went wrong submitting your response.',
-        }));
-      }
-    } catch {
-      setState((s) => ({
-        ...s,
-        screen: 'error',
-        errorMessage: 'Network error. Please check your connection and try again.',
-      }));
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    if (!result.ok) {
+      setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
+      return;
     }
-  }, []);
-
-  // ── Logic Evaluation ──
-
-  const evaluateLogicRule = useCallback((
-    rule: LogicRule,
-    question: FormQuestion,
-    answer: string
-  ): boolean => {
-    const { condition } = rule;
-    const { operator, value: conditionValue, field } = condition;
-
-    // is_filled and is_empty operators work for all question types
-    if (operator === 'is_filled') {
-      return !!answer && answer.trim() !== '';
-    }
-    if (operator === 'is_empty') {
-      return !answer || answer.trim() === '';
-    }
-
-    // For choice questions
-    if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
-      const selectedIds = answer.split(',').map((s: string) => s.trim());
-      if (operator === 'equals') {
-        return selectedIds.includes(field) && selectedIds.length === 1;
-      }
-      if (operator === 'not_equals') {
-        return !selectedIds.includes(field);
-      }
-      return false;
-    }
-
-    if (question.type === 'yes_no') {
-      const isYes = answer.toLowerCase() === 'yes' || answer === 'true';
-      const isNo = answer.toLowerCase() === 'no' || answer === 'false';
-      if (operator === 'equals') {
-        if (field === 'yes') return isYes;
-        if (field === 'no') return isNo;
-        return answer.toLowerCase() === conditionValue.toLowerCase();
-      }
-      if (operator === 'not_equals') {
-        if (field === 'yes') return !isYes;
-        if (field === 'no') return !isNo;
-        return answer.toLowerCase() !== conditionValue.toLowerCase();
-      }
-      return false;
-    }
-
-    if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-      const numAnswer = parseFloat(answer);
-      const numCondition = parseFloat(conditionValue);
-      if (isNaN(numAnswer) || isNaN(numCondition)) return false;
-      switch (operator) {
-        case 'equals': return numAnswer === numCondition;
-        case 'not_equals': return numAnswer !== numCondition;
-        case 'greater_than': return numAnswer > numCondition;
-        case 'less_than': return numAnswer < numCondition;
-        default: return false;
-      }
-    }
-
-    // Text-based questions
-    switch (operator) {
-      case 'equals': return answer.toLowerCase() === conditionValue.toLowerCase();
-      case 'not_equals': return answer.toLowerCase() !== conditionValue.toLowerCase();
-      case 'contains': return answer.toLowerCase().includes(conditionValue.toLowerCase());
-      default: return false;
-    }
-  }, []);
+    const activeEnding = endingId && endingId !== '__default__'
+      ? currentForm.endings?.find((ending) => ending.id === endingId) ?? null
+      : null;
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding }));
+    setShowConfetti(true);
+  }, [hiddenFieldValues]);
 
   // ── Navigation ──
-
   const goNext = useCallback(() => {
     if (state.screen === 'welcome') {
       if (questions.length === 0) {
-        setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
+        setState((current) => ({ ...current, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
-        setState((s) => ({ ...s, screen: 'question', currentIndex: 0, direction: 1 }));
+        setState((current) => ({ ...current, screen: 'question', currentIndex: 0, direction: 1 }));
       }
       return;
     }
+    if (state.screen !== 'question' || !currentQuestion) return;
 
-    if (state.screen === 'question') {
-      const currentAnswers = answersRef.current;
-      if (currentQuestion?.required) {
-        const answer = currentAnswers[currentQuestion.id];
-        if (!answer || answer.trim() === '') {
-          return;
-        }
-      }
-
-      // Evaluate logic rules
-      if (currentQuestion && (currentQuestion.logic?.length > 0 || currentQuestion.settings?.jumpToQuestionId)) {
-        const currentAnswer = currentAnswers[currentQuestion.id] || '';
-
-        for (const rule of currentQuestion.logic || []) {
-          if (evaluateLogicRule(rule, currentQuestion, currentAnswer)) {
-            // Handle show_ending action
-            if (rule.action.type === 'show_ending') {
-              handleSubmitWithEnding(rule.action.targetQuestionId);
-              return;
-            }
-
-            const targetId = rule.action.targetQuestionId;
-
-            if (targetId === '__submit__') {
-              handleSubmit();
-              return;
-            }
-
-            const targetIndex = questions.findIndex((q) => q.id === targetId);
-            if (targetIndex !== -1) {
-              setState((s) => ({
-                ...s,
-                currentIndex: targetIndex,
-                direction: 1,
-              }));
-              return;
-            }
-          }
-        }
-
-        const jumpToQuestionId = currentQuestion.settings?.jumpToQuestionId;
-        if (jumpToQuestionId) {
-          if (jumpToQuestionId === '__submit__') {
-            handleSubmit();
-            return;
-          }
-
-          const targetIndex = questions.findIndex((q) => q.id === jumpToQuestionId);
-          if (targetIndex !== -1) {
-            setState((s) => ({
-              ...s,
-              currentIndex: targetIndex,
-              direction: 1,
-            }));
-            return;
-          }
-        }
-      }
-
-      // Default behavior
-      if (state.currentIndex < questions.length - 1) {
-        setState((s) => ({
-          ...s,
-          currentIndex: s.currentIndex + 1,
-          direction: 1,
-        }));
-      } else {
-        handleSubmit();
-      }
+    const answer = answersRef.current[currentQuestion.id];
+    if (!requiredAnswerIsSatisfied(currentQuestion, answer)) return;
+    const step = nextFillerStep(questions, state.currentIndex, answer || '');
+    if (step.kind === 'ending') {
+      handleSubmitWithEnding(step.endingId);
+    } else if (step.kind === 'submit') {
+      handleSubmit();
+    } else {
+      setState((current) => ({ ...current, currentIndex: step.index, direction: 1 }));
     }
-  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding, evaluateLogicRule]);
+  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -494,64 +233,16 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     }));
   }, []);
 
-  // ── Keyboard shortcuts ──
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-
-      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-        if (!isInput) {
-          e.preventDefault();
-          goNext();
-        }
-      }
-
-      if (e.key === 'Backspace' && !isInput) {
-        e.preventDefault();
-        goBack();
-      }
-
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goBack();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goNext, goBack]);
+  useFillerKeyboardNavigation(goNext, goBack);
 
   // ── Progress calculation ──
-
-  const progress = useMemo(() => {
-    if (state.screen === 'welcome') return 0;
-    if (state.screen === 'ending' || state.screen === 'submitting') return 100;
-    if (questions.length === 0) return 0;
-    return ((state.currentIndex + 1) / questions.length) * 100;
-  }, [state.screen, state.currentIndex, questions.length]);
+  const progress = useMemo(
+    () => fillerProgress(state.screen, state.currentIndex, questions.length),
+    [state.screen, state.currentIndex, questions.length]
+  );
 
   // ── Theme ──
-
-  const theme = useMemo(() => {
-    if (!state.form) {
-      return {
-        backgroundColor: '#FFFFFF',
-        textColor: '#333333',
-        buttonColor: '#1A1A1A',
-        buttonTextColor: '#FFFFFF',
-        fontFamily: 'sans',
-      };
-    }
-    return {
-      backgroundColor: state.form.backgroundColor,
-      textColor: state.form.textColor,
-      buttonColor: state.form.buttonColor,
-      buttonTextColor: state.form.buttonTextColor,
-      fontFamily: state.form.fontFamily,
-    };
-  }, [state.form]);
+  const theme = useFillerTheme(state.form);
 
   const ff = fontFamilyClass(theme.fontFamily);
 
@@ -567,7 +258,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       {/* ── Confetti ── */}
-      {showConfetti && state.screen === 'ending' && <ConfettiParticles />}
+      {showConfetti && state.screen === 'ending' && <FillerConfetti />}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
@@ -659,7 +350,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               transition={questionTransition}
               className="max-w-2xl mx-auto w-full"
             >
-              <SlugQuestionScreen
+              <FillerQuestionScreen
                 question={currentQuestion}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
@@ -899,90 +590,6 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
           </motion.p>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ─── Question Screen Sub-component ──────────────────────────────────── */
-
-function SlugQuestionScreen({
-  question,
-  questionIndex,
-  totalQuestions,
-  answer,
-  onAnswerChange,
-  onAdvance,
-  theme,
-  showQuestionNumbers,
-}: {
-  question: FormQuestion;
-  questionIndex: number;
-  totalQuestions: number;
-  answer: string;
-  onAnswerChange: (value: string) => void;
-  onAdvance: () => void;
-  theme: {
-    backgroundColor: string;
-    textColor: string;
-    buttonColor: string;
-    buttonTextColor: string;
-    fontFamily: string;
-  };
-  showQuestionNumbers: boolean;
-}) {
-  const ff = fontFamilyClass(theme.fontFamily);
-
-  return (
-    <div className="space-y-6">
-      {/* Question number + required indicator */}
-      <div className="flex items-center gap-3">
-        {showQuestionNumbers && (
-          <span
-            className={`text-xs font-semibold uppercase tracking-wider opacity-50 ${ff}`}
-            style={{ color: theme.textColor }}
-          >
-            {questionIndex + 1} ↦ {totalQuestions}
-          </span>
-        )}
-        {question.required && (
-          <span
-            className={`text-xs font-semibold uppercase tracking-wider ${ff}`}
-            style={{ color: theme.buttonColor }}
-          >
-            Required
-          </span>
-        )}
-      </div>
-
-      {/* Title */}
-      <h2
-        className={`text-2xl md:text-4xl font-bold leading-snug ${ff}`}
-        style={{ color: theme.textColor }}
-      >
-        {question.title}
-      </h2>
-
-      {/* Description */}
-      {question.description && (
-        <p
-          className={`text-base md:text-lg opacity-50 ${ff}`}
-          style={{ color: theme.textColor }}
-        >
-          {question.description}
-        </p>
-      )}
-
-      {/* Input */}
-      <div className="pt-2">
-        <QuestionInput
-          question={question}
-          value={answer}
-          onChange={onAnswerChange}
-          onAdvance={onAdvance}
-          theme={theme}
-          isActive={true}
-        />
-      </div>
     </div>
   );
 }

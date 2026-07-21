@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { FormQuestion, QuestionType, LogicRule, FormEnding, HiddenField } from '@/types/form';
+import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding, HiddenField } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
@@ -365,6 +365,30 @@ function LogicRuleEditor({
 
   // Get available operators based on question type
   const availableOperators = useMemo(() => getAvailableOperators(question), [question]);
+  const conditions = rule.conditions?.length ? rule.conditions : [rule.condition];
+
+  const setCondition = (index: number, condition: LogicCondition) => {
+    const nextConditions = conditions.map((current, currentIndex) => currentIndex === index ? condition : current);
+    onUpdate({
+      // Keep legacy readers and existing forms compatible with the first condition.
+      condition: nextConditions[0],
+      ...(rule.conditions ? { conditions: nextConditions } : {}),
+    });
+  };
+
+  const addCondition = () => {
+    const nextConditions = [...conditions, { ...rule.condition, value: '' }];
+    onUpdate({ condition: nextConditions[0], conditions: nextConditions, conditionMatch: rule.conditionMatch || 'all' });
+  };
+
+  const removeCondition = (index: number) => {
+    const nextConditions = conditions.filter((_, currentIndex) => currentIndex !== index);
+    // A rule always retains one condition for backward compatibility.
+    onUpdate({
+      condition: nextConditions[0],
+      ...(nextConditions.length > 1 ? { conditions: nextConditions, conditionMatch: rule.conditionMatch || 'all' } : { conditions: undefined, conditionMatch: undefined }),
+    });
+  };
 
   return (
     <div className="border rounded-lg p-3 space-y-3 bg-muted/20 relative">
@@ -389,9 +413,7 @@ function LogicRuleEditor({
           <Select
             value={rule.condition.field}
             onValueChange={(val) =>
-              onUpdate({
-                condition: { ...rule.condition, field: val },
-              })
+              setCondition(0, { ...rule.condition, field: val })
             }
           >
             <SelectTrigger className="h-8 text-xs">
@@ -411,11 +433,9 @@ function LogicRuleEditor({
             <Select
               value={rule.condition.operator}
               onValueChange={(val) =>
-                onUpdate({
-                  condition: {
-                    ...rule.condition,
-                    operator: val as LogicRule['condition']['operator'],
-                  },
+                setCondition(0, {
+                  ...rule.condition,
+                  operator: val as LogicRule['condition']['operator'],
                 })
               }
             >
@@ -438,9 +458,7 @@ function LogicRuleEditor({
                   <Select
                     value={rule.condition.value}
                     onValueChange={(val) =>
-                      onUpdate({
-                        condition: { ...rule.condition, value: val },
-                      })
+                      setCondition(0, { ...rule.condition, value: val })
                     }
                   >
                     <SelectTrigger className="h-8 text-xs flex-1">
@@ -458,9 +476,7 @@ function LogicRuleEditor({
                   <Input
                     value={rule.condition.value}
                     onChange={(e) =>
-                      onUpdate({
-                        condition: { ...rule.condition, value: e.target.value },
-                      })
+                      setCondition(0, { ...rule.condition, value: e.target.value })
                     }
                     placeholder="Value..."
                     className="h-8 text-xs flex-1"
@@ -471,6 +487,56 @@ function LogicRuleEditor({
           </div>
         </div>
       </div>
+
+      {/* Additional conditions — opt-in so existing one-condition rules stay compact. */}
+      {conditions.length > 1 && (
+        <div className="space-y-2 rounded-md border border-dashed p-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs text-muted-foreground font-medium">MATCH</Label>
+            <Select
+              value={rule.conditionMatch || 'all'}
+              onValueChange={(value) => onUpdate({ conditionMatch: value as 'all' | 'any' })}
+            >
+              <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All conditions</SelectItem>
+                <SelectItem value="any">Any condition</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {conditions.slice(1).map((condition, conditionIndex) => {
+            const indexInRule = conditionIndex + 1;
+            return (
+              <div key={`${rule.id}-condition-${indexInRule}`} className="grid grid-cols-[1fr_auto] gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={condition.field} onValueChange={(field) => setCondition(indexInRule, { ...condition, field })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Field" /></SelectTrigger>
+                    <SelectContent>{conditionFields.map((field) => <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={condition.operator} onValueChange={(operator) => setCondition(indexInRule, { ...condition, operator: operator as LogicCondition['operator'] })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{availableOperators.map((operator) => <SelectItem key={operator.value} value={operator.value}>{operator.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {condition.operator !== 'is_filled' && condition.operator !== 'is_empty' && (
+                    isChoiceQuestion(question) && ['equals', 'not_equals', 'contains'].includes(condition.operator) ? (
+                      <Select value={condition.value} onValueChange={(value) => setCondition(indexInRule, { ...condition, value })}>
+                        <SelectTrigger className="col-span-2 h-8 text-xs"><SelectValue placeholder="Select option" /></SelectTrigger>
+                        <SelectContent>{getChoiceOptions(question).map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : <Input value={condition.value} onChange={(event) => setCondition(indexInRule, { ...condition, value: event.target.value })} placeholder="Value..." className="col-span-2 h-8 text-xs" />
+                  )}
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => removeCondition(indexInRule)} aria-label="Remove condition">
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Button type="button" variant="ghost" size="sm" className="h-7 w-full text-xs text-muted-foreground" onClick={addCondition}>
+        <Plus className="mr-1 size-3" /> Add condition
+      </Button>
 
       {/* THEN action type */}
       <div className="space-y-2">

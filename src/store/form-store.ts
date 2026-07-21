@@ -73,6 +73,17 @@ interface FormState {
   openResponses: (formId: string) => void;
 }
 
+
+function pushAppRoute(route: string): void {
+  if (typeof window === 'undefined') return;
+  const current = `${window.location.pathname}${window.location.search}`;
+  if (current === route) return;
+  // The History API is integrated with Next App Router. Keeping each app view
+  // in browser history makes Back return to the previous in-app view instead
+  // of dropping a creator out to their browser's start page.
+  window.history.pushState(null, '', route);
+}
+
 export const useFormStore = create<FormState>((set, get) => ({
   // Initial state
   currentView: 'dashboard',
@@ -165,10 +176,22 @@ export const useFormStore = create<FormState>((set, get) => ({
   }),
   
   // Navigation helpers
-  openDashboard: () => set({ currentView: 'dashboard', selectedFormId: null, currentForm: null, selectedQuestionId: null, shareMode: false }),
-  openBuilder: (formId) => set({ currentView: 'builder', selectedFormId: formId }),
-  openFiller: (formId) => set({ currentView: 'fill', selectedFormId: formId, shareMode: false }),
-  openResponses: (formId) => set({ currentView: 'responses', selectedFormId: formId }),
+  openDashboard: () => {
+    pushAppRoute('/');
+    set({ currentView: 'dashboard', selectedFormId: null, currentForm: null, selectedQuestionId: null, shareMode: false });
+  },
+  openBuilder: (formId) => {
+    pushAppRoute(`/?view=builder&form=${encodeURIComponent(formId)}`);
+    set({ currentView: 'builder', selectedFormId: formId, shareMode: false });
+  },
+  openFiller: (formId) => {
+    pushAppRoute(`/?view=preview&form=${encodeURIComponent(formId)}`);
+    set({ currentView: 'fill', selectedFormId: formId, shareMode: false });
+  },
+  openResponses: (formId) => {
+    pushAppRoute(`/?view=responses&form=${encodeURIComponent(formId)}`);
+    set({ currentView: 'responses', selectedFormId: formId, shareMode: false });
+  },
 
   // Notification operations
   addNotification: (notification) => set((state) => ({

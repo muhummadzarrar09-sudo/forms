@@ -22,13 +22,18 @@ export interface QuestionOption {
   image?: string;
 }
 
+export interface LogicCondition {
+  field: string; // option id for choice questions, otherwise the compared field/value
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_filled' | 'is_empty';
+  value: string;
+}
+
 export interface LogicRule {
   id: string;
-  condition: {
-    field: string; // which option/value to check - for choice questions, this is the option id
-    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_filled' | 'is_empty';
-    value: string;
-  };
+  // Retained for existing forms. Newer rules may combine conditions below.
+  condition: LogicCondition;
+  conditions?: LogicCondition[];
+  conditionMatch?: 'all' | 'any';
   action: {
     type: 'jump_to' | 'show_ending'; // jump_to a question, or show_ending to show a specific ending
     targetQuestionId: string; // which question to jump to, or ending id if type is show_ending
@@ -147,7 +152,7 @@ export interface Form {
   metaDescription: string;
   userId: string;
   workspaceId: string | null;
-  workspace?: Workspace;
+  workspace?: Workspace | null;
   createdAt: string;
   updatedAt: string;
   questions: FormQuestion[];

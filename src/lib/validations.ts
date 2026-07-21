@@ -20,13 +20,19 @@ const questionOptionSchema = z.object({
   image: z.string().url().optional(),
 });
 
+const logicConditionSchema = z.object({
+  field: z.string(),
+  operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_filled', 'is_empty']),
+  value: z.string(),
+});
+
 const logicRuleSchema = z.object({
   id: z.string(),
-  condition: z.object({
-    field: z.string(),
-    operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_filled', 'is_empty']),
-    value: z.string(),
-  }),
+  // `condition` remains required for backward-compatible existing rules.
+  condition: logicConditionSchema,
+  // New rules may evaluate every condition (ALL, default) or any condition.
+  conditions: z.array(logicConditionSchema).min(1).max(10).optional(),
+  conditionMatch: z.enum(['all', 'any']).optional(),
   action: z.object({
     type: z.enum(['jump_to', 'show_ending']),
     targetQuestionId: z.string(),
@@ -98,7 +104,7 @@ export const updateFormSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const questionSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().min(1).max(100).optional(),
   type: z.string().max(30),
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),

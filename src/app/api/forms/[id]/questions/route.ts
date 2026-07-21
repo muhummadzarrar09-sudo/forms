@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeQuestion } from '@/lib/api-serialization';
 import { saveQuestionsSchema } from '@/lib/validations';
+import { findLogicCycles } from '@/lib/logic-engine';
+import type { FormQuestion } from '@/types/form';
 
 // PUT /api/forms/[id]/questions - Batch update/replace questions
 // Protected: only the form owner can update questions
@@ -50,6 +52,57 @@ export async function PUT(
 
     const incomingQuestions = validation.data.questions;
 
+    // Preserve client-generated IDs for newly created questions. This makes
+    // logic targets stable during the same autosave in which a question is
+    // created, rather than replacing a `temp_*` target with an unrelated DB ID.
+    const questionIds = new Set(incomingQuestions.map((question) => question.id).filter((id): id is string => Boolean(id)));
+    if (questionIds.size !== incomingQuestions.length) {
+      return NextResponse.json({ error: 'Every question must have a stable ID before saving logic.' }, { status: 400 });
+    }
+    const foreignQuestion = await db.question.findFirst({
+      where: { id: { in: [...questionIds] }, formId: { not: id } },
+      select: { id: true },
+    });
+    if (foreignQuestion) {
+      return NextResponse.json({ error: 'Question ID collision detected. Please reload and try again.' }, { status: 409 });
+    }
+
+    const endings = await db.formEnding.findMany({
+      where: { formId: id },
+      select: { id: true },
+    });
+    const endingIds = new Set(endings.map((ending) => ending.id));
+
+    for (const question of incomingQuestions) {
+      const targets = [
+        ...(question.logic || []).map((rule) => rule.action),
+        question.settings.jumpToQuestionId
+          ? { type: 'jump_to' as const, targetQuestionId: question.settings.jumpToQuestionId }
+          : null,
+      ].filter((action): action is { type: 'jump_to' | 'show_ending'; targetQuestionId: string } => Boolean(action));
+
+      for (const action of targets) {
+        if (action.type === 'show_ending') {
+          if (action.targetQuestionId !== '__default__' && !endingIds.has(action.targetQuestionId)) {
+            return NextResponse.json({ error: 'Logic references an ending that does not belong to this form.' }, { status: 400 });
+          }
+        } else if (
+          action.targetQuestionId !== '__submit__' &&
+          (!questionIds.has(action.targetQuestionId) || action.targetQuestionId === question.id)
+        ) {
+          return NextResponse.json({ error: 'Logic must target another question in this form or submit the form.' }, { status: 400 });
+        }
+      }
+    }
+
+    const cycles = findLogicCycles(incomingQuestions as unknown as FormQuestion[]);
+    if (cycles.length > 0) {
+      return NextResponse.json({
+        error: 'Logic contains a circular jump path.',
+        cycles,
+      }, { status: 400 });
+    }
+
     // Build a position map from the original incoming order so that
     // updates and creates each get the correct global position regardless
     // of which array they end up in.
@@ -68,7 +121,7 @@ export async function PUT(
 
     // Separate incoming questions into those with real (existing) IDs and those that are new
     const toUpdate: typeof incomingQuestions = [];
-    const toCreate: (typeof incomingQuestions)[number] & { _positionKey: string }[] = [];
+    const toCreate: Array<(typeof incomingQuestions)[number] & { _positionKey: string }> = [];
     const incomingIds = new Set<string>();
 
     for (let i = 0; i < incomingQuestions.length; i++) {
@@ -124,6 +177,8 @@ export async function PUT(
         toCreate.map((q) =>
           tx.question.create({
             data: {
+              // Client-generated IDs are kept so references in saved logic are stable.
+              id: q.id!,
               formId: id,
               type: q.type,
               title: q.title,

@@ -10,7 +10,7 @@
 
 import { randomBytes, pbkdf2Sync, timingSafeEqual } from 'crypto';
 
-const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_ITERATIONS = 210000;
 const SALT_LENGTH = 32; // bytes
 const KEY_LENGTH = 64; // bytes
 const DIGEST = 'sha512';
@@ -60,7 +60,19 @@ function verifyPBKDF2(password: string, storedHash: string): boolean {
   const [iterationsStr, salt, expectedHash] = parts;
   const iterations = parseInt(iterationsStr, 10);
 
-  const actualHash = pbkdf2Sync(password, salt, iterations, KEY_LENGTH, DIGEST).toString('hex');
+  // Reject malformed or attacker-controlled work factors before invoking PBKDF2.
+  // Existing lower-work-factor hashes remain verifiable and should be upgraded
+  // after a successful login.
+  if (!Number.isSafeInteger(iterations) || iterations < 1 || iterations > 1_000_000 || !/^[0-9a-f]+$/i.test(salt) || !/^[0-9a-f]+$/i.test(expectedHash)) {
+    return false;
+  }
+
+  let actualHash: string;
+  try {
+    actualHash = pbkdf2Sync(password, salt, iterations, KEY_LENGTH, DIGEST).toString('hex');
+  } catch {
+    return false;
+  }
 
   try {
     // Use timing-safe comparison to prevent timing attacks

@@ -121,6 +121,17 @@ export async function PUT(
 
     const data = validation.data;
 
+    // Workspace IDs are not globally assignable: they must belong to the form owner.
+    if (data.workspaceId) {
+      const workspace = await db.workspace.findFirst({
+        where: { id: data.workspaceId, userId: session.user.id },
+        select: { id: true },
+      });
+      if (!workspace) {
+        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      }
+    }
+
     // Handle slug: validate uniqueness if provided
     let slugValue: string | null | undefined = undefined;
     if (data.slug !== undefined) {
@@ -173,6 +184,19 @@ export async function PUT(
       });
 
       if (endings && Array.isArray(endings)) {
+        // The form is owned, but ending IDs are global. Scope every supplied
+        // existing ID to this form before allowing an update or deletion.
+        const suppliedIds = endings.flatMap((e) => e.id ? [e.id] : []);
+        if (suppliedIds.length > 0) {
+          const ownedEndings = await tx.formEnding.findMany({
+            where: { id: { in: suppliedIds }, formId: id },
+            select: { id: true },
+          });
+          if (ownedEndings.length !== new Set(suppliedIds).size) {
+            throw new Error('ENDING_NOT_FOUND');
+          }
+        }
+
         const toDelete = endings.filter((e) => e._delete && e.id);
         for (const e of toDelete) {
           await tx.formEnding.delete({ where: { id: e.id! } });
@@ -220,6 +244,9 @@ export async function PUT(
 
     return NextResponse.json(serializeForm(updatedForm!));
   } catch (error) {
+    if (error instanceof Error && error.message === 'ENDING_NOT_FOUND') {
+      return NextResponse.json({ error: 'Ending not found' }, { status: 404 });
+    }
     console.error('Error updating form:', error);
     return NextResponse.json({ error: 'Failed to update form' }, { status: 500 });
   }

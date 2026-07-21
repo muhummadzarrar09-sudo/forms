@@ -247,7 +247,7 @@ export function Dashboard() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const gKeyBufferRef = useRef(false);
-  const gKeyTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const gKeyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Fetch forms and workspaces on mount
   useEffect(() => {
@@ -457,7 +457,7 @@ export function Dashboard() {
       });
       if (res.ok) {
         const ws = workspaceId ? workspaces.find(w => w.id === workspaceId) : null;
-        updateForm(formId, { workspaceId, workspace: ws ? { id: ws.id, name: ws.name, color: ws.color, icon: ws.icon, order: ws.order, createdAt: ws.createdAt, updatedAt: ws.updatedAt } : null });
+        updateForm(formId, { workspaceId, workspace: ws ? { id: ws.id, name: ws.name, color: ws.color, icon: ws.icon, order: ws.order, userId: ws.userId, createdAt: ws.createdAt, updatedAt: ws.updatedAt } : null });
         toast({ title: workspaceId ? `Moved to ${ws?.name || 'workspace'}` : 'Removed from workspace' });
       }
     } catch {

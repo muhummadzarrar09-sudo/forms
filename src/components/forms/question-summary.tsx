@@ -200,10 +200,10 @@ function ChoiceSummary({ choiceCounts }: { choiceCounts: Record<string, number> 
           />
           <ChartTooltip
             content={<ChartTooltipContent />}
-            formatter={(value: number, name: string, props: { payload: { fullLabel: string; percentage: number } }) => [
-              `${value} (${props.payload.percentage}%)`,
-              props.payload.fullLabel,
-            ]}
+            formatter={(value, _name, item) => {
+              const payload = item.payload as { fullLabel?: string; percentage?: number };
+              return [`${value} (${payload.percentage ?? 0}%)`, payload.fullLabel ?? "Option"];
+            }}
           />
           <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={32}>
             {data.map((_, index) => (

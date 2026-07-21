@@ -99,6 +99,9 @@ model Response {
   isPartial   Boolean  @default(false) // true = abandoned/in-progress
   score       Int      @default(0) // total score if scoring is enabled
   metadata    String   @default("{}") // JSON: userAgent, ip, referer, etc.
+  // Bearer credential used only to resume an anonymous in-progress response.
+  // It is never returned in owner response listings.
+  editToken   String?  @unique
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
 }

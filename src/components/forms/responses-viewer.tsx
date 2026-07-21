@@ -475,7 +475,7 @@ export function ResponsesViewer() {
       <div className="min-h-screen bg-background flex flex-col">
         <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={openBuilder} className="shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => openBuilder(selectedFormId!)} className="shrink-0">
               <ArrowLeft className="size-4" />
             </Button>
             <h1 className="text-lg font-semibold truncate">{currentForm?.title || 'Form'}</h1>
@@ -498,7 +498,7 @@ export function ResponsesViewer() {
               Share your form to start collecting responses. Once people submit their answers, you&apos;ll see analytics and individual responses here.
             </p>
             <div className="flex items-center justify-center gap-3 pt-2">
-              <Button variant="outline" onClick={openBuilder} className="gap-2">
+              <Button variant="outline" onClick={() => openBuilder(selectedFormId!)} className="gap-2">
                 <ArrowLeft className="size-4" />
                 Back to Builder
               </Button>
@@ -541,7 +541,7 @@ export function ResponsesViewer() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3 min-w-0">
-              <Button variant="ghost" size="icon" onClick={openBuilder} className="shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => openBuilder(selectedFormId!)} className="shrink-0">
                 <ArrowLeft className="size-4" />
               </Button>
               {/* Colored accent dot + form title */}

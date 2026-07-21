@@ -108,8 +108,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 // Debounce helper
-function useDebounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+function useDebounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   return useCallback(
     (...args: unknown[]) => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -142,8 +142,17 @@ export function FormBuilder() {
   } = useFormStore();
 
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  // Mobile begins with a clear canvas; the inspector opens automatically on desktop.
+  const [showRightPanel, setShowRightPanel] = useState(false);
   const [showLeftPanel, setShowLeftPanel] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const syncInspector = () => setShowRightPanel(media.matches);
+    syncInspector();
+    media.addEventListener('change', syncInspector);
+    return () => media.removeEventListener('change', syncInspector);
+  }, []);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showEndingScreen, setShowEndingScreen] = useState(false);
@@ -534,7 +543,7 @@ export function FormBuilder() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={openDashboard}>
+              <Button variant="ghost" size="icon" className="size-8" onClick={openDashboard} aria-label="Back to dashboard">
                 <ArrowLeft className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -548,6 +557,7 @@ export function FormBuilder() {
           size="icon"
           className="size-8 md:hidden"
           onClick={() => setShowLeftPanel(!showLeftPanel)}
+          aria-label={showLeftPanel ? 'Close question list' : 'Open question list'}
         >
           <Menu className="size-4" />
         </Button>
@@ -627,6 +637,7 @@ export function FormBuilder() {
                   size="icon"
                   className="size-8 lg:hidden"
                   onClick={() => setShowRightPanel(!showRightPanel)}
+                  aria-label={showRightPanel ? 'Close settings panel' : 'Open settings panel'}
                 >
                   <Settings2 className="size-3.5" />
                 </Button>

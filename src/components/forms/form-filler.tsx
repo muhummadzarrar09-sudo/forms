@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Transition, type Variants } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
-import type { Form, FormQuestion, FormEnding, LogicRule } from '@/types/form';
-import { QuestionInput } from '@/components/forms/question-input';
+import type { Form, FormQuestion, FormEnding } from '@/types/form';
+import { FillerQuestionScreen } from '@/components/forms/filler-question-screen';
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,82 +13,11 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
+import { FillerConfetti, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
+import { submitFillerResponse } from '@/lib/filler-submission';
 
 /* ─── Blinking cursor animation ────────────────────────────────────────── */
-
-/* ─── Confetti particle ────────────────────────────────────────────────── */
-
-
-
-function ConfettiParticles() {
-  const particles = useMemo(() =>
-    Array.from({ length: 35 }, (_, i) => {
-      const isStar = i < 6; // First 6 are stars
-      return {
-        id: i,
-        x: Math.random() * 100,
-        delay: Math.random() * 0.3,
-        duration: 2 + Math.random() * 2,
-        color: isStar
-          ? STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)]
-          : CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-        size: isStar ? 8 + Math.random() * 8 : 4 + Math.random() * 6,
-        rotation: Math.random() * 360,
-        drift: (Math.random() - 0.5) * 40,
-        isCircle: !isStar && Math.random() > 0.5,
-        isStar,
-      };
-    }),
-  []);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-30">
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          initial={{
-            x: `${p.x}vw`,
-            y: '-5vh',
-            rotate: 0,
-            opacity: 1,
-          }}
-          animate={{
-            y: '105vh',
-            x: `calc(${p.x}vw + ${p.drift}px)`,
-            rotate: p.rotation + 720,
-            opacity: [1, 1, 0.5, 0],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            ease: [0.25, 0.46, 0.45, 0.94],
-          }}
-          className="absolute"
-          style={{ width: p.size, height: p.size }}
-        >
-          {p.isStar ? (
-            <svg viewBox="0 0 24 24" width="100%" height="100%" style={{ filter: `drop-shadow(0 0 3px ${p.color})` }}>
-              <path
-                d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"
-                fill={p.color}
-              />
-            </svg>
-          ) : (
-            <div
-              className={p.isCircle ? 'rounded-full' : 'rounded-sm'}
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: p.color,
-              }}
-            />
-          )}
-        </motion.div>
-      ))}
-    </div>
-  );
-}
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
@@ -105,6 +34,7 @@ interface FillerState {
   errorMessage: string;
   activeEnding: FormEnding | null; // custom ending to display (null = default)
   partialResponseId: string | null; // ID of the partial response being tracked
+  partialEditToken: string | null; // bearer token required to resume this anonymous response
   hiddenFieldValues: Record<string, string>; // hidden field values from URL params
 }
 
@@ -131,7 +61,7 @@ const slideVariants = {
   }),
 };
 
-const questionTransition = {
+const questionTransition: Transition = {
   duration: 0.5,
   ease: [0.22, 1, 0.36, 1],
 };
@@ -142,7 +72,7 @@ const fadeVariants = {
   exit: { opacity: 0, y: -20 },
 };
 
-const checkmarkVariants = {
+const checkmarkVariants: Variants = {
   hidden: { scale: 0, opacity: 0 },
   visible: {
     scale: 1,
@@ -168,6 +98,8 @@ export function FormFiller() {
   const { selectedFormId, openDashboard, shareMode } = useFormStore();
 
   const [showConfetti, setShowConfetti] = useState(false);
+  // Tracks the current anonymous draft across renders without exposing it in UI.
+  const partialResponseRef = useRef<string | null>(null);
 
   const [state, setState] = useState<FillerState>({
     form: null,
@@ -180,6 +112,7 @@ export function FormFiller() {
     errorMessage: '',
     activeEnding: null,
     partialResponseId: null,
+    partialEditToken: null,
     hiddenFieldValues: {},
   });
 
@@ -202,6 +135,7 @@ export function FormFiller() {
 
   // Reset form for "Submit another response"
   const handleSubmitAnother = useCallback(() => {
+    partialResponseRef.current = null;
     setState((prev) => ({
       ...prev,
       form: prev.form,
@@ -214,6 +148,7 @@ export function FormFiller() {
       errorMessage: '',
       activeEnding: null,
       partialResponseId: null,
+      partialEditToken: null,
     }));
   }, []);
 
@@ -300,18 +235,8 @@ export function FormFiller() {
     return () => { cancelled = true; };
   }, [selectedFormId]);
 
-  // Sorted questions (exclude ending type, those are handled by the ending screen)
-  const questions = useMemo(() => {
-    if (!state.form) return [];
-    return state.form.questions
-      .filter((q) => q.type !== 'ending')
-      .sort((a, b) => a.order - b.order);
-  }, [state.form]);
-
-  const currentQuestion = useMemo(() => {
-    if (state.currentIndex < 0 || state.currentIndex >= questions.length) return null;
-    return questions[state.currentIndex];
-  }, [state.currentIndex, questions]);
+  const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
+  const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
 
   // ── Submit ──
   // Use a ref to always have the latest answers (avoids stale closure)
@@ -328,281 +253,81 @@ export function FormFiller() {
 
   const handleSubmit = useCallback(async () => {
     const currentForm = formRef.current;
-    const currentAnswers = answersRef.current;
     if (!currentForm) return;
-
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    // In preview mode with unpublished form, skip API call and show ending directly
+    // Draft preview intentionally never creates a production response.
     if (!shareMode && !currentForm.published) {
-      // Simulate a brief delay then show ending screen
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
       setShowConfetti(true);
       return;
     }
 
-    const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
-      questionId,
-      value,
-    }));
-
-    // Include hidden field values in answers (using hidden field ID as questionId prefix)
-    const hiddenFieldAnswers = Object.entries(state.hiddenFieldValues).map(([fieldId, value]) => ({
-      questionId: `__hidden_${fieldId}`,
-      value,
-    }));
-
-    try {
-      const res = await fetch(`/api/forms/${currentForm.id}/responses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: [...answerList, ...hiddenFieldAnswers],
-          metadata: {
-            submittedAt: new Date().toISOString(),
-          },
-        }),
-      });
-
-      if (res.ok) {
-        // Mark partial response as complete if we have one
-        setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null, partialResponseId: null }));
-        setShowConfetti(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setState((s) => ({
-          ...s,
-          screen: 'error',
-          errorMessage: data.error || 'Something went wrong submitting your response.',
-        }));
-      }
-    } catch {
-      setState((s) => ({
-        ...s,
-        screen: 'error',
-        errorMessage: 'Network error. Please check your connection and try again.',
-      }));
+    const partial = state.partialResponseId && state.partialEditToken
+      ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+      : undefined;
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, state.hiddenFieldValues, partial);
+    if (!result.ok) {
+      setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
+      return;
     }
-  }, [shareMode, state.hiddenFieldValues]);
-
-  // ── Logic Evaluation ──
-
-  const evaluateLogicRule = useCallback((
-    rule: LogicRule,
-    question: FormQuestion,
-    answer: string
-  ): boolean => {
-    const { condition } = rule;
-    const { operator, value: conditionValue, field } = condition;
-
-    // is_filled and is_empty operators work for all question types
-    if (operator === 'is_filled') {
-      return !!answer && answer.trim() !== '';
-    }
-    if (operator === 'is_empty') {
-      return !answer || answer.trim() === '';
-    }
-
-    // For choice questions, the answer is the selected option ID
-    // For yes_no, the answer is "yes" or "no"
-    // For numeric types, the answer is a number string
-    // For text types, the answer is text
-
-    let answerToCompare = answer;
-
-    // For choice questions: the condition field is the option ID,
-    // and we check if the answer (option ID) matches
-    if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
-      // The answer is the selected option ID(s)
-      // If allowMultiple, answer could be comma-separated IDs
-      const selectedIds = answer.split(',').map((s: string) => s.trim());
-      if (operator === 'equals') {
-        return selectedIds.includes(field) && selectedIds.length === 1;
-      }
-      if (operator === 'not_equals') {
-        return !selectedIds.includes(field);
-      }
-      return false;
-    }
-
-    if (question.type === 'yes_no') {
-      const isYes = answer.toLowerCase() === 'yes' || answer === 'true';
-      const isNo = answer.toLowerCase() === 'no' || answer === 'false';
-      if (operator === 'equals') {
-        if (field === 'yes') return isYes;
-        if (field === 'no') return isNo;
-        return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
-      }
-      if (operator === 'not_equals') {
-        if (field === 'yes') return !isYes;
-        if (field === 'no') return !isNo;
-        return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
-      }
-      return false;
-    }
-
-    if (['rating', 'opinion_scale', 'number'].includes(question.type)) {
-      const numAnswer = parseFloat(answerToCompare);
-      const numCondition = parseFloat(conditionValue);
-      if (isNaN(numAnswer) || isNaN(numCondition)) return false;
-      switch (operator) {
-        case 'equals': return numAnswer === numCondition;
-        case 'not_equals': return numAnswer !== numCondition;
-        case 'greater_than': return numAnswer > numCondition;
-        case 'less_than': return numAnswer < numCondition;
-        default: return false;
-      }
-    }
-
-    // Text-based questions (short_text, long_text, email, phone, website, date, legal)
-    switch (operator) {
-      case 'equals': return answerToCompare.toLowerCase() === conditionValue.toLowerCase();
-      case 'not_equals': return answerToCompare.toLowerCase() !== conditionValue.toLowerCase();
-      case 'contains': return answerToCompare.toLowerCase().includes(conditionValue.toLowerCase());
-      default: return false;
-    }
-  }, []);
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null, partialResponseId: null, partialEditToken: null }));
+    setShowConfetti(true);
+  }, [shareMode, state.hiddenFieldValues, state.partialResponseId, state.partialEditToken]);
 
   // ── Navigation ──
-
   const goNext = useCallback(async () => {
     if (state.screen === 'welcome') {
       if (questions.length === 0) {
-        // Skip to ending if no questions
-        setState((s) => ({ ...s, screen: 'ending', direction: 1 }));
+        setState((current) => ({ ...current, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
-        setState((s) => ({ ...s, screen: 'question', currentIndex: 0, direction: 1 }));
+        setState((current) => ({ ...current, screen: 'question', currentIndex: 0, direction: 1 }));
       }
       return;
     }
+    if (state.screen !== 'question' || !currentQuestion) return;
 
-    if (state.screen === 'question') {
-      // Validate current answer if required - use ref for latest state
-      const currentAnswers = answersRef.current;
-      if (currentQuestion?.required) {
-        const answer = currentAnswers[currentQuestion.id];
-        if (!answer || answer.trim() === '') {
-          // Don't advance - required question not answered
-          return;
-        }
-      }
+    const answer = answersRef.current[currentQuestion.id];
+    if (!requiredAnswerIsSatisfied(currentQuestion, answer)) return;
+    const step = nextFillerStep(questions, state.currentIndex, answer || '');
+    if (step.kind === 'question') {
+      setState((current) => ({ ...current, currentIndex: step.index, direction: 1 }));
+      return;
+    }
+    if (step.kind === 'submit' || step.endingId === '__default__') {
+      handleSubmit();
+      return;
+    }
 
-      // Evaluate logic rules
-      if (currentQuestion && (currentQuestion.logic?.length > 0 || currentQuestion.settings?.jumpToQuestionId)) {
-        const currentAnswer = currentAnswers[currentQuestion.id] || '';
-
-        // Check logic rules in order
-        for (const rule of currentQuestion.logic || []) {
-          if (evaluateLogicRule(rule, currentQuestion, currentAnswer)) {
-            // Handle show_ending action type
-            if (rule.action.type === 'show_ending') {
-              const endingId = rule.action.targetQuestionId;
-              if (endingId === '__default__' || !endingId) {
-                // Show default ending
-                handleSubmit();
-                return;
-              }
-              // Find the custom ending
-              const ending = state.form?.endings?.find((e) => e.id === endingId);
-              if (ending) {
-                // Submit the form first, then show the custom ending
-                const currentForm = formRef.current;
-                const currentAnsw = answersRef.current;
-
-                if (shareMode && currentForm?.published) {
-                  // Submit response via API
-                  const answerList = Object.entries(currentAnsw).map(([questionId, value]) => ({
-                    questionId,
-                    value,
-                  }));
-                  const hiddenFieldAnswers = Object.entries(state.hiddenFieldValues).map(([fieldId, value]) => ({
-                    questionId: `__hidden_${fieldId}`,
-                    value,
-                  }));
-
-                  try {
-                    await fetch(`/api/forms/${currentForm.id}/responses`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        answers: [...answerList, ...hiddenFieldAnswers],
-                        metadata: { submittedAt: new Date().toISOString() },
-                      }),
-                    });
-                  } catch { /* still show ending */ }
-                }
-
-                setState((s) => ({
-                  ...s,
-                  screen: 'ending',
-                  direction: 1,
-                  activeEnding: ending,
-                  partialResponseId: null,
-                }));
-                setShowConfetti(true);
-                return;
-              }
-              // Fallback: submit form normally
-              handleSubmit();
-              return;
-            }
-
-            const targetId = rule.action.targetQuestionId;
-
-            // Submit form target
-            if (targetId === '__submit__') {
-              handleSubmit();
-              return;
-            }
-
-            // Find the target question index
-            const targetIndex = questions.findIndex((q) => q.id === targetId);
-            if (targetIndex !== -1) {
-              setState((s) => ({
-                ...s,
-                currentIndex: targetIndex,
-                direction: 1,
-              }));
-              return;
-            }
-          }
-        }
-
-        // No rule matched - check for default jump target
-        const jumpToQuestionId = currentQuestion.settings?.jumpToQuestionId;
-        if (jumpToQuestionId) {
-          if (jumpToQuestionId === '__submit__') {
-            handleSubmit();
-            return;
-          }
-
-          const targetIndex = questions.findIndex((q) => q.id === jumpToQuestionId);
-          if (targetIndex !== -1) {
-            setState((s) => ({
-              ...s,
-              currentIndex: targetIndex,
-              direction: 1,
-            }));
-            return;
-          }
-        }
-      }
-
-      // Default behavior: advance to next question or submit
-      if (state.currentIndex < questions.length - 1) {
-        setState((s) => ({
-          ...s,
-          currentIndex: s.currentIndex + 1,
-          direction: 1,
-        }));
-      } else {
-        // All questions done, submit
-        handleSubmit();
+    const ending = state.form?.endings?.find((candidate) => candidate.id === step.endingId);
+    if (!ending) {
+      handleSubmit();
+      return;
+    }
+    const currentForm = formRef.current;
+    if (shareMode && currentForm?.published) {
+      setState((current) => ({ ...current, screen: 'submitting', direction: 1 }));
+      const partial = state.partialResponseId && state.partialEditToken
+        ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+        : undefined;
+      const result = await submitFillerResponse(currentForm.id, answersRef.current, state.hiddenFieldValues, partial);
+      if (!result.ok) {
+        setState((current) => ({ ...current, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
+        return;
       }
     }
-  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, shareMode, evaluateLogicRule, state.form?.endings, state.hiddenFieldValues]);
+    setState((current) => ({
+      ...current,
+      screen: 'ending',
+      direction: 1,
+      activeEnding: ending,
+      partialResponseId: null,
+      partialEditToken: null,
+    }));
+    setShowConfetti(true);
+  }, [state.screen, state.currentIndex, state.form?.endings, state.hiddenFieldValues, state.partialResponseId, state.partialEditToken, questions, currentQuestion, handleSubmit, shareMode]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -699,8 +424,6 @@ export function FormFiller() {
 
   // ── Partial response saving ──
 
-  const partialResponseRef = useRef<string | null>(null);
-
   // Create partial response when form starts
   useEffect(() => {
     if (state.screen !== 'question' || !state.form || !shareMode || !state.form.published) return;
@@ -720,7 +443,7 @@ export function FormFiller() {
         if (res.ok) {
           const data = await res.json();
           partialResponseRef.current = data.id;
-          setState((s) => ({ ...s, partialResponseId: data.id }));
+          setState((s) => ({ ...s, partialResponseId: data.id, partialEditToken: data.editToken ?? null }));
         }
       } catch { /* ignore */ }
     };
@@ -730,7 +453,7 @@ export function FormFiller() {
 
   // Periodically update partial response with current answers
   useEffect(() => {
-    if (!state.partialResponseId || !state.form || !shareMode) return;
+    if (!state.partialResponseId || !state.partialEditToken || !state.form || !shareMode) return;
 
     const interval = setInterval(async () => {
       const currentAnswers = answersRef.current;
@@ -748,6 +471,7 @@ export function FormFiller() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             responseId: state.partialResponseId,
+            editToken: state.partialEditToken,
             answers: answerList,
             isPartial: true,
           }),
@@ -756,69 +480,18 @@ export function FormFiller() {
     }, 5000); // Save every 5 seconds
 
     return () => clearInterval(interval);
-  }, [state.partialResponseId, state.form, shareMode, state.scores]);
+  }, [state.partialResponseId, state.partialEditToken, state.form, shareMode, state.scores]);
 
-  // ── Keyboard shortcuts ──
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture when typing in inputs (except Enter)
-      const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-
-      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-        // Let inputs handle Enter normally (they call onAdvance from within)
-        // But for non-input elements (or welcome/ending), handle here
-        if (!isInput) {
-          e.preventDefault();
-          goNext();
-        }
-      }
-
-      if (e.key === 'Backspace' && !isInput) {
-        e.preventDefault();
-        goBack();
-      }
-
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goBack();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goNext, goBack]);
+  useFillerKeyboardNavigation(goNext, goBack);
 
   // ── Progress calculation ──
-
-  const progress = useMemo(() => {
-    if (state.screen === 'welcome') return 0;
-    if (state.screen === 'ending' || state.screen === 'submitting') return 100;
-    if (questions.length === 0) return 0;
-    return ((state.currentIndex + 1) / questions.length) * 100;
-  }, [state.screen, state.currentIndex, questions.length]);
+  const progress = useMemo(
+    () => fillerProgress(state.screen, state.currentIndex, questions.length),
+    [state.screen, state.currentIndex, questions.length]
+  );
 
   // ── Theme ──
-
-  const theme = useMemo(() => {
-    if (!state.form) {
-      return {
-        backgroundColor: '#FFFFFF',
-        textColor: '#333333',
-        buttonColor: '#1A1A1A',
-        buttonTextColor: '#FFFFFF',
-        fontFamily: 'sans',
-      };
-    }
-    return {
-      backgroundColor: state.form.backgroundColor,
-      textColor: state.form.textColor,
-      buttonColor: state.form.buttonColor,
-      buttonTextColor: state.form.buttonTextColor,
-      fontFamily: state.form.fontFamily,
-    };
-  }, [state.form]);
+  const theme = useFillerTheme(state.form);
 
   const ff = fontFamilyClass(theme.fontFamily);
 
@@ -970,7 +643,7 @@ export function FormFiller() {
       style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       {/* ── Confetti ── */}
-      {showConfetti && state.screen === 'ending' && <ConfettiParticles />}
+      {showConfetti && state.screen === 'ending' && <FillerConfetti />}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
@@ -1081,7 +754,7 @@ export function FormFiller() {
               transition={questionTransition}
               className="max-w-2xl mx-auto w-full"
             >
-              <QuestionScreen
+              <FillerQuestionScreen
                 question={currentQuestion}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
@@ -1336,118 +1009,6 @@ export function FormFiller() {
           </motion.p>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ─── Question Screen Sub-component ──────────────────────────────────── */
-
-function QuestionScreen({
-  question,
-  questionIndex,
-  totalQuestions,
-  answer,
-  onAnswerChange,
-  onAdvance,
-  theme,
-  showQuestionNumbers,
-}: {
-  question: FormQuestion;
-  questionIndex: number;
-  totalQuestions: number;
-  answer: string;
-  onAnswerChange: (value: string) => void;
-  onAdvance: () => void;
-  theme: {
-    backgroundColor: string;
-    textColor: string;
-    buttonColor: string;
-    buttonTextColor: string;
-    fontFamily: string;
-  };
-  showQuestionNumbers: boolean;
-}) {
-  const ff = fontFamilyClass(theme.fontFamily);
-  const [attemptedEmpty, setAttemptedEmpty] = useState(false);
-
-  // Derive required hint from answer and attempted state
-  const showRequiredHint = attemptedEmpty && question.required && (!answer || answer.trim() === '');
-
-  const handleAdvance = useCallback(() => {
-    if (question.required && (!answer || answer.trim() === '')) {
-      setAttemptedEmpty(true);
-      return;
-    }
-    setAttemptedEmpty(false);
-    onAdvance();
-  }, [question.required, answer, onAdvance]);
-
-  return (
-    <div className="space-y-6">
-      {/* Question number + required indicator */}
-      <div className="flex items-center gap-3">
-        {showQuestionNumbers && (
-          <span
-            className={`text-xs font-semibold uppercase tracking-wider opacity-50 ${ff}`}
-            style={{ color: theme.textColor }}
-          >
-            {questionIndex + 1} ↦ {totalQuestions}
-          </span>
-        )}
-        {question.required && (
-          <span
-            className={`text-xs font-semibold uppercase tracking-wider ${ff}`}
-            style={{ color: theme.buttonColor }}
-          >
-            Required
-          </span>
-        )}
-      </div>
-
-      {/* Question title */}
-      <h2
-        className={`text-2xl md:text-4xl font-bold leading-snug ${ff}`}
-        style={{ color: theme.textColor }}
-      >
-        {question.title}
-      </h2>
-
-      {/* Question description */}
-      {question.description && (
-        <p
-          className={`text-base md:text-lg opacity-50 ${ff}`}
-          style={{ color: theme.textColor }}
-        >
-          {question.description}
-        </p>
-      )}
-
-      {/* Answer input */}
-      <div className="pt-2">
-        <QuestionInput
-          question={question}
-          value={answer}
-          onChange={onAnswerChange}
-          onAdvance={handleAdvance}
-          theme={theme}
-          isActive={true}
-        />
-      </div>
-
-      {/* Required hint */}
-      <AnimatePresence>
-        {showRequiredHint && (
-          <motion.p
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            className="text-sm font-medium"
-            style={{ color: theme.buttonColor }}
-          >
-            This question requires an answer
-          </motion.p>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

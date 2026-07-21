@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { serializeResponse } from '@/lib/api-serialization';
 import { submitResponseSchema } from '@/lib/validations';
 import { z } from 'zod';
+import { randomBytes } from 'crypto';
 
 // Schema for creating partial responses
 const createPartialResponseSchema = z.object({
@@ -19,6 +20,7 @@ const createPartialResponseSchema = z.object({
 // Schema for updating partial responses (PUT)
 const updatePartialResponseSchema = z.object({
   responseId: z.string().min(1),
+  editToken: z.string().min(32).max(256),
   answers: z.array(z.object({
     questionId: z.string().min(1),
     value: z.string().max(10000),
@@ -27,6 +29,65 @@ const updatePartialResponseSchema = z.object({
   completedAt: z.string().nullable().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
+
+function answersBelongToForm(
+  answers: Array<{ questionId: string }>,
+  questionIds: Set<string>
+): boolean {
+  const seen = new Set<string>();
+  return answers.every((answer) => {
+    if (!questionIds.has(answer.questionId) || seen.has(answer.questionId)) return false;
+    seen.add(answer.questionId);
+    return true;
+  });
+}
+
+function validateAnswerValues(
+  answers: Array<{ questionId: string; value: string }>,
+  questions: Array<{ id: string; type: string; options: string; settings: string }>
+): string | null {
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+
+  for (const answer of answers) {
+    const question = questionMap.get(answer.questionId);
+    if (!question) return 'One or more answers do not belong to this form';
+    const value = answer.value.trim();
+    if (!value) continue; // Requiredness is enforced by the filler navigation.
+
+    let settings: Record<string, unknown> = {};
+    let options: Array<{ id: string }> = [];
+    try {
+      settings = JSON.parse(question.settings || '{}');
+      options = JSON.parse(question.options || '[]');
+    } catch {
+      return 'This form contains invalid question configuration';
+    }
+
+    if (question.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please provide a valid email address';
+    if (question.type === 'phone' && !/^\+?[0-9()\s.-]{7,25}$/.test(value)) return 'Please provide a valid phone number';
+    if (question.type === 'website') {
+      try {
+        const url = new URL(value);
+        if (!['http:', 'https:'].includes(url.protocol)) return 'Please provide a valid website URL';
+      } catch { return 'Please provide a valid website URL'; }
+    }
+    if (question.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'Please provide a valid date';
+    if (['number', 'rating', 'opinion_scale'].includes(question.type)) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 'Please provide a valid number';
+      const min = typeof settings.min === 'number' ? settings.min : undefined;
+      const max = typeof settings.max === 'number' ? settings.max : undefined;
+      if ((min !== undefined && numeric < min) || (max !== undefined && numeric > max)) return 'Answer is outside the allowed range';
+    }
+    if (question.type === 'legal' && value !== 'true') return 'Legal consent must be accepted';
+    if (question.type === 'yes_no' && !['yes', 'no', 'true', 'false'].includes(value.toLowerCase())) return 'Please select Yes or No';
+    if (['multiple_choice', 'picture_choice', 'dropdown'].includes(question.type)) {
+      const selected = value.split(',').map((item) => item.trim());
+      if (selected.some((optionId) => !options.some((option) => option.id === optionId))) return 'Please select a valid option';
+    }
+  }
+  return null;
+}
 
 // GET /api/forms/[id]/responses - List responses for a form (protected)
 export async function GET(
@@ -210,6 +271,14 @@ export async function POST(
       if (!form) {
         return NextResponse.json({ error: 'Form not found' }, { status: 404 });
       }
+      if (!form.published) {
+        return NextResponse.json({ error: 'Form is not published' }, { status: 400 });
+      }
+      if (!answersBelongToForm(data.answers, new Set(form.questions.map((q) => q.id)))) {
+        return NextResponse.json({ error: 'One or more answers do not belong to this form' }, { status: 400 });
+      }
+      const answerValidationError = validateAnswerValues(data.answers, form.questions);
+      if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
 
       // Build a question lookup for scoring
       const questionMap = new Map(form.questions.map((q) => [q.id, q]));
@@ -237,6 +306,7 @@ export async function POST(
             completedAt: null,
             metadata: JSON.stringify(data.metadata || {}),
             score: totalScore,
+            editToken: randomBytes(32).toString('base64url'),
           },
         });
 
@@ -261,8 +331,10 @@ export async function POST(
         });
       });
 
+      // Return the anonymous resume token only to the request that created it.
+      // `serializeResponse` deliberately strips it from owner-facing listings.
       return NextResponse.json(
-        serializeResponse(result!),
+        { ...serializeResponse(result!), editToken: result!.editToken },
         { status: 201 }
       );
     }
@@ -289,6 +361,11 @@ export async function POST(
     if (!form.published) {
       return NextResponse.json({ error: 'Form is not published' }, { status: 400 });
     }
+    if (!answersBelongToForm(data.answers, new Set(form.questions.map((q) => q.id)))) {
+      return NextResponse.json({ error: 'One or more answers do not belong to this form' }, { status: 400 });
+    }
+    const answerValidationError = validateAnswerValues(data.answers, form.questions);
+    if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
 
     // Enforce closeDate
     if (form.closeDate && new Date() > new Date(form.closeDate)) {
@@ -315,15 +392,27 @@ export async function POST(
       }
     }
 
-    // Wrap response + answers creation in a transaction
+    // Wrap response + answers creation in a transaction. PostgreSQL advisory lock
+    // serializes submissions for this form, so an aggregate count cannot be read
+    // concurrently by two transactions that then both insert past the cap.
     const result = await db.$transaction(async (tx) => {
-      // Enforce maxResponses atomically inside the transaction
-      if (form.maxResponses > 0) {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      const lockedForm = await tx.form.findUnique({
+        where: { id },
+        select: { maxResponses: true, published: true, closeDate: true },
+      });
+      if (!lockedForm || !lockedForm.published) {
+        throw new Error('FORM_CLOSED');
+      }
+      if (lockedForm.closeDate && new Date() > lockedForm.closeDate) {
+        throw new Error('FORM_CLOSED');
+      }
+      if (lockedForm.maxResponses > 0) {
         const currentResponseCount = await tx.response.count({
-          where: { formId: id },
+          where: { formId: id, isPartial: false },
         });
-        if (currentResponseCount >= form.maxResponses) {
-          throw new Error(`LIMIT_REACHED:${form.maxResponses}`);
+        if (currentResponseCount >= lockedForm.maxResponses) {
+          throw new Error(`LIMIT_REACHED:${lockedForm.maxResponses}`);
         }
       }
 
@@ -361,6 +450,9 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Error && error.message === 'FORM_CLOSED') {
+      return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
+    }
     if (error instanceof Error && error.message.startsWith('LIMIT_REACHED:')) {
       const limit = error.message.split(':')[1];
       return NextResponse.json(
@@ -402,8 +494,27 @@ export async function PUT(
     const existingResponse = await db.response.findUnique({
       where: { id: data.responseId },
     });
-    if (!existingResponse || existingResponse.formId !== id) {
+    if (!existingResponse || existingResponse.formId !== id || !existingResponse.isPartial) {
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
+    }
+    if (!existingResponse.editToken || existingResponse.editToken !== data.editToken) {
+      // Do not reveal whether the response ID exists to an unauthorised caller.
+      return NextResponse.json({ error: 'Response not found' }, { status: 404 });
+    }
+
+    const formForUpdate = await db.form.findUnique({
+      where: { id },
+      include: { questions: true },
+    });
+    if (!formForUpdate || !formForUpdate.published) {
+      return NextResponse.json({ error: 'Form is not accepting responses' }, { status: 400 });
+    }
+    if (data.answers && !answersBelongToForm(data.answers, new Set(formForUpdate.questions.map((q) => q.id)))) {
+      return NextResponse.json({ error: 'One or more answers do not belong to this form' }, { status: 400 });
+    }
+    if (data.answers) {
+      const answerValidationError = validateAnswerValues(data.answers, formForUpdate.questions);
+      if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
     }
 
     // Update the response

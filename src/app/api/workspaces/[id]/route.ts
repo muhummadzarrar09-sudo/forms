@@ -26,6 +26,8 @@ export async function GET(
           include: {
             _count: { select: { responses: true } },
             questions: { orderBy: { order: 'asc' } },
+            endings: { orderBy: { order: 'asc' } },
+            workspace: true,
           },
         },
       },

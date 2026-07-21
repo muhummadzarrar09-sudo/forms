@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useFormStore } from '@/store/form-store';
 import { Dashboard } from '@/components/forms/dashboard';
@@ -18,31 +18,46 @@ function HomeContent() {
   const setSelectedFormId = useFormStore((s) => s.setSelectedFormId);
   const setShareMode = useFormStore((s) => s.setShareMode);
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Handle URL query parameters for shareable links
+  // Keep the visible view synchronized with the URL. Store navigation writes a
+  // history entry; browser Back/Forward changes this URL and restores the
+  // corresponding in-app view instead of leaving the app.
   useEffect(() => {
     const formId = searchParams.get('form');
-    const previewId = searchParams.get('preview');
+    const view = searchParams.get('view');
 
+    if (formId && view === 'builder') {
+      setSelectedFormId(formId);
+      setCurrentView('builder');
+      setShareMode(false);
+      return;
+    }
+    if (formId && view === 'responses') {
+      setSelectedFormId(formId);
+      setCurrentView('responses');
+      setShareMode(false);
+      return;
+    }
+    if (formId && view === 'preview') {
+      setSelectedFormId(formId);
+      setCurrentView('fill');
+      setShareMode(false);
+      return;
+    }
     if (formId) {
-      // Shareable link mode - open the form in fill mode with shareMode=true
-      // This does NOT require authentication — anyone can fill a shared form
+      // Legacy public ID links remain supported during the transition. New
+      // public links use /f/:slug and bypass this authenticated shell.
       setSelectedFormId(formId);
       setCurrentView('fill');
       setShareMode(true);
-      // Clean up URL params
-      router.replace('/', { scroll: false });
-    } else if (previewId) {
-      // Preview mode - same as fill but for internal use (shareMode=false)
-      setSelectedFormId(previewId);
-      setCurrentView('fill');
-      setShareMode(false);
-      // Clean up URL params
-      router.replace('/', { scroll: false });
+      return;
     }
-  }, [searchParams, setCurrentView, setSelectedFormId, setShareMode, router]);
+
+    setSelectedFormId(null);
+    setCurrentView('dashboard');
+    setShareMode(false);
+  }, [searchParams, setCurrentView, setSelectedFormId, setShareMode]);
 
   // If in share/preview mode (fill view), show the form filler regardless of auth
   if (currentView === 'fill') {
