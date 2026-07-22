@@ -26,11 +26,22 @@ import {
   getQuestionTypeIcon,
 } from '@/lib/form-helpers';
 import { QuestionEditor } from '@/components/forms/question-editor';
+import { BuilderFormPreview } from '@/components/forms/builder-form-preview';
 import { QuestionTypePicker } from '@/components/forms/question-type-picker';
 import { DesignPanel } from '@/components/forms/design-panel';
 import { ShareDialog } from '@/components/forms/share-dialog';
 import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -84,6 +95,7 @@ import {
   Download,
   Keyboard,
   Heart,
+  Pencil,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getQuestionTypeColor } from '@/lib/constants';
@@ -155,7 +167,9 @@ export function FormBuilder() {
   }, []);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showAssetSetupDialog, setShowAssetSetupDialog] = useState(false);
   const [showEndingScreen, setShowEndingScreen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<'editor' | 'preview'>('editor');
   const [formTitle, setFormTitle] = useState('');
   const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
 
@@ -307,6 +321,10 @@ export function FormBuilder() {
     [sortedQuestions, selectedQuestionId]
   );
 
+  const assetContactSetupQuestion = useMemo(() => sortedQuestions.find((question) =>
+    question.settings.requiresAssetContactSetup && /\[your (WhatsApp|Instagram)/i.test(question.description)
+  ) || null, [sortedQuestions]);
+
   // ── Drag & Drop ──
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -390,6 +408,10 @@ export function FormBuilder() {
   // ── Publish ──
   const handlePublish = useCallback(async () => {
     if (!currentForm) return;
+    if (!currentForm.published && assetContactSetupQuestion) {
+      setShowAssetSetupDialog(true);
+      return;
+    }
     const newPublished = !currentForm.published;
     updateForm(currentForm.id, { published: newPublished });
     await saveFormSettings({ published: newPublished });
@@ -399,7 +421,7 @@ export function FormBuilder() {
         ? 'Your form is now live and accepting responses.'
         : 'Your form is now in draft mode.',
     });
-  }, [currentForm, updateForm, saveFormSettings]);
+  }, [currentForm, assetContactSetupQuestion, updateForm, saveFormSettings]);
 
   // ── Export JSON ──
   const handleExportJSON = useCallback(() => {
@@ -489,10 +511,10 @@ export function FormBuilder() {
         return;
       }
 
-      // Ctrl+P / Cmd+P - Preview form
+      // Ctrl+P / Cmd+P - Toggle embedded preview without leaving the builder.
       if (e.key === 'p' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        if (currentForm) openFiller(currentForm.id);
+        setWorkspaceMode((mode) => mode === 'editor' ? 'preview' : 'editor');
         return;
       }
 
@@ -613,6 +635,32 @@ export function FormBuilder() {
           </button>
         </div>
 
+        {/* Workspace mode: embedded local preview prevents the builder from becoming congested. */}
+        <div className="hidden items-center rounded-lg border bg-muted/40 p-0.5 sm:flex" role="tablist" aria-label="Builder workspace mode">
+          <Button
+            type="button"
+            size="sm"
+            variant={workspaceMode === 'editor' ? 'secondary' : 'ghost'}
+            className="h-7 gap-1.5 px-2.5 text-xs"
+            role="tab"
+            aria-selected={workspaceMode === 'editor'}
+            onClick={() => setWorkspaceMode('editor')}
+          >
+            <Pencil className="size-3.5" /> Editor
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={workspaceMode === 'preview' ? 'secondary' : 'ghost'}
+            className="h-7 gap-1.5 px-2.5 text-xs"
+            role="tab"
+            aria-selected={workspaceMode === 'preview'}
+            onClick={() => setWorkspaceMode('preview')}
+          >
+            <Eye className="size-3.5" /> Preview
+          </Button>
+        </div>
+
         {/* Saving indicator - pulsing dot */}
         {isSaving && (
           <span className="flex items-center gap-1.5">
@@ -635,7 +683,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 lg:hidden"
+                  className={`size-8 lg:hidden ${workspaceMode === 'preview' ? 'invisible pointer-events-none' : ''}`}
                   onClick={() => setShowRightPanel(!showRightPanel)}
                   aria-label={showRightPanel ? 'Close settings panel' : 'Open settings panel'}
                 >
@@ -643,6 +691,21 @@ export function FormBuilder() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Toggle settings panel</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 sm:hidden"
+                  onClick={() => setWorkspaceMode((mode) => mode === 'editor' ? 'preview' : 'editor')}
+                  aria-label={workspaceMode === 'editor' ? 'Switch to embedded preview' : 'Switch to editor'}
+                >
+                  {workspaceMode === 'editor' ? <Eye className="size-3.5" /> : <Pencil className="size-3.5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{workspaceMode === 'editor' ? 'Preview' : 'Editor'}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -669,10 +732,10 @@ export function FormBuilder() {
                   onClick={() => openFiller(currentForm.id)}
                 >
                   <Eye className="size-3.5" />
-                  Preview
+                  Test form
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Preview form as respondent</TooltipContent>
+              <TooltipContent>Open the full respondent test experience</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -731,7 +794,7 @@ export function FormBuilder() {
               </DropdownMenuItem>
               <DropdownMenuItem className="sm:hidden" onClick={() => openFiller(currentForm.id)}>
                 <Eye className="size-4 mr-2" />
-                Preview
+                Test form
               </DropdownMenuItem>
               <DropdownMenuSeparator className="sm:hidden" />
               <DropdownMenuItem onClick={() => selectedQuestion && handleDuplicateQuestion(selectedQuestion)}>
@@ -768,7 +831,7 @@ export function FormBuilder() {
       {/* ── Main Content: 3 columns ── */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Mobile left panel overlay */}
-        {showLeftPanel && (
+        {workspaceMode === 'editor' && showLeftPanel && (
           <div
             className="fixed inset-0 bg-black/40 z-30 md:hidden"
             onClick={() => setShowLeftPanel(false)}
@@ -777,7 +840,7 @@ export function FormBuilder() {
 
         {/* ── Left Panel: Question List ── */}
         <div className={`w-64 border-r bg-muted/30 flex flex-col shrink-0 z-40 transition-transform duration-200 ${
-          showLeftPanel ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          workspaceMode === 'preview' ? 'hidden' : showLeftPanel ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } fixed md:relative h-[calc(100vh-3rem)] md:h-auto`}>
           {/* Welcome Screen item */}
           <div className="px-3 pt-3 pb-0.5">
@@ -876,8 +939,10 @@ export function FormBuilder() {
         </div>
 
         {/* ── Center Panel: Question Editor / Preview ── */}
-        <div className="flex-1 overflow-hidden min-w-0 bg-muted/20 builder-dot-grid">
-          {selectedQuestion ? (
+        <div className={`flex-1 overflow-hidden min-w-0 ${workspaceMode === 'preview' ? '' : 'bg-muted/20 builder-dot-grid'}`}>
+          {workspaceMode === 'preview' ? (
+            <BuilderFormPreview form={currentForm} />
+          ) : selectedQuestion ? (
             <QuestionEditor
               key={selectedQuestion.id}
               question={selectedQuestion}
@@ -903,7 +968,7 @@ export function FormBuilder() {
 
         {/* ── Right Panel: Settings / Design ── */}
         <AnimatePresence>
-          {showRightPanel && (
+          {workspaceMode === 'editor' && showRightPanel && (
             <>
               {/* Mobile overlay for right panel */}
               <div
@@ -933,6 +998,42 @@ export function FormBuilder() {
         onClose={() => setShowTypePicker(false)}
         onSelect={handleAddQuestion}
       />
+
+      <AlertDialog open={showAssetSetupDialog} onOpenChange={setShowAssetSetupDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finish your asset fallback contact details</AlertDialogTitle>
+            <AlertDialogDescription>
+              This imported form still contains WhatsApp/Instagram placeholders for people who cannot share an asset link. Add your own contact details before publishing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!assetContactSetupQuestion) return;
+                setWorkspaceMode('editor');
+                setShowRightPanel(true);
+                setShowEndingScreen(false);
+                setSelectedQuestionId(assetContactSetupQuestion.id);
+              }}
+            >
+              Take me to the question
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={async () => {
+                if (!currentForm) return;
+                updateForm(currentForm.id, { published: true });
+                await saveFormSettings({ published: true });
+                toast({ title: 'Form published with asset placeholders', description: 'Remember to update the fallback contact details.' });
+              }}
+            >
+              Publish anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Share Dialog */}
       <ShareDialog
@@ -1433,7 +1534,7 @@ function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
           transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
           className="text-muted-foreground/50"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto rotate-180">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
             <path d="M12 5v14" />
             <path d="m19 12-7 7-7-7" />
           </svg>

@@ -61,6 +61,14 @@ export interface QuestionSettings {
   scoreValues?: Record<string, number>; // optionId -> score value for choice questions
   correctAnswer?: string; // correct answer value for scoring
   points?: number; // points for correct answer
+  // Import V2: show this question only when a prior answer matches.
+  visibility?: {
+    questionId: string;
+    equals: string;
+  };
+  // Import V2: this link-based asset field still has owner contact placeholders
+  // that must be edited before publish.
+  requiresAssetContactSetup?: boolean;
 }
 
 export interface FormQuestion {

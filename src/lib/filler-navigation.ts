@@ -17,6 +17,13 @@ export function getCurrentQuestion(questions: FormQuestion[], index: number): Fo
   return index >= 0 && index < questions.length ? questions[index] : null;
 }
 
+export function isQuestionVisible(question: FormQuestion, answers: Record<string, string>): boolean {
+  const visibility = question.settings.visibility;
+  if (!visibility) return true;
+  const answer = answers[visibility.questionId] || '';
+  return answer.split(',').map((value) => value.trim()).includes(visibility.equals);
+}
+
 export function requiredAnswerIsSatisfied(question: FormQuestion | null, answer: string | undefined): boolean {
   if (!question?.required) return true;
   if (question.type === 'legal') return answer === 'true';
@@ -26,7 +33,8 @@ export function requiredAnswerIsSatisfied(question: FormQuestion | null, answer:
 export function nextFillerStep(
   questions: FormQuestion[],
   currentIndex: number,
-  answer: string
+  answer: string,
+  answers: Record<string, string> = {}
 ): FillerStep {
   const question = getCurrentQuestion(questions, currentIndex);
   if (!question) return { kind: 'submit' };
@@ -38,9 +46,10 @@ export function nextFillerStep(
     const targetIndex = questions.findIndex((candidate) => candidate.id === action.targetQuestionId);
     if (targetIndex !== -1) return { kind: 'question', index: targetIndex };
   }
-  return currentIndex >= questions.length - 1
-    ? { kind: 'submit' }
-    : { kind: 'question', index: currentIndex + 1 };
+  for (let index = currentIndex + 1; index < questions.length; index++) {
+    if (isQuestionVisible(questions[index], answers)) return { kind: 'question', index };
+  }
+  return { kind: 'submit' };
 }
 
 export function fillerProgress(screen: string, currentIndex: number, totalQuestions: number): number {

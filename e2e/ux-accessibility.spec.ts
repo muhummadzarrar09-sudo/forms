@@ -66,4 +66,9 @@ test('mobile builder starts focused and opens its settings drawer without horizo
   await page.getByRole('button', { name: 'Open settings panel' }).click();
   await expect(page.getByText(/conditional logic/i)).toBeVisible();
   await page.screenshot({ path: 'test-results/mobile-builder-settings.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Switch to embedded preview' }).click();
+  await expect(page.getByLabel('Embedded form preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Switch to editor' }).click();
+  await expect(page.getByRole('button', { name: 'Open settings panel' })).toBeVisible();
 });

@@ -195,7 +195,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
 
     const answer = answersRef.current[currentQuestion.id];
     if (!requiredAnswerIsSatisfied(currentQuestion, answer)) return;
-    const step = nextFillerStep(questions, state.currentIndex, answer || '');
+    const step = nextFillerStep(questions, state.currentIndex, answer || '', answersRef.current);
     if (step.kind === 'ending') {
       handleSubmitWithEnding(step.endingId);
     } else if (step.kind === 'submit') {

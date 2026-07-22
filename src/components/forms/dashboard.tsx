@@ -69,6 +69,7 @@ import {
   Newspaper,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useSession } from 'next-auth/react';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -82,6 +83,7 @@ import { FormCard } from '@/components/forms/form-card';
 import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { NotificationBell } from '@/components/forms/notification-bell';
 import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
+import { convertCatalogIntake } from '@/lib/catalog-intake-import';
 
 type SortOption = 'newest' | 'oldest' | 'title' | 'responses';
 type FilterOption = 'all' | 'favorites' | 'archived';
@@ -203,6 +205,9 @@ export function Dashboard() {
   } = useFormStore();
 
   const { theme, setTheme } = useTheme();
+  const { data: session } = useSession();
+  const displayName = session?.user?.name?.trim() || session?.user?.email?.split('@')[0] || 'Account';
+  const avatarInitial = displayName.charAt(0).toUpperCase();
   const [mounted, setMounted] = useState(false);
 
   // Avoid hydration mismatch
@@ -223,6 +228,8 @@ export function Dashboard() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeNav, setActiveNav] = useState('home');
+  const [showThemeDialog, setShowThemeDialog] = useState(false);
+  const [showResourcesDialog, setShowResourcesDialog] = useState(false);
 
   // Workspace state
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
@@ -242,6 +249,7 @@ export function Dashboard() {
   const [importJsonText, setImportJsonText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
 
   // Keyboard shortcuts state
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
@@ -491,6 +499,18 @@ export function Dashboard() {
     setDialogStep('details');
   }, []);
 
+  // Open a template from the dedicated Templates destination.
+  const handleStartFromTemplate = useCallback((templateId: string) => {
+    const template = FORM_TEMPLATES.find((item) => item.id === templateId);
+    if (!template) return;
+    setSelectedTemplateId(template.id);
+    setNewFormTitle(template.title);
+    setNewFormDescription(template.description);
+    setNewFormWorkspaceId(activeWorkspaceId);
+    setDialogStep('details');
+    setShowNewFormDialog(true);
+  }, [activeWorkspaceId]);
+
   // Create new form with optional template
   const handleCreateForm = useCallback(async () => {
     if (!newFormTitle.trim()) {
@@ -527,6 +547,8 @@ export function Dashboard() {
           try {
             const questionsPayload = selectedTemplate.questions.map(
               (q, index) => ({
+                // Stable client IDs allow question logic to reference questions in this atomic save.
+                id: `temp_template_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
                 type: q.type,
                 title: q.title,
                 description: q.description || '',
@@ -687,6 +709,10 @@ export function Dashboard() {
     }
 
     const data = parsed as Record<string, unknown>;
+    const catalogImport = convertCatalogIntake(parsed);
+    const normalizedForm = catalogImport?.form;
+    const normalizedQuestions = catalogImport?.questions;
+    setImportWarnings(catalogImport?.warnings || []);
     setIsImporting(true);
     try {
       // Create the form
@@ -694,12 +720,12 @@ export function Dashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: data.title,
-          description: data.description || '',
-          welcomeTitle: data.welcomeTitle || '',
-          welcomeMessage: data.welcomeMessage || '',
-          endingTitle: data.endingTitle || '',
-          endingMessage: data.endingMessage || '',
+          title: normalizedForm?.title || data.title,
+          description: normalizedForm?.description || data.description || '',
+          welcomeTitle: normalizedForm?.welcomeTitle || data.welcomeTitle || '',
+          welcomeMessage: normalizedForm?.welcomeMessage || data.welcomeMessage || '',
+          endingTitle: normalizedForm?.endingTitle || data.endingTitle || '',
+          endingMessage: normalizedForm?.endingMessage || data.endingMessage || '',
           theme: data.theme || 'default',
           backgroundColor: data.backgroundColor || '#FFFFFF',
           textColor: data.textColor || '#333333',
@@ -720,34 +746,38 @@ export function Dashboard() {
 
       const createdForm = await formRes.json();
 
-      // Add questions if present
-      const questions = data.questions as Record<string, unknown>[];
-      if (questions.length > 0) {
-        const questionsPayload = questions.map((q, index) => ({
-          type: q.type,
-          title: q.title,
-          description: q.description || '',
-          required: q.required || false,
-          order: index,
-          options: Array.isArray(q.options)
-            ? q.options.map((opt: unknown, optIdx: number) => {
-                if (typeof opt === 'string') {
-                  return { id: `opt_${Date.now()}_${optIdx}`, label: opt };
-                }
-                const optObj = opt as Record<string, unknown>;
-                return { id: (optObj.id as string) || `opt_${Date.now()}_${optIdx}`, label: optObj.label as string };
-              })
-            : [],
-          imageUrls: [],
-          settings: (q.settings as Record<string, unknown>) || {},
-          placeholder: (q.placeholder as string) || '',
-        }));
+      // Catalog Intake V2 uses the normalized section, visibility, multi-select,
+      // Other-follow-up, and asset-link questions. Generic JSON still imports.
+      const genericQuestions = data.questions as Record<string, unknown>[];
+      const questionsPayload = normalizedQuestions || genericQuestions.map((q, index) => ({
+        id: typeof q.id === 'string' && q.id ? q.id : `temp_import_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
+        type: q.type,
+        title: q.title,
+        description: q.description || '',
+        required: q.required || false,
+        order: index,
+        options: Array.isArray(q.options)
+          ? q.options.map((opt: unknown, optIdx: number) => {
+              if (typeof opt === 'string') return { id: `opt_${Date.now()}_${optIdx}`, label: opt };
+              const optObj = opt as Record<string, unknown>;
+              return { id: (optObj.id as string) || `opt_${Date.now()}_${optIdx}`, label: optObj.label as string };
+            })
+          : [],
+        imageUrls: [],
+        settings: (q.settings as Record<string, unknown>) || {},
+        logic: [],
+        placeholder: (q.placeholder as string) || '',
+      }));
 
-        await fetch(`/api/forms/${createdForm.id}/questions`, {
+      if (questionsPayload.length > 0) {
+        const questionsRes = await fetch(`/api/forms/${createdForm.id}/questions`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questions: questionsPayload }),
         });
+        if (!questionsRes.ok) {
+          throw new Error('Failed to import questions');
+        }
       }
 
       addForm(createdForm);
@@ -755,8 +785,10 @@ export function Dashboard() {
       setImportJsonText('');
       setImportError('');
       toast({
-        title: 'Form imported',
-        description: `"${createdForm.title}" has been imported successfully.`,
+        title: catalogImport ? 'Catalog intake imported' : 'Form imported',
+        description: catalogImport?.warnings.length
+          ? `"${createdForm.title}" is ready. Review the asset-link contact placeholders before publishing.`
+          : `"${createdForm.title}" has been imported successfully.`,
       });
     } catch {
       setImportError('Network error. Could not import the form.');
@@ -904,7 +936,10 @@ export function Dashboard() {
           {navItems.map(({ key, label, Icon }) => (
             <button
               key={key}
-              onClick={() => setActiveNav(key)}
+              onClick={() => {
+                setActiveNav(key);
+                setMobileSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-all relative ${
                 sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
               } ${
@@ -1055,12 +1090,12 @@ export function Dashboard() {
             sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
           }`}>
             <div className="size-8 rounded-full bg-gradient-to-br from-primary/60 to-primary/30 flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-primary-foreground">U</span>
+              <span className="text-xs font-bold text-primary-foreground">{avatarInitial}</span>
             </div>
             {sidebarExpanded && (
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">User</p>
-                <p className="text-[10px] text-muted-foreground truncate">Free plan</p>
+                <p className="text-sm font-medium truncate">{displayName}</p>
+                <p className="text-[10px] text-muted-foreground truncate">Personal workspace</p>
               </div>
             )}
           </div>
@@ -1127,6 +1162,14 @@ export function Dashboard() {
 
       {/* Main content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 dashboard-grid-bg">
+        {activeNav === 'templates' ? (
+          <DashboardTemplates onSelectTemplate={handleStartFromTemplate} />
+        ) : activeNav === 'themes' ? (
+          <DashboardAppearance theme={theme} onThemeChange={setTheme} />
+        ) : activeNav === 'resources' ? (
+          <DashboardResources onOpenShortcuts={() => setShowKeyboardShortcuts(true)} />
+        ) : (
+          <>
         {/* Welcome Section */}
         {!isLoading && forms.length > 0 && (
           <motion.div
@@ -1458,6 +1501,8 @@ export function Dashboard() {
             </motion.div>
           </AnimatePresence>
         )}
+          </>
+        )}
       </main>
 
       {/* Footer */}
@@ -1527,6 +1572,14 @@ export function Dashboard() {
             {importError && (
               <p className="text-sm text-destructive">{importError}</p>
             )}
+            {importWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-semibold text-foreground">Import notes</p>
+                <ul className="list-disc space-y-1 pl-4">
+                  {importWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
@@ -1555,6 +1608,56 @@ export function Dashboard() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Theme controls opened from the live sidebar item */}
+      <Dialog open={showThemeDialog} onOpenChange={setShowThemeDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Appearance</DialogTitle>
+            <DialogDescription>Choose how the creator workspace looks on this device.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-2">
+            {([
+              { value: 'light', label: 'Light', Icon: Sun },
+              { value: 'dark', label: 'Dark', Icon: Moon },
+              { value: 'system', label: 'System', Icon: Monitor },
+            ] as const).map(({ value, label, Icon }) => (
+              <Button
+                key={value}
+                variant={theme === value ? 'default' : 'outline'}
+                className="h-auto flex-col gap-2 py-4"
+                onClick={() => { setTheme(value); setShowThemeDialog(false); }}
+              >
+                <Icon className="size-5" />
+                {label}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resources are actionable help, not a dead navigation shell. */}
+      <Dialog open={showResourcesDialog} onOpenChange={setShowResourcesDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resources</DialogTitle>
+            <DialogDescription>Quick help for building and testing a form.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => { setShowResourcesDialog(false); setShowKeyboardShortcuts(true); }}>
+              <Keyboard className="size-4" /> Keyboard shortcuts
+            </Button>
+            <a
+              href="https://github.com/muhummadzarrar09-sudo/forms"
+              target="_blank"
+              rel="noreferrer"
+              className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+            >
+              <BookOpen className="size-4" /> Project documentation &amp; source
+            </a>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1890,5 +1993,94 @@ function TemplateCard({
         </div>
       )}
     </motion.button>
+  );
+}
+
+function DashboardTemplates({ onSelectTemplate }: { onSelectTemplate: (templateId: string) => void }) {
+  return (
+    <section className="space-y-6">
+      <div className="max-w-2xl space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Start with momentum</p>
+        <h1 className="text-3xl font-bold tracking-tight">Templates</h1>
+        <p className="text-muted-foreground">Choose a proven structure, then make it yours. Every template remains fully editable.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {FORM_TEMPLATES.map((template) => {
+          const Icon = ICON_MAP[template.icon] || FileText;
+          return (
+            <button
+              key={template.id}
+              onClick={() => onSelectTemplate(template.id)}
+              className="group rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+            >
+              <div className="mb-5 flex items-start justify-between">
+                <div className="flex size-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${template.color}18`, color: template.color }}>
+                  <Icon className="size-5" />
+                </div>
+                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+              </div>
+              <h2 className="font-semibold">{template.title}</h2>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{template.description}</p>
+              <p className="mt-4 text-xs font-medium text-muted-foreground">{template.questions.length} questions · Use template</p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function DashboardAppearance({ theme, onThemeChange }: { theme?: string; onThemeChange: (theme: string) => void }) {
+  const options = [
+    { value: 'light', title: 'Light', description: 'Clean and editorial for bright workspaces.', Icon: Sun },
+    { value: 'dark', title: 'Dark', description: 'Focused low-light workspace with strong contrast.', Icon: Moon },
+    { value: 'system', title: 'System', description: 'Follow your operating system preference.', Icon: Monitor },
+  ];
+  return (
+    <section className="space-y-6">
+      <div className="max-w-2xl space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Your workspace</p>
+        <h1 className="text-3xl font-bold tracking-tight">Appearance</h1>
+        <p className="text-muted-foreground">Choose a comfortable creator environment. Form themes stay independent inside each form.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {options.map(({ value, title, description, Icon }) => (
+          <button
+            key={value}
+            onClick={() => onThemeChange(value)}
+            className={`rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg ${theme === value ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'bg-card hover:border-primary/40'}`}
+          >
+            <Icon className="mb-8 size-6 text-primary" />
+            <h2 className="font-semibold">{title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            {theme === value && <p className="mt-4 text-xs font-semibold text-primary">Selected</p>}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DashboardResources({ onOpenShortcuts }: { onOpenShortcuts: () => void }) {
+  return (
+    <section className="space-y-6">
+      <div className="max-w-2xl space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Learn by doing</p>
+        <h1 className="text-3xl font-bold tracking-tight">Resources</h1>
+        <p className="text-muted-foreground">Useful shortcuts and project documentation without sending you through a dead navigation item.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <button onClick={onOpenShortcuts} className="rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+          <Keyboard className="mb-6 size-6 text-primary" />
+          <h2 className="font-semibold">Keyboard shortcuts</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Navigate faster across dashboard and builder workflows.</p>
+        </button>
+        <a href="https://github.com/muhummadzarrar09-sudo/forms" target="_blank" rel="noreferrer" className="rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+          <BookOpen className="mb-6 size-6 text-primary" />
+          <h2 className="font-semibold">Project documentation</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Read deployment, testing, and developer notes.</p>
+        </a>
+      </div>
+    </section>
   );
 }

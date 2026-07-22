@@ -291,7 +291,7 @@ export function FormFiller() {
 
     const answer = answersRef.current[currentQuestion.id];
     if (!requiredAnswerIsSatisfied(currentQuestion, answer)) return;
-    const step = nextFillerStep(questions, state.currentIndex, answer || '');
+    const step = nextFillerStep(questions, state.currentIndex, answer || '', answersRef.current);
     if (step.kind === 'question') {
       setState((current) => ({ ...current, currentIndex: step.index, direction: 1 }));
       return;

@@ -133,15 +133,15 @@ export function QuestionTypePicker({ open, onClose, onSelect, currentType }: Que
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-popover border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-popover border rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
               {/* Header with search */}
-              <div className="p-4 border-b">
+              <div className="p-4 border-b shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="text-lg font-semibold">Add question</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">Choose a question type for your form</p>
                   </div>
-                  <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+                  <Button variant="ghost" size="icon" className="size-8" onClick={onClose} aria-label="Close question type picker">
                     <X className="size-4" />
                   </Button>
                 </div>
@@ -158,7 +158,7 @@ export function QuestionTypePicker({ open, onClose, onSelect, currentType }: Que
               </div>
 
               {/* Type grid with categories */}
-              <ScrollArea className="max-h-[60vh]">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="p-4 space-y-6">
                   {CATEGORY_ORDER.filter((cat) => grouped[cat]?.length).map((category) => (
                     <div key={category}>
