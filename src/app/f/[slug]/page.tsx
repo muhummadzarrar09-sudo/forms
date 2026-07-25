@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { db } from '@/lib/db';
-import { serializeForm } from '@/lib/api-serialization';
+import { serializePublicForm } from '@/lib/api-serialization';
 import { SlugFormFiller } from './slug-form-filler';
 
 interface PageProps {
@@ -9,10 +9,10 @@ interface PageProps {
 }
 
 function getBaseUrl(): string {
-  // Vercel sets this automatically for every deployment
+  // Explicit override wins for production custom domains.
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  // Vercel sets this automatically for every deployment.
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  // Explicit override wins (production custom domain)
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
   return 'http://localhost:3000';
 }
 
@@ -84,6 +84,6 @@ export default async function SlugFormPage({ params }: PageProps) {
   if (!form) notFound();
   if (!form.published) notFound();
 
-  const serializedForm = serializeForm(form);
+  const serializedForm = serializePublicForm(form);
   return <SlugFormFiller form={serializedForm} />;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormStore } from '@/store/form-store';
 import type { Form, Workspace } from '@/types/form';
@@ -208,12 +208,11 @@ export function Dashboard() {
   const { data: session } = useSession();
   const displayName = session?.user?.name?.trim() || session?.user?.email?.split('@')[0] || 'Account';
   const avatarInitial = displayName.charAt(0).toUpperCase();
-  const [mounted, setMounted] = useState(false);
-
-  // Avoid hydration mismatch
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
 
   // Local state
   const [searchQuery, setSearchQuery] = useState('');

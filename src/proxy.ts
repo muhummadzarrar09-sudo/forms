@@ -24,7 +24,7 @@ function check(key: string, limit: number): { allowed: boolean; retryAfter: numb
   return { allowed: true, retryAfter: 0 };
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
     request.headers.get('x-real-ip') ??
