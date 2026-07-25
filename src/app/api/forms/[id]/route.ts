@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { serializeForm } from '@/lib/api-serialization';
+import { serializeForm, serializePublicForm } from '@/lib/api-serialization';
 import { updateFormSchema } from '@/lib/validations';
 
 // Helper: generate a URL-friendly slug from a title
@@ -60,22 +60,19 @@ export async function GET(
     // Check if the requester has a valid session
     const session = await getServerSession(authOptions);
 
-    if (session?.user?.id) {
-      // Authenticated user
-      if (form.userId === session.user.id) {
-        // Owner — return full form
-        return NextResponse.json(serializeForm(form));
-      }
-      // Authenticated but not the owner — deny
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (session?.user?.id && form.userId === session.user.id) {
+      // Owner — return full form, including draft/private fields.
+      return NextResponse.json(serializeForm(form));
     }
 
-    // Unauthenticated — only return published forms
+    // Everyone else — including authenticated non-owners — may only read a
+    // published form. This keeps legacy public links working for respondents
+    // who happen to be signed into their own creator account.
     if (!form.published) {
-      return NextResponse.json({ error: 'Form not found' }, { status: 404 });
+      return NextResponse.json({ error: session?.user?.id ? 'Forbidden' : 'Form not found' }, { status: session?.user?.id ? 403 : 404 });
     }
 
-    return NextResponse.json(serializeForm(form));
+    return NextResponse.json(serializePublicForm(form));
   } catch (error) {
     console.error('Error fetching form:', error);
     return NextResponse.json({ error: 'Failed to fetch form' }, { status: 500 });

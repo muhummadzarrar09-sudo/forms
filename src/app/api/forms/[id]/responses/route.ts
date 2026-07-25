@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeResponse } from '@/lib/api-serialization';
 import { submitResponseSchema } from '@/lib/validations';
+import { resolveLogicAction } from '@/lib/logic-engine';
+import type { FormQuestion, LogicRule, QuestionOption, QuestionSettings } from '@/types/form';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
 
@@ -42,9 +44,129 @@ function answersBelongToForm(
   });
 }
 
+type ResponseQuestionConfig = {
+  id: string;
+  formId?: string;
+  type: string;
+  title: string;
+  description?: string;
+  required: boolean;
+  order?: number;
+  options: string;
+  imageUrls?: string;
+  settings: string;
+  logic?: string;
+  placeholder?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+};
+
+function parseQuestionSettings(question: Pick<ResponseQuestionConfig, 'settings'>): QuestionSettings {
+  try {
+    const parsed = JSON.parse(question.settings || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as QuestionSettings : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseQuestionArray<T>(value: string | undefined, fallback: T[] = []): T[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed as T[] : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function toRuntimeQuestion(question: ResponseQuestionConfig): FormQuestion {
+  return {
+    id: question.id,
+    formId: question.formId || '',
+    type: question.type as FormQuestion['type'],
+    title: question.title,
+    description: question.description || '',
+    required: question.required,
+    order: question.order ?? 0,
+    options: parseQuestionArray<QuestionOption>(question.options),
+    imageUrls: parseQuestionArray<string>(question.imageUrls),
+    settings: parseQuestionSettings(question),
+    logic: parseQuestionArray<LogicRule>(question.logic),
+    placeholder: question.placeholder || '',
+    createdAt: question.createdAt instanceof Date ? question.createdAt.toISOString() : question.createdAt || '',
+    updatedAt: question.updatedAt instanceof Date ? question.updatedAt.toISOString() : question.updatedAt || '',
+  };
+}
+
+function getRequiredQuestionIdsOnSubmittedPath(
+  answers: Array<{ questionId: string; value: string }>,
+  questions: ResponseQuestionConfig[]
+): Set<string> {
+  const answerMap = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+  const answerRecord = Object.fromEntries(answerMap.entries());
+  const runtimeQuestions = questions
+    .map(toRuntimeQuestion)
+    .filter((question) => question.type !== 'ending')
+    .sort((left, right) => left.order - right.order);
+  const requiredIds = new Set<string>();
+  const visited = new Set<number>();
+  let index = 0;
+
+  while (index >= 0 && index < runtimeQuestions.length && !visited.has(index)) {
+    visited.add(index);
+    const question = runtimeQuestions[index];
+    const visibility = question.settings?.visibility;
+    if (visibility) {
+      const controllingAnswer = answerRecord[visibility.questionId] || '';
+      const visible = controllingAnswer.split(',').map((value) => value.trim()).includes(visibility.equals);
+      if (!visible) {
+        index += 1;
+        continue;
+      }
+    }
+
+    if (question.required && question.type !== 'statement') requiredIds.add(question.id);
+
+    const answer = answerMap.get(question.id) || '';
+    const action = resolveLogicAction(question, answer);
+    if (action?.type === 'show_ending' || action?.targetQuestionId === '__submit__') break;
+    if (action?.targetQuestionId) {
+      const targetIndex = runtimeQuestions.findIndex((candidate) => candidate.id === action.targetQuestionId);
+      if (targetIndex !== -1) {
+        index = targetIndex;
+        continue;
+      }
+    }
+    index += 1;
+  }
+
+  return requiredIds;
+}
+
+function validateRequiredAnswers(
+  answers: Array<{ questionId: string; value: string }>,
+  questions: ResponseQuestionConfig[]
+): string | null {
+  const answerMap = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+  const requiredIds = getRequiredQuestionIdsOnSubmittedPath(answers, questions);
+
+  for (const question of questions) {
+    if (!requiredIds.has(question.id)) continue;
+
+    const value = (answerMap.get(question.id) || '').trim();
+    if (question.type === 'legal') {
+      if (value !== 'true') return `Required legal consent is missing for "${question.title}"`;
+      continue;
+    }
+    if (!value) return `Required question "${question.title}" is missing an answer`;
+  }
+
+  return null;
+}
+
 function validateAnswerValues(
   answers: Array<{ questionId: string; value: string }>,
-  questions: Array<{ id: string; type: string; options: string; settings: string }>
+  questions: ResponseQuestionConfig[]
 ): string | null {
   const questionMap = new Map(questions.map((question) => [question.id, question]));
 
@@ -58,7 +180,16 @@ function validateAnswerValues(
     let options: Array<{ id: string }> = [];
     try {
       settings = JSON.parse(question.settings || '{}');
-      options = JSON.parse(question.options || '[]');
+      const parsedOptions = JSON.parse(question.options || '[]');
+      options = Array.isArray(parsedOptions)
+        ? parsedOptions.flatMap((option: unknown) => {
+            if (typeof option === 'string' && option.trim()) return [{ id: option }];
+            if (option && typeof option === 'object' && typeof (option as { id?: unknown }).id === 'string') {
+              return [{ id: (option as { id: string }).id }];
+            }
+            return [];
+          })
+        : [];
     } catch {
       return 'This form contains invalid question configuration';
     }
@@ -274,6 +405,20 @@ export async function POST(
       if (!form.published) {
         return NextResponse.json({ error: 'Form is not published' }, { status: 400 });
       }
+      if (form.closeDate && new Date() > new Date(form.closeDate)) {
+        return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
+      }
+      if (form.maxResponses > 0) {
+        const currentResponseCount = await db.response.count({
+          where: { formId: id, isPartial: false },
+        });
+        if (currentResponseCount >= form.maxResponses) {
+          return NextResponse.json(
+            { error: `This form has reached its maximum response limit of ${form.maxResponses}.` },
+            { status: 403 }
+          );
+        }
+      }
       if (!answersBelongToForm(data.answers, new Set(form.questions.map((q) => q.id)))) {
         return NextResponse.json({ error: 'One or more answers do not belong to this form' }, { status: 400 });
       }
@@ -281,7 +426,7 @@ export async function POST(
       if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
 
       // Build a question lookup for scoring
-      const questionMap = new Map(form.questions.map((q) => [q.id, q]));
+      const questionMap = new Map<string, ResponseQuestionConfig>(form.questions.map((q) => [q.id, q]));
 
       // Pre-calculate scores for each answer
       const answerScores: Record<string, number> = {};
@@ -366,6 +511,8 @@ export async function POST(
     }
     const answerValidationError = validateAnswerValues(data.answers, form.questions);
     if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
+    const requiredValidationError = validateRequiredAnswers(data.answers, form.questions);
+    if (requiredValidationError) return NextResponse.json({ error: requiredValidationError }, { status: 400 });
 
     // Enforce closeDate
     if (form.closeDate && new Date() > new Date(form.closeDate)) {
@@ -376,7 +523,7 @@ export async function POST(
     }
 
     // Build a question lookup for scoring
-    const questionMap = new Map(form.questions.map((q) => [q.id, q]));
+    const questionMap = new Map<string, ResponseQuestionConfig>(form.questions.map((q) => [q.id, q]));
 
     // Pre-calculate scores for each answer
     const answerScores: Record<string, number> = {};
@@ -516,9 +663,44 @@ export async function PUT(
       const answerValidationError = validateAnswerValues(data.answers, formForUpdate.questions);
       if (answerValidationError) return NextResponse.json({ error: answerValidationError }, { status: 400 });
     }
+    if (data.isPartial === false) {
+      const existingAnswers = await db.answer.findMany({
+        where: { responseId: data.responseId },
+        select: { questionId: true, value: true },
+      });
+      const mergedAnswers = new Map<string, string>(existingAnswers.map((answer) => [answer.questionId, answer.value]));
+      for (const answer of data.answers || []) mergedAnswers.set(answer.questionId, answer.value);
+      const requiredValidationError = validateRequiredAnswers(
+        [...mergedAnswers.entries()].map(([questionId, value]) => ({ questionId, value })),
+        formForUpdate.questions
+      );
+      if (requiredValidationError) return NextResponse.json({ error: requiredValidationError }, { status: 400 });
+    }
 
     // Update the response
     const result = await db.$transaction(async (tx) => {
+      if (data.isPartial === false) {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+        const lockedForm = await tx.form.findUnique({
+          where: { id },
+          select: { maxResponses: true, published: true, closeDate: true },
+        });
+        if (!lockedForm || !lockedForm.published) {
+          throw new Error('FORM_CLOSED');
+        }
+        if (lockedForm.closeDate && new Date() > lockedForm.closeDate) {
+          throw new Error('FORM_CLOSED');
+        }
+        if (lockedForm.maxResponses > 0) {
+          const currentResponseCount = await tx.response.count({
+            where: { formId: id, isPartial: false },
+          });
+          if (currentResponseCount >= lockedForm.maxResponses) {
+            throw new Error(`LIMIT_REACHED:${lockedForm.maxResponses}`);
+          }
+        }
+      }
+
       // Update answers (upsert)
       if (data.answers && data.answers.length > 0) {
         // Get form questions for scoring
@@ -526,7 +708,7 @@ export async function PUT(
           where: { id },
           include: { questions: true },
         });
-        const questionMap = new Map((form?.questions || []).map((q) => [q.id, q]));
+        const questionMap = new Map<string, ResponseQuestionConfig>((form?.questions || []).map((q) => [q.id, q]));
 
         let totalScore = 0;
 
@@ -604,6 +786,16 @@ export async function PUT(
 
     return NextResponse.json(serializeResponse(result!));
   } catch (error) {
+    if (error instanceof Error && error.message === 'FORM_CLOSED') {
+      return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
+    }
+    if (error instanceof Error && error.message.startsWith('LIMIT_REACHED:')) {
+      const limit = error.message.split(':')[1];
+      return NextResponse.json(
+        { error: `This form has reached its maximum response limit of ${limit}.` },
+        { status: 403 }
+      );
+    }
     console.error('Error updating response:', error);
     return NextResponse.json({ error: 'Failed to update response' }, { status: 500 });
   }

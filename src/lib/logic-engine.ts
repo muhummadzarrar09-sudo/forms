@@ -12,11 +12,13 @@ type LogicCondition = LogicRule['condition'];
  * backward compatibility with the original single-condition rule shape.
  */
 export function evaluateLogicCondition(
-  condition: LogicCondition,
+  condition: LogicCondition | undefined | null,
   question: FormQuestion,
   answer: string
 ): boolean {
-  const { operator, value: conditionValue, field } = condition;
+  if (!condition) return false;
+
+  const { operator, value: conditionValue = '', field = '' } = condition;
   const normalizedAnswer = answer.trim();
 
   if (operator === 'is_filled') return normalizedAnswer !== '';
@@ -69,7 +71,7 @@ export function evaluateLogicCondition(
 }
 
 export function ruleMatches(rule: LogicRule, question: FormQuestion, answer: string): boolean {
-  const conditions = rule.conditions?.length ? rule.conditions : [rule.condition];
+  const conditions = Array.isArray(rule.conditions) && rule.conditions.length ? rule.conditions : [rule.condition];
   const matches = conditions.map((condition) => evaluateLogicCondition(condition, question, answer));
   return rule.conditionMatch === 'any' ? matches.some(Boolean) : matches.every(Boolean);
 }
@@ -80,7 +82,7 @@ export function resolveLogicAction(
   answer: string
 ): LogicAction | null {
   for (const rule of question.logic || []) {
-    if (ruleMatches(rule, question, answer)) return rule.action;
+    if (ruleMatches(rule, question, answer) && rule.action?.targetQuestionId) return rule.action;
   }
   const targetQuestionId = question.settings?.jumpToQuestionId;
   return targetQuestionId ? { type: 'jump_to', targetQuestionId } : null;

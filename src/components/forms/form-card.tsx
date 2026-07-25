@@ -149,7 +149,7 @@ export function FormCard({
   const formWorkspace = form.workspace;
 
   // Workspace indicator component
-  const WorkspaceIndicator = () => {
+  const renderWorkspaceIndicator = () => {
     if (!formWorkspace) return null;
     return (
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -369,7 +369,7 @@ export function FormCard({
   };
 
   // Tag pills component (shared between list and grid)
-  const TagPills = ({ maxVisible = 2 }: { maxVisible?: number }) => {
+  const renderTagPills = (maxVisible = 2) => {
     if (formTags.length === 0) return null;
     const visibleTags = formTags.slice(0, maxVisible);
     const remaining = formTags.length - maxVisible;
@@ -402,7 +402,7 @@ export function FormCard({
   };
 
   // Favorite heart button for grid view
-  const FavoriteButton = ({ className = '' }: { className?: string }) => (
+  const renderFavoriteButton = (className = '') => (
     <button
       onClick={(e) => {
         e.stopPropagation();
@@ -420,7 +420,7 @@ export function FormCard({
   );
 
   // Tag popover for adding tags
-  const TagPopover = () => (
+  const renderTagPopover = () => (
     <Popover open={showTagPopover} onOpenChange={setShowTagPopover}>
       <PopoverTrigger asChild>
         <button
@@ -553,12 +553,12 @@ export function FormCard({
                   {/* Tags */}
                   {formTags.length > 0 && (
                     <div className="mt-1">
-                      <TagPills maxVisible={2} />
+                      {renderTagPills(2)}
                     </div>
                   )}
                   {formWorkspace && (
                     <div className="mt-1">
-                      <WorkspaceIndicator />
+                      {renderWorkspaceIndicator()}
                     </div>
                   )}
                   {timeAgoText && (
@@ -644,7 +644,7 @@ export function FormCard({
                           </>
                         )}
                       </DropdownMenuItem>
-                      <TagPopover />
+                      {renderTagPopover()}
                       <DropdownMenuSeparator />
                       {/* Move to Workspace */}
                       {onMoveToWorkspace && workspaces && workspaces.length > 0 && (
@@ -773,7 +773,7 @@ export function FormCard({
             />
             {/* Favorite heart in top-left corner */}
             <div className="absolute top-2 left-2">
-              <FavoriteButton className={form.favorite ? '' : ''} />
+              {renderFavoriteButton(form.favorite ? '' : '')}
             </div>
 
             {/* Status indicator dot (after the favorite heart) */}
@@ -868,7 +868,7 @@ export function FormCard({
                     </>
                   )}
                 </DropdownMenuItem>
-                <TagPopover />
+                {renderTagPopover()}
                 <DropdownMenuSeparator />
                 {/* Move to Workspace */}
                 {onMoveToWorkspace && workspaces && workspaces.length > 0 && (
@@ -945,14 +945,10 @@ export function FormCard({
             )}
 
             {/* Tags */}
-            {formTags.length > 0 && (
-              <TagPills maxVisible={2} />
-            )}
+            {formTags.length > 0 && renderTagPills(2)}
 
             {/* Workspace indicator */}
-            {formWorkspace && (
-              <WorkspaceIndicator />
-            )}
+            {formWorkspace && renderWorkspaceIndicator()}
 
             {/* Spacer */}
             <div className="flex-1" />

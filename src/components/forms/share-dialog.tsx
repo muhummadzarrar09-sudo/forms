@@ -77,6 +77,19 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
   }, [embedCode]);
 
   const handleTogglePublished = useCallback(async () => {
+    // When the parent supplies a publish handler (builder/cards), let that
+    // handler own the state transition. Calling it after this component also
+    // toggles caused duplicate writes and could bypass builder-only publish
+    // checks such as the asset-placeholder warning.
+    if (onPublish) {
+      try {
+        await onPublish();
+      } catch {
+        toast({ title: 'Failed to update', variant: 'destructive' });
+      }
+      return;
+    }
+
     const newPublished = !form.published;
     try {
       const res = await fetch(`/api/forms/${form.id}`, {
@@ -86,14 +99,15 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
       });
       if (res.ok) {
         const saved = await res.json();
-        updateForm(form.id, { published: newPublished });
+        updateForm(form.id, saved);
         toast({
           title: newPublished ? 'Form published' : 'Form unpublished',
           description: newPublished
             ? 'Your form is now accepting responses.'
             : 'Your form is now in draft mode.',
         });
-        onPublish?.();
+      } else {
+        toast({ title: 'Failed to update', variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Failed to update', variant: 'destructive' });

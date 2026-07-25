@@ -4,7 +4,7 @@
  * tags, options, imageUrls, settings, logic, workspace, closeDate, metadata.
  */
 
-import type { FormQuestion, QuestionType } from '@/types/form';
+import type { FormQuestion, HiddenField, LogicRule, QuestionOption, QuestionSettings, QuestionType } from '@/types/form';
 
 // ── Type for a raw Prisma question row (before JSON fields are parsed) ──────
 interface RawQuestion {
@@ -113,6 +113,53 @@ interface RawFormEnding {
 
 // ── Serialization Functions ─────────────────────────────────────────────────
 
+function parseJson<T>(value: string | null | undefined, fallback: T): T {
+  try {
+    const parsed = JSON.parse(value || '');
+    return parsed === null || parsed === undefined ? fallback : parsed as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function parseJsonArray<T>(value: string | null | undefined): T[] {
+  const parsed = parseJson<unknown>(value, []);
+  return Array.isArray(parsed) ? parsed as T[] : [];
+}
+
+function parseJsonObject<T extends object>(value: string | null | undefined, fallback: T): T {
+  const parsed = parseJson<unknown>(value, fallback);
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as T : fallback;
+}
+
+function normalizeQuestionOptions(rawOptions: unknown): QuestionOption[] {
+  if (!Array.isArray(rawOptions)) return [];
+
+  return rawOptions.flatMap((option, index) => {
+    if (typeof option === 'string') {
+      const label = option.trim();
+      return label ? [{ id: label, label }] : [];
+    }
+    if (!option || typeof option !== 'object') return [];
+
+    const candidate = option as { id?: unknown; label?: unknown; image?: unknown };
+    const label = typeof candidate.label === 'string' && candidate.label.trim()
+      ? candidate.label
+      : typeof candidate.id === 'string' && candidate.id.trim()
+        ? candidate.id
+        : `Option ${index + 1}`;
+    const id = typeof candidate.id === 'string' && candidate.id.trim()
+      ? candidate.id
+      : label;
+
+    return [{
+      id,
+      label,
+      ...(typeof candidate.image === 'string' && candidate.image ? { image: candidate.image } : {}),
+    }];
+  });
+}
+
 /**
  * Serialize a raw Prisma question row, parsing JSON fields.
  */
@@ -122,10 +169,10 @@ export function serializeQuestion(q: RawQuestion): FormQuestion {
     type: q.type as QuestionType,
     createdAt: q.createdAt instanceof Date ? q.createdAt.toISOString() : q.createdAt,
     updatedAt: q.updatedAt instanceof Date ? q.updatedAt.toISOString() : q.updatedAt,
-    options: JSON.parse(q.options),
-    imageUrls: JSON.parse(q.imageUrls),
-    settings: JSON.parse(q.settings),
-    logic: JSON.parse(q.logic || '[]'),
+    options: normalizeQuestionOptions(parseJsonArray<unknown>(q.options)),
+    imageUrls: parseJsonArray<string>(q.imageUrls).filter((url) => typeof url === 'string'),
+    settings: parseJsonObject<QuestionSettings>(q.settings, {}),
+    logic: parseJsonArray<LogicRule>(q.logic || '[]'),
   };
 }
 
@@ -153,8 +200,8 @@ export function serializeWorkspace(ws: RawWorkspace | null) {
 export function serializeForm(form: RawForm) {
   return {
     ...form,
-    tags: JSON.parse(form.tags || '[]'),
-    hiddenFields: JSON.parse(form.hiddenFields || '[]'),
+    tags: parseJsonArray<string>(form.tags).filter((tag) => typeof tag === 'string'),
+    hiddenFields: parseJsonArray<HiddenField>(form.hiddenFields),
     closeDate: form.closeDate instanceof Date
       ? form.closeDate.toISOString()
       : form.closeDate,
@@ -163,6 +210,22 @@ export function serializeForm(form: RawForm) {
     workspace: serializeWorkspace(form.workspace),
     questions: form.questions.map(serializeQuestion),
     endings: (form.endings || []).map(serializeEnding),
+  };
+}
+
+/**
+ * Public respondent payload. Keep the runtime shape convenient for existing
+ * filler components while removing owner/workspace-only data.
+ */
+export function serializePublicForm(form: RawForm) {
+  return {
+    ...serializeForm(form),
+    userId: '',
+    workspaceId: null,
+    workspace: null,
+    favorite: false,
+    archived: false,
+    tags: [],
   };
 }
 
@@ -176,7 +239,7 @@ export function serializeResponse(r: RawResponse) {
     ...response,
     isPartial: r.isPartial ?? false,
     score: r.score ?? 0,
-    metadata: JSON.parse(r.metadata),
+    metadata: parseJsonObject<Record<string, unknown>>(r.metadata, {}),
     answers: r.answers.map((a) => ({
       ...a,
       score: a.score ?? 0,

@@ -18,7 +18,7 @@ export function getCurrentQuestion(questions: FormQuestion[], index: number): Fo
 }
 
 export function isQuestionVisible(question: FormQuestion, answers: Record<string, string>): boolean {
-  const visibility = question.settings.visibility;
+  const visibility = question.settings?.visibility;
   if (!visibility) return true;
   const answer = answers[visibility.questionId] || '';
   return answer.split(',').map((value) => value.trim()).includes(visibility.equals);

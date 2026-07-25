@@ -352,6 +352,7 @@ function MultipleChoiceInput({
   isActive,
 }: QuestionInputProps) {
   const options = question.options || [];
+  const settings = question.settings || {};
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const ff = fontFamilyClass(theme.fontFamily);
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -359,7 +360,7 @@ function MultipleChoiceInput({
 
   // Auto-advance when value changes for single-select (not allowMultiple)
   useEffect(() => {
-    if (!question.settings.allowMultiple && value && value !== prevValueRef.current) {
+    if (!settings.allowMultiple && value && value !== prevValueRef.current) {
       prevValueRef.current = value;
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = setTimeout(onAdvance, 300);
@@ -367,11 +368,11 @@ function MultipleChoiceInput({
     return () => {
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
     };
-  }, [value, question.settings.allowMultiple, onAdvance]);
+  }, [value, settings.allowMultiple, onAdvance]);
 
   const handleSelect = useCallback(
     (option: QuestionOption) => {
-      if (question.settings.allowMultiple) {
+      if (settings.allowMultiple) {
         const currentIds = value ? value.split(',') : [];
         const newIds = currentIds.includes(option.id)
           ? currentIds.filter((v) => v !== option.id)
@@ -381,7 +382,7 @@ function MultipleChoiceInput({
         onChange(option.id);
       }
     },
-    [value, onChange, question.settings.allowMultiple]
+    [value, onChange, settings.allowMultiple]
   );
 
   if (options.length === 0) return null;
@@ -389,7 +390,7 @@ function MultipleChoiceInput({
   return (
     <div className="w-full space-y-2">
       {options.map((option, idx) => {
-        const isSelected = question.settings.allowMultiple
+        const isSelected = settings.allowMultiple
           ? value.split(',').includes(option.id)
           : value === option.id;
 
@@ -461,12 +462,13 @@ function PictureChoiceInput({
 }: QuestionInputProps) {
   const options = question.options || [];
   const images = question.imageUrls || [];
+  const settings = question.settings || {};
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevValueRef = useRef(value);
 
   // Auto-advance when value changes for single-select
   useEffect(() => {
-    if (!question.settings.allowMultiple && value && value !== prevValueRef.current) {
+    if (!settings.allowMultiple && value && value !== prevValueRef.current) {
       prevValueRef.current = value;
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = setTimeout(onAdvance, 300);
@@ -474,11 +476,11 @@ function PictureChoiceInput({
     return () => {
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
     };
-  }, [value, question.settings.allowMultiple, onAdvance]);
+  }, [value, settings.allowMultiple, onAdvance]);
 
   const handleSelect = useCallback(
     (option: QuestionOption) => {
-      if (question.settings.allowMultiple) {
+      if (settings.allowMultiple) {
         const currentIds = value ? value.split(',') : [];
         const newIds = currentIds.includes(option.id)
           ? currentIds.filter((v) => v !== option.id)
@@ -488,13 +490,13 @@ function PictureChoiceInput({
         onChange(option.id);
       }
     },
-    [value, onChange, question.settings.allowMultiple]
+    [value, onChange, settings.allowMultiple]
   );
 
   return (
     <div className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {options.map((option, idx) => {
-        const isSelected = question.settings.allowMultiple
+        const isSelected = settings.allowMultiple
           ? value.split(',').includes(option.id)
           : value === option.id;
         const imageUrl = images[idx] || option.image;
@@ -859,8 +861,9 @@ function NumberInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const ff = fontFamilyClass(theme.fontFamily);
-  const min = question.settings.min ?? 0;
-  const max = question.settings.max ?? 100;
+  const settings = question.settings || {};
+  const min = settings.min ?? 0;
+  const max = settings.max ?? 100;
 
   useEffect(() => {
     if (isActive && inputRef.current) {
@@ -1031,7 +1034,8 @@ function RatingInput({
   onAdvance,
   theme,
 }: QuestionInputProps) {
-  const steps = question.settings.steps || 5;
+  const settings = question.settings || {};
+  const steps = settings.steps || 5;
   const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const currentRating = parseInt(value) || 0;
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1090,8 +1094,9 @@ function OpinionScaleInput({
   onAdvance,
   theme,
 }: QuestionInputProps) {
-  const steps = question.settings.steps || 10;
-  const startAtOne = question.settings.startAtOne ?? false;
+  const settings = question.settings || {};
+  const steps = settings.steps || 10;
+  const startAtOne = settings.startAtOne ?? false;
   const startNum = startAtOne ? 1 : 0;
   const numbers = Array.from({ length: steps + 1 }, (_, i) => startNum + i);
   const [hoveredNum, setHoveredNum] = useState<number | null>(null);
@@ -1169,7 +1174,8 @@ function LegalInput({
 }: QuestionInputProps) {
   const accepted = value === 'true';
   const ff = fontFamilyClass(theme.fontFamily);
-  const labelText = question.settings.requiredText || question.title;
+  const settings = question.settings || {};
+  const labelText = settings.requiredText || question.title;
 
   const handleToggle = () => {
     const newVal = !accepted;

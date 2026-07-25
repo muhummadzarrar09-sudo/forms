@@ -73,16 +73,27 @@ export async function GET(
       // For choice questions
       if (['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'].includes(question.type)) {
         const choiceCounts: Record<string, number> = {};
-        parsedOptions.forEach((opt) => {
-          choiceCounts[opt.label] = 0;
-        });
+        const optionLabelById = new Map<string, string>();
+
+        if (question.type === 'yes_no') {
+          choiceCounts.Yes = 0;
+          choiceCounts.No = 0;
+        } else {
+          parsedOptions.forEach((opt) => {
+            optionLabelById.set(opt.id, opt.label);
+            choiceCounts[opt.label] = 0;
+          });
+        }
+
         answers.forEach((a) => {
-          const val = a.value;
-          if (choiceCounts[val] !== undefined) {
-            choiceCounts[val]++;
-          } else {
-            choiceCounts[val] = 1;
-          }
+          const selectedValues = a.value.split(',').map((value) => value.trim()).filter(Boolean);
+          selectedValues.forEach((selectedValue) => {
+            const normalizedYesNo = selectedValue.toLowerCase();
+            const label = question.type === 'yes_no'
+              ? (normalizedYesNo === 'yes' || normalizedYesNo === 'true' ? 'Yes' : normalizedYesNo === 'no' || normalizedYesNo === 'false' ? 'No' : selectedValue)
+              : (optionLabelById.get(selectedValue) || selectedValue);
+            choiceCounts[label] = (choiceCounts[label] || 0) + 1;
+          });
         });
         summary.choiceCounts = choiceCounts;
       }
