@@ -51,20 +51,27 @@ export const updateEndingSchema = z.object({
   order: z.number().int().min(0).max(10_000).optional(),
 }).strict();
 
+const shortId = z.string().min(1).max(100);
+const hiddenFieldSchema = z.object({
+  id: shortId,
+  name: z.string().min(1).max(100),
+  defaultValue: z.string().max(1_000).optional(),
+});
+
 const questionOptionSchema = z.object({
-  id: z.string(),
-  label: z.string().max(200),
-  image: z.string().url().optional(),
+  id: shortId,
+  label: z.string().min(1).max(200),
+  image: z.string().url().max(2_048).optional(),
 });
 
 const logicConditionSchema = z.object({
-  field: z.string(),
+  field: z.string().max(200),
   operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_filled', 'is_empty']),
-  value: z.string(),
+  value: z.string().max(1_000),
 });
 
 const logicRuleSchema = z.object({
-  id: z.string(),
+  id: shortId,
   // `condition` remains required for backward-compatible existing rules.
   condition: logicConditionSchema,
   // New rules may evaluate every condition (ALL, default) or any condition.
@@ -72,7 +79,7 @@ const logicRuleSchema = z.object({
   conditionMatch: z.enum(['all', 'any']).optional(),
   action: z.object({
     type: z.enum(['jump_to', 'show_ending']),
-    targetQuestionId: z.string(),
+    targetQuestionId: shortId,
   }),
 });
 
@@ -97,8 +104,8 @@ export const createFormSchema = z.object({
   progressbar: z.boolean().optional(),
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
-  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
-  workspaceId: z.string().optional(),
+  hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  workspaceId: shortId.optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -128,8 +135,8 @@ export const updateFormSchema = z.object({
   favorite: z.boolean().optional(),
   archived: z.boolean().optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
-  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
-  workspaceId: z.string().nullable().optional(),
+  hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  workspaceId: shortId.nullable().optional(),
   maxResponses: z.number().int().min(0).optional(),
   closeDate: isoDateTime.nullable().optional(),
   metaTitle: z.string().max(200).optional(),
@@ -141,14 +148,14 @@ export const updateFormSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const questionSchema = z.object({
-  id: z.string().min(1).max(100).optional(),
+  id: shortId.optional(),
   type: questionType,
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   required: z.boolean().optional().default(false),
   order: z.number().int().min(0).optional().default(0),
   options: z.array(questionOptionSchema).optional().default([]),
-  imageUrls: z.array(z.string().url()).optional().default([]),
+  imageUrls: z.array(z.string().url().max(2_048)).max(20).optional().default([]),
   settings: boundedSettings.optional().default({}),
   logic: z.array(logicRuleSchema).optional().default([]),
   placeholder: z.string().max(200).optional().default(''),
@@ -166,12 +173,12 @@ export const submitResponseSchema = z.object({
   answers: z
     .array(
       z.object({
-        questionId: z.string().min(1),
+        questionId: shortId,
         value: z.string().max(10000),
       })
     )
     .min(1),
-  metadata: boundedSettings.optional()
+  metadata: boundedSettings.optional(),
   completedAt: isoDateTime.optional(),
 });
 

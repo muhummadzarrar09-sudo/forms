@@ -15,12 +15,13 @@ const boundedMetadataSchema = z.record(z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Metadata must not exceed 20KB'
 );
+const responseIdSchema = z.string().min(1).max(100);
 
 // Schema for creating partial responses
 const createPartialResponseSchema = z.object({
   isPartial: z.boolean().optional().default(false),
   answers: z.array(z.object({
-    questionId: z.string().min(1),
+    questionId: responseIdSchema,
     value: z.string().max(10000),
   })).optional().default([]),
   metadata: boundedMetadataSchema.optional(),
@@ -28,15 +29,15 @@ const createPartialResponseSchema = z.object({
 
 // Schema for updating partial responses (PUT)
 const updatePartialResponseSchema = z.object({
-  responseId: z.string().min(1),
+  responseId: responseIdSchema,
   // 32 random bytes encoded with base64url are exactly 43 characters.
   editToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Invalid response edit token'),
   answers: z.array(z.object({
-    questionId: z.string().min(1),
+    questionId: responseIdSchema,
     value: z.string().max(10000),
   })).optional(),
   isPartial: z.boolean().optional(),
-  completedAt: z.string().nullable().optional(),
+  completedAt: z.string().datetime({ offset: true }).nullable().optional(),
   metadata: boundedMetadataSchema.optional(),
 });
 
