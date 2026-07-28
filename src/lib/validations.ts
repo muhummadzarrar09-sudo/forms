@@ -30,7 +30,6 @@ const boundedSettings = z.record(z.unknown()).refine(
   'Question settings must not exceed 20KB'
 );
 
->>>>>>> efe0d4e (bound response payloads and harden draft processing)
 /** External redirects must never be executable/data URLs. */
 export const safeRedirectUrl = z.string().url().max(2048).refine((value) => {
   try { return new URL(value).protocol === 'https:'; } catch { return false; }
