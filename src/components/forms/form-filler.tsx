@@ -101,6 +101,7 @@ export function FormFiller() {
   const [showConfetti, setShowConfetti] = useState(false);
   // Tracks the current anonymous draft across renders without exposing it in UI.
   const partialResponseRef = useRef<string | null>(null);
+  const autosaveInFlightRef = useRef(false);
 
   const [state, setState] = useState<FillerState>({
     form: null,
@@ -472,6 +473,9 @@ export function FormFiller() {
     if (!state.partialResponseId || !state.partialEditToken || !state.form || !shareMode) return;
 
     const interval = setInterval(async () => {
+      // Do not overlap network writes: an earlier slow request must finish
+      // before the next autosave can send a newer snapshot.
+      if (autosaveInFlightRef.current) return;
       const currentAnswers = answersRef.current;
       const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
         questionId,
@@ -480,6 +484,7 @@ export function FormFiller() {
 
       if (answerList.length === 0) return;
 
+      autosaveInFlightRef.current = true;
       setState((s) => ({ ...s, draftSaveStatus: 'saving' }));
       try {
         const response = await fetch(`/api/forms/${state.form!.id}/responses`, {
@@ -495,6 +500,8 @@ export function FormFiller() {
         setState((s) => ({ ...s, draftSaveStatus: response.ok ? 'saved' : 'error' }));
       } catch {
         setState((s) => ({ ...s, draftSaveStatus: 'error' }));
+      } finally {
+        autosaveInFlightRef.current = false;
       }
     }, 5000); // Save every 5 seconds
 

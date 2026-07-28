@@ -720,6 +720,18 @@ export async function PUT(
 
     // Update the response
     const result = await db.$transaction(async (tx) => {
+      // Re-check inside the write transaction so concurrent completion requests
+      // cannot both mutate a draft after its bearer token has been revoked.
+      const lockedResponse = await tx.response.findUnique({
+        where: { id: data.responseId },
+        select: { isPartial: true, editTokenHash: true, editTokenExpiresAt: true },
+      });
+      if (!lockedResponse || !lockedResponse.isPartial || !lockedResponse.editTokenHash ||
+        !lockedResponse.editTokenExpiresAt || lockedResponse.editTokenExpiresAt <= new Date() ||
+        !verifyResponseEditToken(data.editToken, lockedResponse.editTokenHash)) {
+        throw new Error('DRAFT_UNAVAILABLE');
+      }
+
       if (data.isPartial === false) {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         const lockedForm = await tx.form.findUnique({
@@ -822,6 +834,9 @@ export async function PUT(
 
     return NextResponse.json(serializeResponse(result!));
   } catch (error) {
+    if (error instanceof Error && error.message === 'DRAFT_UNAVAILABLE') {
+      return NextResponse.json({ error: 'Response not found' }, { status: 404 });
+    }
     if (error instanceof Error && error.message === 'FORM_CLOSED') {
       return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
     }

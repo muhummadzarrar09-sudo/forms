@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+        // These directives do not require weakening Next.js's script policy,
+        // but still prevent plugin execution, base-tag URL rewriting and
+        // third-party framing in deployments not fronted by Caddy.
+        { key: 'Content-Security-Policy', value: "base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'" },
       ],
     }];
   },
