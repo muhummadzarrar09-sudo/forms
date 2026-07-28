@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { FormQuestion, FormTheme } from '@/types/form';
 import { QuestionInput } from '@/components/forms/question-input';
@@ -33,7 +33,13 @@ export function FillerQuestionScreen({
   showQuestionNumbers,
 }: FillerQuestionScreenProps) {
   const fontClass = fontFamilyClass(theme.fontFamily);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [attemptedEmpty, setAttemptedEmpty] = useState(false);
+
+  // Announce each navigated question to keyboard and screen-reader users.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [question.id]);
   const showRequiredHint = attemptedEmpty && !requiredAnswerIsSatisfied(question, answer);
 
   const handleAdvance = useCallback(() => {
@@ -60,7 +66,7 @@ export function FillerQuestionScreen({
         )}
       </div>
 
-      <h2 className={`text-2xl md:text-4xl font-bold leading-snug ${fontClass}`} style={{ color: theme.textColor }}>
+      <h2 ref={headingRef} tabIndex={-1} className={`text-2xl md:text-4xl font-bold leading-snug outline-none ${fontClass}`} style={{ color: theme.textColor }}>
         {question.title}
       </h2>
 
@@ -87,6 +93,7 @@ export function FillerQuestionScreen({
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
+            role="alert"
             className="text-sm font-medium"
             style={{ color: theme.buttonColor }}
           >
