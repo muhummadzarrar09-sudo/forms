@@ -5,20 +5,10 @@ import { db } from '@/lib/db';
 import { hashResponseEditToken } from '@/lib/crypto';
 import { sendPasswordResetEmail } from '@/lib/email';
 import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
+import { canonicalAppUrl } from '@/lib/app-url';
 
 const requestSchema = z.object({ email: z.string().email().max(320) }).strict();
 const genericMessage = 'If an account exists for this email, a password reset link will be sent.';
-
-function resetBaseUrl(): string | null {
-  const configured = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (!configured) return null;
-  try {
-    const url = new URL(configured);
-    return url.protocol === 'https:' || process.env.NODE_ENV !== 'production' ? url.origin : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Enumeration-resistant password-reset request endpoint. */
 export async function POST(request: NextRequest) {
@@ -40,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     const email = parsed.data.email.trim().toLowerCase();
     const user = await db.user.findUnique({ where: { email }, select: { id: true, email: true } });
-    const baseUrl = resetBaseUrl();
+    const baseUrl = canonicalAppUrl();
     if (user && baseUrl) {
       const rawToken = randomBytes(32).toString('base64url');
       await db.$transaction([
