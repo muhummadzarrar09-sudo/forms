@@ -10,6 +10,10 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
 import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
+const boundedMetadataSchema = z.record(z.unknown()).refine(
+  (value) => JSON.stringify(value).length <= 20_000,
+  'Metadata must not exceed 20KB'
+);
 
 // Schema for creating partial responses
 const createPartialResponseSchema = z.object({
@@ -18,7 +22,7 @@ const createPartialResponseSchema = z.object({
     questionId: z.string().min(1),
     value: z.string().max(10000),
   })).optional().default([]),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: boundedMetadataSchema.optional(),
 });
 
 // Schema for updating partial responses (PUT)
@@ -32,7 +36,7 @@ const updatePartialResponseSchema = z.object({
   })).optional(),
   isPartial: z.boolean().optional(),
   completedAt: z.string().nullable().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: boundedMetadataSchema.optional(),
 });
 
 function answersBelongToForm(
@@ -462,7 +466,7 @@ export async function POST(
       for (const answer of (data.answers || [])) {
         const question = questionMap.get(answer.questionId);
         if (question) {
-          const settings = JSON.parse(question.settings || '{}');
+          const settings = parseQuestionSettings(question);
           const score = calculateAnswerScore(question.type, answer.value, settings);
           answerScores[answer.questionId] = score;
           totalScore += score;
@@ -563,7 +567,7 @@ export async function POST(
     for (const answer of data.answers) {
       const question = questionMap.get(answer.questionId);
       if (question) {
-        const settings = JSON.parse(question.settings || '{}');
+        const settings = parseQuestionSettings(question);
         const score = calculateAnswerScore(question.type, answer.value, settings);
         answerScores[answer.questionId] = score;
         totalScore += score;
@@ -769,7 +773,7 @@ export async function PUT(
           const question = questionMap.get(answer.questionId);
           let answerScore = 0;
           if (question) {
-            const settings = JSON.parse(question.settings || '{}');
+            const settings = parseQuestionSettings(question);
             answerScore = calculateAnswerScore(question.type, answer.value, settings);
           }
           totalScore += answerScore;

@@ -23,6 +23,14 @@ const questionType = z.enum([
   'website', 'legal', 'statement', 'ending',
 ]);
 
+// Question settings are persisted as JSON. Bound their serialized size at the
+// API boundary so arbitrary nested configuration cannot become a storage/CPU DoS.
+const boundedSettings = z.record(z.unknown()).refine(
+  (value) => JSON.stringify(value).length <= 20_000,
+  'Question settings must not exceed 20KB'
+);
+
+>>>>>>> efe0d4e (bound response payloads and harden draft processing)
 /** External redirects must never be executable/data URLs. */
 export const safeRedirectUrl = z.string().url().max(2048).refine((value) => {
   try { return new URL(value).protocol === 'https:'; } catch { return false; }
@@ -142,7 +150,7 @@ const questionSchema = z.object({
   order: z.number().int().min(0).optional().default(0),
   options: z.array(questionOptionSchema).optional().default([]),
   imageUrls: z.array(z.string().url()).optional().default([]),
-  settings: z.record(z.unknown()).optional().default({}),
+  settings: boundedSettings.optional().default({}),
   logic: z.array(logicRuleSchema).optional().default([]),
   placeholder: z.string().max(200).optional().default(''),
 });
@@ -164,7 +172,7 @@ export const submitResponseSchema = z.object({
       })
     )
     .min(1),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: boundedSettings.optional()
   completedAt: isoDateTime.optional(),
 });
 
