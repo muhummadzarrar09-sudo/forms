@@ -134,6 +134,8 @@ export function ResponsesViewer() {
   // Data state
   const [summary, setSummary] = useState<FormSummary | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [nextResponseCursor, setNextResponseCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [questions, setQuestions] = useState<FormQuestion[]>([]);
 
   // UI state
@@ -173,7 +175,8 @@ export function ResponsesViewer() {
 
         if (responsesRes.ok) {
           const responsesData = await responsesRes.json();
-          setResponses(responsesData);
+          setResponses(responsesData.responses || []);
+          setNextResponseCursor(responsesData.nextCursor || null);
         }
       } catch {
         toast({
@@ -188,6 +191,28 @@ export function ResponsesViewer() {
 
     fetchData();
   }, [selectedFormId, setCurrentForm]);
+
+  const loadMoreResponses = useCallback(async () => {
+    if (!selectedFormId || !nextResponseCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const response = await fetch(
+        `/api/forms/${encodeURIComponent(selectedFormId)}/responses?limit=50&cursor=${encodeURIComponent(nextResponseCursor)}`
+      );
+      if (!response.ok) throw new Error('Response page request failed');
+      const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
+      setResponses((current) => [...current, ...(page.responses || [])]);
+      setNextResponseCursor(page.nextCursor || null);
+    } catch {
+      toast({
+        title: 'Could not load more responses',
+        description: 'Please check your connection and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [selectedFormId, nextResponseCursor, isLoadingMore]);
 
   // ─── Process responses for display ─────────────────────────────────────────
 
@@ -1048,6 +1073,13 @@ export function ResponsesViewer() {
                     />
                   ))}
                 </AnimatePresence>
+                {nextResponseCursor && (
+                  <div className="flex justify-center pt-2">
+                    <Button variant="outline" onClick={loadMoreResponses} disabled={isLoadingMore}>
+                      {isLoadingMore ? 'Loading…' : 'Load more responses'}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeEnding } from '@/lib/api-serialization';
+import { updateEndingSchema } from '@/lib/validations';
 
 // PUT /api/forms/[id]/endings/[endingId] - Update an ending
 export async function PUT(
@@ -41,14 +42,20 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    const validation = updateEndingSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
+    }
+    const data = validation.data;
+
     const ending = await db.formEnding.update({
       where: { id: endingId },
       data: {
-        ...(body.title !== undefined && { title: body.title }),
-        ...(body.message !== undefined && { message: body.message }),
-        ...(body.redirectUrl !== undefined && { redirectUrl: body.redirectUrl || null }),
-        ...(body.showScore !== undefined && { showScore: body.showScore }),
-        ...(body.order !== undefined && { order: body.order }),
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.message !== undefined && { message: data.message }),
+        ...(data.redirectUrl !== undefined && { redirectUrl: data.redirectUrl }),
+        ...(data.showScore !== undefined && { showScore: data.showScore }),
+        ...(data.order !== undefined && { order: data.order }),
       },
     });
 

@@ -1944,7 +1944,9 @@ function FormSettingsAdvancedTab() {
           value={closeDate}
           onChange={(e) => setCloseDate(e.target.value)}
           onBlur={() => {
-            const newValue = closeDate || null;
+            // A date-only control represents the end of that UTC day, not its
+            // first millisecond; the API accepts only explicit ISO instants.
+            const newValue = closeDate ? `${closeDate}T23:59:59.999Z` : null;
             const currentValue = currentForm.closeDate ? currentForm.closeDate.split('T')[0] : '';
             if (closeDate !== currentValue) {
               updateForm(currentForm.id, { closeDate: newValue });

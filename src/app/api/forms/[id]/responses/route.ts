@@ -8,6 +8,8 @@ import { resolveLogicAction } from '@/lib/logic-engine';
 import type { FormQuestion, LogicRule, QuestionOption, QuestionSettings } from '@/types/form';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
+import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
+import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
 
 // Schema for creating partial responses
 const createPartialResponseSchema = z.object({
@@ -22,7 +24,8 @@ const createPartialResponseSchema = z.object({
 // Schema for updating partial responses (PUT)
 const updatePartialResponseSchema = z.object({
   responseId: z.string().min(1),
-  editToken: z.string().min(32).max(256),
+  // 32 random bytes encoded with base64url are exactly 43 characters.
+  editToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Invalid response edit token'),
   answers: z.array(z.object({
     questionId: z.string().min(1),
     value: z.string().max(10000),
@@ -242,11 +245,20 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Parse query parameters for search and date filtering
+    // Cursor pagination protects the owner dashboard from loading an entire
+    // form's response history into memory. Query values are bounded before they
+    // are passed to Prisma.
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
+    const search = (searchParams.get('search') || '').trim().slice(0, 200);
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
+    const cursor = searchParams.get('cursor') || undefined;
+    const requestedLimit = Number(searchParams.get('limit') || '50');
+    const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
+
+    if ((startDate && Number.isNaN(Date.parse(startDate))) || (endDate && Number.isNaN(Date.parse(endDate)))) {
+      return NextResponse.json({ error: 'Invalid date filter' }, { status: 400 });
+    }
 
     // Build where clause
     const whereClause: Record<string, unknown> = { formId: id };
@@ -269,9 +281,22 @@ export async function GET(
       ];
     }
 
+    if (search) {
+      whereClause.answers = {
+        some: {
+          OR: [
+            { value: { contains: search, mode: 'insensitive' } },
+            { question: { title: { contains: search, mode: 'insensitive' } } },
+          ],
+        },
+      };
+    }
+
     const responses = await db.response.findMany({
       where: whereClause,
-      orderBy: { startedAt: 'desc' },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: limit + 1,
       include: {
         answers: {
           include: {
@@ -281,21 +306,14 @@ export async function GET(
       },
     });
 
-    let serialized = responses.map((r) => serializeResponse(r));
+    const hasMore = responses.length > limit;
+    const page = hasMore ? responses.slice(0, limit) : responses;
+    const nextCursor = hasMore ? page[page.length - 1]?.id : null;
 
-    // Server-side search: filter by answer content
-    if (search.trim()) {
-      const query = search.toLowerCase();
-      serialized = serialized.filter((r) =>
-        r.answers.some(
-          (a) =>
-            a.value.toLowerCase().includes(query) ||
-            (a.question?.title?.toLowerCase() || '').includes(query)
-        )
-      );
-    }
-
-    return NextResponse.json(serialized);
+    return NextResponse.json({
+      responses: page.map((response) => serializeResponse(response)),
+      nextCursor,
+    });
   } catch (error) {
     console.error('Error fetching responses:', error);
     return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
@@ -371,6 +389,15 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const limit = await enforcePublicRateLimit({
+      scope: 'response-create', formId: id, clientId: publicClientId(request.headers),
+      maxRequests: 30, windowSeconds: 15 * 60,
+    });
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many response attempts. Please try again later.' }, {
+        status: 429, headers: { 'Retry-After': String(limit.retryAfter) },
+      });
+    }
 
     let body;
     try {
@@ -442,7 +469,10 @@ export async function POST(
         }
       }
 
-      // Create partial response
+      // Return this high-entropy bearer credential exactly once; persist only its
+      // one-way verifier and expire it if the draft is abandoned.
+      const rawEditToken = randomBytes(32).toString('base64url');
+      const editTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const result = await db.$transaction(async (tx) => {
         const response = await tx.response.create({
           data: {
@@ -451,7 +481,8 @@ export async function POST(
             completedAt: null,
             metadata: JSON.stringify(data.metadata || {}),
             score: totalScore,
-            editToken: randomBytes(32).toString('base64url'),
+            editTokenHash: hashResponseEditToken(rawEditToken),
+            editTokenExpiresAt,
           },
         });
 
@@ -477,9 +508,9 @@ export async function POST(
       });
 
       // Return the anonymous resume token only to the request that created it.
-      // `serializeResponse` deliberately strips it from owner-facing listings.
+      // `serializeResponse` deliberately strips database credential fields.
       return NextResponse.json(
-        { ...serializeResponse(result!), editToken: result!.editToken },
+        { ...serializeResponse(result!), editToken: rawEditToken },
         { status: 201 }
       );
     }
@@ -619,6 +650,15 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const limit = await enforcePublicRateLimit({
+      scope: 'response-update', formId: id, clientId: publicClientId(request.headers),
+      maxRequests: 120, windowSeconds: 15 * 60,
+    });
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many draft-save attempts. Please try again later.' }, {
+        status: 429, headers: { 'Retry-After': String(limit.retryAfter) },
+      });
+    }
 
     let body;
     try {
@@ -644,7 +684,8 @@ export async function PUT(
     if (!existingResponse || existingResponse.formId !== id || !existingResponse.isPartial) {
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
     }
-    if (!existingResponse.editToken || existingResponse.editToken !== data.editToken) {
+    const tokenExpired = !existingResponse.editTokenExpiresAt || existingResponse.editTokenExpiresAt <= new Date();
+    if (!existingResponse.editTokenHash || tokenExpired || !verifyResponseEditToken(data.editToken, existingResponse.editTokenHash)) {
       // Do not reveal whether the response ID exists to an unauthorised caller.
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
     }
@@ -721,29 +762,22 @@ export async function PUT(
           }
           totalScore += answerScore;
 
-          // Check if answer exists for this question
-          const existingAnswer = await tx.answer.findFirst({
+          // The compound unique constraint makes this atomic across concurrent saves.
+          await tx.answer.upsert({
             where: {
-              responseId: data.responseId,
-              questionId: answer.questionId,
-            },
-          });
-
-          if (existingAnswer) {
-            await tx.answer.update({
-              where: { id: existingAnswer.id },
-              data: { value: answer.value, score: answerScore },
-            });
-          } else {
-            await tx.answer.create({
-              data: {
+              responseId_questionId: {
                 responseId: data.responseId,
                 questionId: answer.questionId,
-                value: answer.value,
-                score: answerScore,
               },
-            });
-          }
+            },
+            update: { value: answer.value, score: answerScore },
+            create: {
+              responseId: data.responseId,
+              questionId: answer.questionId,
+              value: answer.value,
+              score: answerScore,
+            },
+          });
         }
 
         // Recalculate total score from all answers
@@ -761,6 +795,7 @@ export async function PUT(
               ? (data.completedAt ? new Date(data.completedAt) : null)
               : (data.isPartial === false ? new Date() : existingResponse.completedAt),
             metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+            ...(data.isPartial === false && { editTokenHash: null, editTokenExpiresAt: null }),
             score: recalculatedScore,
           },
         });
@@ -774,6 +809,7 @@ export async function PUT(
               ? (data.completedAt ? new Date(data.completedAt) : null)
               : (data.isPartial === false ? new Date() : existingResponse.completedAt),
             metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+            ...(data.isPartial === false && { editTokenHash: null, editTokenExpiresAt: null }),
           },
         });
       }

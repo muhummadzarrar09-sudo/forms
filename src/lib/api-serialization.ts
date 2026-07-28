@@ -86,7 +86,8 @@ interface RawResponse {
   isPartial: boolean;
   score: number;
   metadata: string;     // JSON string
-  editToken?: string | null;
+  editTokenHash?: string | null;
+  editTokenExpiresAt?: Date | string | null;
   answers: RawAnswer[];
 }
 
@@ -233,8 +234,8 @@ export function serializePublicForm(form: RawForm) {
  * Serialize a raw Prisma response row, parsing metadata and question JSON fields.
  */
 export function serializeResponse(r: RawResponse) {
-  // The anonymous resume token must never be exposed in owner response listings.
-  const { editToken: _editToken, ...response } = r;
+  // Draft credential verifiers and expiry details are never owner/public data.
+  const { editTokenHash: _editTokenHash, editTokenExpiresAt: _editTokenExpiresAt, ...response } = r;
   return {
     ...response,
     isPartial: r.isPartial ?? false,

@@ -457,7 +457,6 @@ export function FormFiller() {
 
     const interval = setInterval(async () => {
       const currentAnswers = answersRef.current;
-      const currentScores = { ...state.scores };
       const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
         questionId,
         value,

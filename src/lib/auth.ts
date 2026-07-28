@@ -2,7 +2,7 @@ import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
 import { hashPassword, verifyPassword } from './crypto';
-import { checkRateLimit, recordRateLimitAttempt, resetRateLimit } from './rate-limit';
+import { clearPublicRateLimit, enforcePublicRateLimit } from './public-rate-limit';
 
 // Keep missing-account attempts on the same PBKDF2 path as wrong passwords.
 // This value is intentionally process-local and contains no user credential.
@@ -23,32 +23,24 @@ export const authOptions: NextAuthOptions = {
 
         const email = credentials.email.trim().toLowerCase();
 
-        // Per-email rate limit: 20 failed attempts per 15-minute window
-        const emailKey = `login:email:${email}`;
-        const limitCheck = checkRateLimit(emailKey, { maxRequests: 20, windowSeconds: 900 });
-        if (!limitCheck.success) {
-          console.log(`[AUTH] Rate limited: ${email} — retry in ${limitCheck.retryAfter}s`);
-          return null;
-        }
+        // Durable per-email limit shared by every application instance.
+        const limitCheck = await enforcePublicRateLimit({
+          scope: 'login-email', formId: 'credentials', clientId: email,
+          maxRequests: 20, windowSeconds: 900,
+        });
+        if (!limitCheck.allowed) return null;
 
         try {
           const user = await db.user.findUnique({ where: { email } });
 
-          if (!user) {
-            // Record attempt even for missing users (prevents user enumeration timing)
-            recordRateLimitAttempt(emailKey);
-            return null;
-          }
+          // Always run PBKDF2, even for an unknown account, so the observable
+          // credential path does not reveal whether the email exists.
+          const passwordMatch = verifyPassword(credentials.password, user?.password ?? DUMMY_PASSWORD_HASH);
 
-          const passwordMatch = verifyPassword(credentials.password, user.password);
+          if (!user || !passwordMatch) return null;
 
-          if (!passwordMatch) {
-            recordRateLimitAttempt(emailKey);
-            return null;
-          }
-
-          // Successful login — reset the email rate limit counter
-          resetRateLimit(emailKey);
+          // Successful login clears prior attempts for this email.
+          await clearPublicRateLimit('login-email', 'credentials', email);
 
           // Note: bcrypt hashes from pre-PBKDF2 versions are not supported.
           // Affected users must re-register.

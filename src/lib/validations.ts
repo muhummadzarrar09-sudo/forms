@@ -13,6 +13,36 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color (e.g. #FF5733)');
+const isoDateTime = z.string().datetime({ offset: true }).refine(
+  (value) => !Number.isNaN(Date.parse(value)),
+  'Must be a valid ISO-8601 datetime'
+);
+const questionType = z.enum([
+  'short_text', 'long_text', 'multiple_choice', 'dropdown', 'email', 'number',
+  'rating', 'opinion_scale', 'yes_no', 'date', 'picture_choice', 'phone',
+  'website', 'legal', 'statement', 'ending',
+]);
+
+/** External redirects must never be executable/data URLs. */
+export const safeRedirectUrl = z.string().url().max(2048).refine((value) => {
+  try { return new URL(value).protocol === 'https:'; } catch { return false; }
+}, 'Redirect URL must use HTTPS');
+
+export const createEndingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  message: z.string().min(1).max(2_000).optional(),
+  redirectUrl: safeRedirectUrl.nullable().optional(),
+  showScore: z.boolean().optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+}).strict();
+
+export const updateEndingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  message: z.string().min(1).max(2_000).optional(),
+  redirectUrl: safeRedirectUrl.nullable().optional(),
+  showScore: z.boolean().optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+}).strict();
 
 const questionOptionSchema = z.object({
   id: z.string(),
@@ -94,7 +124,7 @@ export const updateFormSchema = z.object({
   hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
   workspaceId: z.string().nullable().optional(),
   maxResponses: z.number().int().min(0).optional(),
-  closeDate: z.string().nullable().optional(),
+  closeDate: isoDateTime.nullable().optional(),
   metaTitle: z.string().max(200).optional(),
   metaDescription: z.string().max(500).optional(),
 });
@@ -105,7 +135,7 @@ export const updateFormSchema = z.object({
 
 const questionSchema = z.object({
   id: z.string().min(1).max(100).optional(),
-  type: z.string().max(30),
+  type: questionType,
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   required: z.boolean().optional().default(false),
@@ -135,7 +165,7 @@ export const submitResponseSchema = z.object({
     )
     .min(1),
   metadata: z.record(z.unknown()).optional(),
-  completedAt: z.string().optional(),
+  completedAt: isoDateTime.optional(),
 });
 
 // ---------------------------------------------------------------------------

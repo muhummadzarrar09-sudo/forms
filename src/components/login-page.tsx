@@ -54,8 +54,8 @@ export function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (registerPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (registerPassword.length < 12) {
+      setError('Password must be at least 12 characters');
       return;
     }
 
