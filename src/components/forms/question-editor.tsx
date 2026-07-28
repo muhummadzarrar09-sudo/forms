@@ -297,6 +297,9 @@ export function QuestionEditor({
                       )}
                     </div>
                   )}
+                <p className={`text-xs opacity-45 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+                  Personalize text with <code>{'{{answer:questionId}}'}</code> using a prior question ID.
+                </p>
               </div>
 
               {/* Question type specific input area */}
