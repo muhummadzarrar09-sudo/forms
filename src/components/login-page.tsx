@@ -255,11 +255,11 @@ export function LoginPage() {
                       <Input
                         id="register-password"
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Minimum 6 characters"
+                        placeholder="Minimum 12 characters"
                         value={registerPassword}
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         required
-                        minLength={6}
+                        minLength={12}
                         autoComplete="new-password"
                         className="pr-10"
                       />
