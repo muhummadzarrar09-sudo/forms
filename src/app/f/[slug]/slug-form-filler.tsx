@@ -12,7 +12,7 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { FillerConfetti, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { FillerConfetti, FillerWelcomeBranding, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 
@@ -312,6 +312,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
+                <FillerWelcomeBranding form={state.form} />
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
