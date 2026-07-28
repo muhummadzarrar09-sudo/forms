@@ -46,6 +46,14 @@ export function useFillerTheme(form: Form | null): FormTheme {
   }, [form]);
 }
 
+export function FillerWelcomeMeta({ questionCount }: { questionCount: number }) {
+  if (questionCount === 0) return null;
+  const minutes = Math.max(1, Math.ceil(questionCount / 8));
+  return <p className="text-sm opacity-55" aria-label={`${questionCount} questions, about ${minutes} minute${minutes === 1 ? '' : 's'}`}>
+    {questionCount} question{questionCount === 1 ? '' : 's'} · about {minutes} min
+  </p>;
+}
+
 /** Compact brand mark retained while respondents move beyond the welcome screen. */
 export function FillerHeaderLogo({ form }: { form: Form }) {
   const [failed, setFailed] = useState(false);
