@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           // credential path does not reveal whether the email exists.
           const passwordMatch = verifyPassword(credentials.password, user?.password ?? DUMMY_PASSWORD_HASH);
 
-          if (!user || !passwordMatch) return null;
+          if (!user || !passwordMatch || !user.emailVerified) return null;
 
           // Successful login clears prior attempts for this email.
           await clearPublicRateLimit('login-email', 'credentials', email);

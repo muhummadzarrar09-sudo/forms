@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/crypto';
+import { issueEmailVerification } from '@/lib/email-verification';
 
 // POST /api/auth/register - Register a new user
 export async function POST(request: NextRequest) {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Create user with hashed password
     const hashedPassword = hashPassword(password);
-    await db.user.create({
+    const user = await db.user.create({
       data: {
         email: normalizedEmail,
         password: hashedPassword,
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await issueEmailVerification({ id: user.id, email: user.email });
     console.log('[REGISTER] User created:', normalizedEmail);
 
     return NextResponse.json(

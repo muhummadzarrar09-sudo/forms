@@ -20,6 +20,23 @@ function getTransporter() {
   });
 }
 
+export async function sendVerificationEmail(ownerEmail: string, verificationUrl: string): Promise<boolean> {
+  try {
+    const transporter = getTransporter();
+    if (!transporter) return false;
+    await transporter.sendMail({
+      from: process.env.SMTP_USER || 'noreply@forms.app',
+      to: ownerEmail,
+      subject: 'Verify your Forms email address',
+      text: `Welcome to Forms. Verify your email address: ${verificationUrl}\n\nThis link expires in 24 hours.`,
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to send verification email:', error);
+    return false;
+  }
+}
+
 export async function sendPasswordResetEmail(ownerEmail: string, resetUrl: string): Promise<boolean> {
   try {
     const transporter = getTransporter();

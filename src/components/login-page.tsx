@@ -91,16 +91,33 @@ export function LoginPage() {
       });
 
       if (result?.error) {
-        // Account was created but auto sign-in failed
-        // Still redirect to home - the user can sign in manually
-        console.warn('[REGISTER] Auto sign-in failed after registration, redirecting anyway');
+        // New accounts must verify ownership before a session is issued.
+        setActiveTab('login');
+        setError('Check your inbox and verify your email before signing in.');
+        return;
       }
 
-      // Always redirect to home page after successful registration
-      // Even if auto sign-in fails, the account was created
       window.location.href = '/';
     } catch {
       setError('An error occurred. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!loginEmail.trim()) return setError('Enter your email address first.');
+    setError('');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/email-verification/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail }),
+      });
+      const body = await response.json().catch(() => ({}));
+      setError(body.message || body.error || 'If applicable, a verification link has been sent.');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -237,13 +254,14 @@ export function LoginPage() {
                     )}
                   </Button>
 
-                  <button
-                    type="button"
-                    className="w-full text-center text-sm text-primary hover:underline"
-                    onClick={() => { setActiveTab('reset'); setError(''); setResetNotice(''); }}
-                  >
-                    Forgot your password?
-                  </button>
+                  <div className="space-y-2 text-center text-sm">
+                    <button type="button" className="block w-full text-primary hover:underline" onClick={() => { setActiveTab('reset'); setError(''); setResetNotice(''); }}>
+                      Forgot your password?
+                    </button>
+                    <button type="button" className="block w-full text-primary hover:underline" onClick={handleResendVerification} disabled={isLoading}>
+                      Resend verification email
+                    </button>
+                  </div>
 
                   <p className="text-center text-sm text-muted-foreground">
                     Don&apos;t have an account?{' '}

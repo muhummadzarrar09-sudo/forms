@@ -11,6 +11,7 @@ Create a local ignored `.env` from `.env.example`, or set these directly in Verc
 - `NEXTAUTH_URL` (the canonical production HTTPS URL)
 - `NEXTAUTH_SECRET` (`openssl rand -hex 32`)
 - optionally `NEXT_PUBLIC_APP_URL`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS` (required for password reset and new-account email verification)
 - `TRUST_PROXY_HEADERS=true` **only** when deployed behind Caddy/the trusted edge configuration that overwrites `X-Real-IP`; otherwise leave it unset and public rate limits intentionally use a shared anonymous bucket.
 
 Never commit any of them. `.env` is intentionally removed from tracking; only `.env.example` belongs in Git.
