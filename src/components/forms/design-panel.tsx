@@ -6,6 +6,7 @@ import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding,
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
+import { BrandingUrlEditor } from '@/components/forms/branding-url-editor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
@@ -1465,7 +1466,7 @@ function DesignTabContent() {
   const localBtnText = currentForm.buttonTextColor;
 
   // Persist design changes to DB — store alone is not enough
-  const saveDesign = async (updates: Record<string, string>) => {
+  const saveDesign = async (updates: Record<string, string | null>) => {
     try {
       await fetch(`/api/forms/${currentForm.id}`, {
         method: 'PUT',
@@ -1583,6 +1584,34 @@ function DesignTabContent() {
             onChange={(v) => handleColorChange('btnText', v)}
           />
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Public Branding & Share Preview */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Public Branding & Share Preview
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          A cover image becomes the social preview for published forms. Use an HTTPS image URL.
+        </p>
+        <BrandingUrlEditor
+          label="Logo image URL"
+          value={currentForm.logoUrl || ''}
+          onSave={(logoUrl) => {
+            updateForm(currentForm.id, { logoUrl });
+            saveDesign({ logoUrl: logoUrl || null });
+          }}
+        />
+        <BrandingUrlEditor
+          label="Cover / social preview image URL"
+          value={currentForm.coverUrl || ''}
+          onSave={(coverUrl) => {
+            updateForm(currentForm.id, { coverUrl });
+            saveDesign({ coverUrl: coverUrl || null });
+          }}
+        />
       </div>
 
       <Separator />
