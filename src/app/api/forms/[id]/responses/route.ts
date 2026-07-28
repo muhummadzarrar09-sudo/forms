@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
 import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
+import { sendNewResponseNotification } from '@/lib/email';
 const boundedMetadataSchema = z.record(z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Metadata must not exceed 20KB'
@@ -533,7 +534,7 @@ export async function POST(
     // Verify form exists and is published
     const form = await db.form.findUnique({
       where: { id },
-      include: { questions: true },
+      include: { questions: true, user: { select: { email: true } } },
     });
     if (!form) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
@@ -626,6 +627,11 @@ export async function POST(
         include: { answers: true },
       });
     });
+
+    // Notification delivery is deliberately best-effort; the helper catches SMTP
+    // failures so a completed response is never rolled back because mail failed.
+    const responseCount = await db.response.count({ where: { formId: id, isPartial: false } });
+    await sendNewResponseNotification(form.title, form.user.email, responseCount);
 
     return NextResponse.json(
       serializeResponse(result!),
@@ -887,13 +893,12 @@ export async function DELETE(
     const responseIds = responses.map((r) => r.id);
 
     if (responseIds.length > 0) {
-      await db.answer.deleteMany({
-        where: { responseId: { in: responseIds } },
-      });
-
-      await db.response.deleteMany({
-        where: { formId: id },
-      });
+      // Keep explicit answer deletion for deployments whose database constraints
+      // predate the Prisma cascade, but make both destructive writes atomic.
+      await db.$transaction([
+        db.answer.deleteMany({ where: { responseId: { in: responseIds } } }),
+        db.response.deleteMany({ where: { formId: id } }),
+      ]);
     }
 
     return NextResponse.json({

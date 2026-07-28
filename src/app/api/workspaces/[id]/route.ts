@@ -134,16 +134,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // First, set workspaceId to null for all forms in this workspace
-    await db.form.updateMany({
-      where: { workspaceId: id },
-      data: { workspaceId: null },
-    });
-
-    // Then delete the workspace
-    await db.workspace.delete({
-      where: { id },
-    });
+    // The schema's foreign key uses onDelete: SetNull, so one delete is atomic
+    // and cannot leave forms partially reassigned if a second query fails.
+    await db.workspace.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {
