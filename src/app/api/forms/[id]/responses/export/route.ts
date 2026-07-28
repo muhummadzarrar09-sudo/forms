@@ -6,7 +6,10 @@ import { db } from '@/lib/db';
 const PAGE_SIZE = 500;
 
 function csv(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // Spreadsheet applications evaluate leading formula markers on CSV import.
+  // Prefix untrusted values before escaping to prevent formula injection.
+  const safeValue = /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(safeValue) ? `"${safeValue.replace(/"/g, '""')}"` : safeValue;
 }
 
 /** Streams the complete owner-authorized export without loading all responses in memory. */
