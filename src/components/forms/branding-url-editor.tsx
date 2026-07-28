@@ -45,5 +45,10 @@ export function BrandingUrlEditor({
       inputMode="url"
     />
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    {!error && /^https:\/\//.test(draft.trim()) && (
+      <div className="overflow-hidden rounded-md border bg-muted/20">
+        <img src={draft.trim()} alt={`${label} preview`} className="h-20 w-full object-cover" />
+      </div>
+    )}
   </div>;
 }
