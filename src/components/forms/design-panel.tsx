@@ -7,6 +7,7 @@ import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
 import { BrandingUrlEditor } from '@/components/forms/branding-url-editor';
+import { contrastRatio } from '@/lib/color-contrast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
@@ -1464,6 +1465,8 @@ function DesignTabContent() {
   const localText = currentForm.textColor;
   const localBtn = currentForm.buttonColor;
   const localBtnText = currentForm.buttonTextColor;
+  const textContrast = contrastRatio(localText, localBg);
+  const buttonContrast = contrastRatio(localBtnText, localBtn);
 
   // Persist design changes to DB — store alone is not enough
   const saveDesign = async (updates: Record<string, string | null>) => {
@@ -1584,6 +1587,11 @@ function DesignTabContent() {
             onChange={(v) => handleColorChange('btnText', v)}
           />
         </div>
+        {((textContrast !== null && textContrast < 4.5) || (buttonContrast !== null && buttonContrast < 4.5)) && (
+          <p role="alert" className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Low contrast detected. Use at least 4.5:1 contrast for readable public-form text and buttons.
+          </p>
+        )}
       </div>
 
       <Separator />
