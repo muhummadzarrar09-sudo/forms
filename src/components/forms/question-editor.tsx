@@ -55,6 +55,11 @@ export function QuestionEditor({
   const [selectedScale, setSelectedScale] = useState<number | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [copiedQuestionId, setCopiedQuestionId] = useState(false);
+  const [copiedPipeId, setCopiedPipeId] = useState<string | null>(null);
+  const pipingSources = useMemo(
+    () => (currentForm?.questions || []).filter((candidate) => candidate.order < question.order && candidate.type !== 'statement' && candidate.type !== 'ending'),
+    [currentForm?.questions, question.order]
+  );
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -317,6 +322,28 @@ export function QuestionEditor({
                     {copiedQuestionId ? 'Copied ID' : 'Copy question ID'}
                   </button>
                 </div>
+                {pipingSources.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs opacity-60" style={{ color: formTextColor }}>
+                    <span>Insert prior answer:</span>
+                    {pipingSources.map((source) => (
+                      <button
+                        key={source.id}
+                        type="button"
+                        className="max-w-40 truncate rounded border px-1.5 py-0.5 text-left hover:opacity-100"
+                        title={`Copy {{answer:${source.id}}}`}
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(`{{answer:${source.id}}}`);
+                            setCopiedPipeId(source.id);
+                            window.setTimeout(() => setCopiedPipeId(null), 1500);
+                          } catch { /* Clipboard access can be unavailable in insecure previews. */ }
+                        }}
+                      >
+                        {copiedPipeId === source.id ? 'Copied token' : source.title || `Question ${source.order + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Question type specific input area */}
