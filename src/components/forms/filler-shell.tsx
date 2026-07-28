@@ -46,6 +46,18 @@ export function useFillerTheme(form: Form | null): FormTheme {
   }, [form]);
 }
 
+/** Compact brand mark retained while respondents move beyond the welcome screen. */
+export function FillerHeaderLogo({ form }: { form: Form }) {
+  const [failed, setFailed] = useState(false);
+  if (!form.logoUrl || failed) return null;
+  return <img
+    src={form.logoUrl}
+    alt={`${form.title} logo`}
+    className="absolute left-5 top-4 z-20 max-h-8 max-w-32 object-contain object-left"
+    onError={() => setFailed(true)}
+  />;
+}
+
 /** Shared public-form branding shown on the welcome screen. Failed remote image
  * loads disappear gracefully rather than leaving a broken image icon. */
 export function FillerWelcomeBranding({ form }: { form: Form }) {

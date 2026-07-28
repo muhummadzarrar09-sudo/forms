@@ -12,7 +12,7 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { FillerConfetti, FillerWelcomeBranding, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 
@@ -259,6 +259,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     >
       {/* ── Confetti ── */}
       {showConfetti && state.screen === 'ending' && <FillerConfetti />}
+      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} />}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
