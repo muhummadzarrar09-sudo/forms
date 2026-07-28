@@ -128,6 +128,10 @@ interface DisplayResponse {
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
+function dateFilterParam(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function ResponsesViewer() {
   const { selectedFormId, openBuilder, openFiller, currentForm, setCurrentForm, openResponses } = useFormStore();
 
@@ -192,13 +196,37 @@ export function ResponsesViewer() {
     fetchData();
   }, [selectedFormId, setCurrentForm]);
 
+  // Search and date filters must query the paginated API rather than filtering
+  // only whichever response page happens to be in browser memory.
+  useEffect(() => {
+    if (!selectedFormId) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ limit: '50' });
+        if (searchQuery.trim()) params.set('search', searchQuery.trim());
+        if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
+        if (dateTo) params.set('endDate', dateFilterParam(dateTo));
+        const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`);
+        if (!response.ok) throw new Error('Response filter request failed');
+        const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
+        setResponses(page.responses || []);
+        setNextResponseCursor(page.nextCursor || null);
+      } catch {
+        toast({ title: 'Could not filter responses', description: 'Please try again.', variant: 'destructive' });
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [selectedFormId, searchQuery, dateFrom, dateTo]);
+
   const loadMoreResponses = useCallback(async () => {
     if (!selectedFormId || !nextResponseCursor || isLoadingMore) return;
     setIsLoadingMore(true);
     try {
-      const response = await fetch(
-        `/api/forms/${encodeURIComponent(selectedFormId)}/responses?limit=50&cursor=${encodeURIComponent(nextResponseCursor)}`
-      );
+      const params = new URLSearchParams({ limit: '50', cursor: nextResponseCursor });
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
+      if (dateTo) params.set('endDate', dateFilterParam(dateTo));
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`);
       if (!response.ok) throw new Error('Response page request failed');
       const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
       setResponses((current) => [...current, ...(page.responses || [])]);
@@ -212,7 +240,7 @@ export function ResponsesViewer() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [selectedFormId, nextResponseCursor, isLoadingMore]);
+  }, [selectedFormId, nextResponseCursor, isLoadingMore, searchQuery, dateFrom, dateTo]);
 
   // ─── Process responses for display ─────────────────────────────────────────
 

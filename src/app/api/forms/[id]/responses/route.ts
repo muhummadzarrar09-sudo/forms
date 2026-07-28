@@ -40,6 +40,14 @@ const updatePartialResponseSchema = z.object({
   metadata: boundedMetadataSchema.optional(),
 });
 
+function parseUtcDateFilter(value: string, endOfDay: boolean): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
+
 function answersBelongToForm(
   answers: Array<{ questionId: string }>,
   questionIds: Set<string>
@@ -261,8 +269,10 @@ export async function GET(
     const requestedLimit = Number(searchParams.get('limit') || '50');
     const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
 
-    if ((startDate && Number.isNaN(Date.parse(startDate))) || (endDate && Number.isNaN(Date.parse(endDate)))) {
-      return NextResponse.json({ error: 'Invalid date filter' }, { status: 400 });
+    const startBoundary = startDate ? parseUtcDateFilter(startDate, false) : null;
+    const endBoundary = endDate ? parseUtcDateFilter(endDate, true) : null;
+    if ((startDate && !startBoundary) || (endDate && !endBoundary)) {
+      return NextResponse.json({ error: 'Date filters must use YYYY-MM-DD' }, { status: 400 });
     }
 
     // Build where clause
@@ -271,14 +281,8 @@ export async function GET(
     // Date range filter
     if (startDate || endDate) {
       const dateFilter: Record<string, unknown> = {};
-      if (startDate) {
-        dateFilter.gte = new Date(startDate);
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        dateFilter.lte = end;
-      }
+      if (startBoundary) dateFilter.gte = startBoundary;
+      if (endBoundary) dateFilter.lte = endBoundary;
       // Filter by startedAt OR completedAt falling in range
       whereClause.OR = [
         { startedAt: dateFilter },
