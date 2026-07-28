@@ -686,7 +686,15 @@ export function FormFiller() {
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
-        <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
+        <div
+          className="absolute top-0 left-0 right-0 h-1.5 z-30"
+          style={{ backgroundColor: `${theme.textColor}10` }}
+          role="progressbar"
+          aria-label="Form completion progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+        >
           <motion.div
             className="h-full relative progress-bar-glow"
             style={{
