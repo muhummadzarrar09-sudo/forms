@@ -271,54 +271,27 @@ export function ResponsesViewer() {
 
   // ─── CSV Export ────────────────────────────────────────────────────────────
 
-  const handleExportCSV = useCallback(() => {
-    if (responses.length === 0) {
-      toast({
-        title: 'No responses to export',
-        description: 'There are no responses to download.',
-        variant: 'destructive',
-      });
-      return;
+  const handleExportCSV = useCallback(async () => {
+    if (!selectedFormId) return;
+    try {
+      // Export is streamed server-side, so it includes every response rather
+      // than only the currently loaded cursor page.
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses/export`);
+      if (!response.ok) throw new Error('Export request failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${currentForm?.title || 'form'}-responses.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: 'Export successful', description: 'All responses were downloaded as CSV.' });
+    } catch {
+      toast({ title: 'Export failed', description: 'Could not create the response export. Please try again.', variant: 'destructive' });
     }
-
-    const headers = ['Response #', 'Submitted At', 'Time Taken', ...questions.map((q) => q.title)];
-    const rows = displayResponses.map((r) => {
-      const timeTakenStr = r.timeTaken !== null ? formatDuration(r.timeTaken) : 'N/A';
-      const answerMap: Record<string, string> = {};
-      r.answers.forEach((a) => {
-        answerMap[a.questionId] = a.value;
-      });
-      return [
-        r.number.toString(),
-        new Date(r.submittedAt).toLocaleString(),
-        timeTakenStr,
-        ...questions.map((q) => {
-          const val = answerMap[q.id] || '';
-          // Escape CSV values
-          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-            return `"${val.replace(/"/g, '""')}"`;
-          }
-          return val;
-        }),
-      ];
-    });
-
-    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${currentForm?.title || 'form'}-responses.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: 'Export successful',
-      description: `${displayResponses.length} responses downloaded as CSV.`,
-    });
-  }, [responses, displayResponses, questions, currentForm]);
+  }, [selectedFormId, currentForm]);
 
   // ─── Bulk Delete All Responses ─────────────────────────────────────────────
   const handleClearAllResponses = useCallback(async () => {
