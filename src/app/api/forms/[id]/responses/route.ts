@@ -275,6 +275,11 @@ export async function GET(
       return NextResponse.json({ error: 'Date filters must use YYYY-MM-DD' }, { status: 400 });
     }
 
+    if (cursor) {
+      const cursorResponse = await db.response.findFirst({ where: { id: cursor, formId: id }, select: { id: true } });
+      if (!cursorResponse) return NextResponse.json({ error: 'Invalid response cursor' }, { status: 400 });
+    }
+
     // Build where clause
     const whereClause: Record<string, unknown> = { formId: id };
 

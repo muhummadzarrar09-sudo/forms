@@ -200,22 +200,29 @@ export function ResponsesViewer() {
   // only whichever response page happens to be in browser memory.
   useEffect(() => {
     if (!selectedFormId) return;
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
         const params = new URLSearchParams({ limit: '50' });
         if (searchQuery.trim()) params.set('search', searchQuery.trim());
         if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
         if (dateTo) params.set('endDate', dateFilterParam(dateTo));
-        const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`);
+        const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`, { signal: controller.signal });
         if (!response.ok) throw new Error('Response filter request failed');
         const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
+        if (controller.signal.aborted) return;
         setResponses(page.responses || []);
         setNextResponseCursor(page.nextCursor || null);
-      } catch {
-        toast({ title: 'Could not filter responses', description: 'Please try again.', variant: 'destructive' });
+      } catch (error) {
+        if ((error as { name?: string }).name !== 'AbortError') {
+          toast({ title: 'Could not filter responses', description: 'Please try again.', variant: 'destructive' });
+        }
       }
     }, 300);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [selectedFormId, searchQuery, dateFrom, dateTo]);
 
   const loadMoreResponses = useCallback(async () => {
