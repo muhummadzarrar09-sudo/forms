@@ -20,6 +20,7 @@ import {
   ImageIcon,
   Eye,
   EyeOff,
+  Copy,
 } from 'lucide-react';
 
 interface QuestionEditorProps {
@@ -53,6 +54,7 @@ export function QuestionEditor({
   const [hoveredRating, setHoveredRating] = useState(0);
   const [selectedScale, setSelectedScale] = useState<number | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [copiedQuestionId, setCopiedQuestionId] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -297,9 +299,24 @@ export function QuestionEditor({
                       )}
                     </div>
                   )}
-                <p className={`text-xs opacity-45 ${fontFamilyClass}`} style={{ color: formTextColor }}>
-                  Personalize text with <code>{'{{answer:questionId}}'}</code> using a prior question ID.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs opacity-55" style={{ color: formTextColor }}>
+                  <span>Personalize text with <code>{'{{answer:questionId}}'}</code> using a prior question ID.</span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 hover:opacity-100"
+                    title="Copy this question ID for answer piping"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(question.id);
+                        setCopiedQuestionId(true);
+                        window.setTimeout(() => setCopiedQuestionId(false), 1500);
+                      } catch { /* Clipboard access can be unavailable in insecure previews. */ }
+                    }}
+                  >
+                    <Copy className="size-3" />
+                    {copiedQuestionId ? 'Copied ID' : 'Copy question ID'}
+                  </button>
+                </div>
               </div>
 
               {/* Question type specific input area */}
