@@ -12,6 +12,10 @@ Create a local ignored `.env` from `.env.example`, or set these directly in Verc
 - `NEXTAUTH_SECRET` (`openssl rand -hex 32`)
 - optionally `NEXT_PUBLIC_APP_URL`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS` (required for password reset and new-account email verification)
+<<<<<<< HEAD
+=======
+- `CRON_SECRET` (a random secret for the authenticated daily cleanup job)
+>>>>>>> 1180bd3 (complete application hardening and maintenance workflows)
 - `TRUST_PROXY_HEADERS=true` **only** when deployed behind Caddy/the trusted edge configuration that overwrites `X-Real-IP`; otherwise leave it unset and public rate limits intentionally use a shared anonymous bucket.
 
 Never commit any of them. `.env` is intentionally removed from tracking; only `.env.example` belongs in Git.
@@ -43,7 +47,12 @@ bunx prisma validate
 
 ## 3. Configure Vercel
 
-Add the same values to the Vercel Production environment. Do not put database credentials in `NEXT_PUBLIC_*` variables.
+Add the same values to the Vercel Production environment.
+
+Configure a daily scheduler to `POST /api/internal/cleanup` with
+`Authorization: Bearer $CRON_SECRET`. It removes expired password-reset and
+email-verification credentials, unusable abandoned drafts, and stale rate-limit
+buckets. Do not expose this endpoint without its bearer secret. Do not put database credentials in `NEXT_PUBLIC_*` variables.
 
 The repository now has a `postinstall` script that runs `prisma generate`, so the generated client is available during Vercel’s install/build step.
 
