@@ -31,9 +31,11 @@ const boundedSettings = z.record(z.unknown()).refine(
 );
 
 /** External redirects must never be executable/data URLs. */
-export const safeRedirectUrl = z.string().url().max(2048).refine((value) => {
+const safeHttpsUrl = z.string().url().max(2048).refine((value) => {
   try { return new URL(value).protocol === 'https:'; } catch { return false; }
-}, 'Redirect URL must use HTTPS');
+}, 'URL must use HTTPS');
+
+export const safeRedirectUrl = safeHttpsUrl;
 
 export const createEndingSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -61,7 +63,7 @@ const hiddenFieldSchema = z.object({
 const questionOptionSchema = z.object({
   id: shortId,
   label: z.string().min(1).max(200),
-  image: z.string().url().max(2_048).optional(),
+  image: safeHttpsUrl.optional(),
 });
 
 const logicConditionSchema = z.object({
@@ -127,8 +129,8 @@ export const updateFormSchema = z.object({
   buttonColor: hexColor.optional(),
   buttonTextColor: hexColor.optional(),
   fontFamily: z.enum(['sans', 'serif', 'mono']).optional(),
-  logoUrl: z.string().url().nullable().optional(),
-  coverUrl: z.string().url().nullable().optional(),
+  logoUrl: safeHttpsUrl.nullable().optional(),
+  coverUrl: safeHttpsUrl.nullable().optional(),
   progressbar: z.boolean().optional(),
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
@@ -155,7 +157,7 @@ const questionSchema = z.object({
   required: z.boolean().optional().default(false),
   order: z.number().int().min(0).optional().default(0),
   options: z.array(questionOptionSchema).optional().default([]),
-  imageUrls: z.array(z.string().url().max(2_048)).max(20).optional().default([]),
+  imageUrls: z.array(safeHttpsUrl).max(20).optional().default([]),
   settings: boundedSettings.optional().default({}),
   logic: z.array(logicRuleSchema).optional().default([]),
   placeholder: z.string().max(200).optional().default(''),

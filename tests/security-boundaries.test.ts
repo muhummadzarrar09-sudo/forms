@@ -16,6 +16,9 @@ describe('security boundary validation', () => {
     expect(createEndingSchema.safeParse({ redirectUrl: 'javascript:alert(1)' }).success).toBe(false);
     expect(createEndingSchema.safeParse({ redirectUrl: 'data:text/html,hello' }).success).toBe(false);
     expect(createEndingSchema.safeParse({ redirectUrl: 'http://example.com' }).success).toBe(false);
+    expect(saveQuestionsSchema.safeParse({
+      questions: [{ id: 'q1', type: 'picture_choice', title: 'Pick', imageUrls: ['data:image/svg+xml,<svg/>'] }],
+    }).success).toBe(false);
   });
 
   test('rejects unsupported question types and oversized settings', () => {
