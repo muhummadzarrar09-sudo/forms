@@ -16,6 +16,7 @@ import {
 import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeMeta, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
+import { pipeAnswerText } from '@/lib/answer-piping';
 
 /* ─── Blinking cursor animation ────────────────────────────────────────── */
 
@@ -770,7 +771,7 @@ export function FormFiller() {
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeTitle || state.form.title || 'Welcome!'}
+                  {pipeAnswerText(state.form.welcomeTitle || state.form.title || 'Welcome!', state.answers)}
                   {/* Blinking cursor */}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
@@ -784,7 +785,7 @@ export function FormFiller() {
                   className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeMessage || 'Thanks for taking the time to fill this out.'}
+                  {pipeAnswerText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.', state.answers)}
                 </motion.p>
                 <FillerWelcomeMeta questionCount={questions.length} />
               </div>
@@ -804,7 +805,11 @@ export function FormFiller() {
               className="max-w-2xl mx-auto w-full"
             >
               <FillerQuestionScreen
-                question={currentQuestion}
+                question={{
+                  ...currentQuestion,
+                  title: pipeAnswerText(currentQuestion.title, state.answers),
+                  description: pipeAnswerText(currentQuestion.description, state.answers),
+                }}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
                 answer={state.answers[currentQuestion.id] || ''}
@@ -872,13 +877,13 @@ export function FormFiller() {
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.title || state.form.endingTitle || 'Thank you!'}
+                {pipeAnswerText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!', state.answers)}
               </h1>
               <p
                 className={`text-lg md:text-xl opacity-60 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.'}
+                {pipeAnswerText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.', state.answers)}
               </p>
 
               {/* Show redirect link if custom ending has one */}
