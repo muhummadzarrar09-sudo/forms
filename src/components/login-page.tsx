@@ -24,6 +24,8 @@ export function LoginPage() {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetNotice, setResetNotice] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +105,26 @@ export function LoginPage() {
     }
   };
 
+  const handlePasswordResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setResetNotice('');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/password-reset/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setError(body.error || 'Unable to request a password reset.');
+      setResetNotice(body.message || 'If an account exists for this email, a password reset link will be sent.');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/30 p-4">
       <motion.div
@@ -143,6 +165,11 @@ export function LoginPage() {
               <TabsContent value="register">
                 <CardTitle className="text-xl mt-4">Sign Up</CardTitle>
                 <CardDescription>Create a free account to start building forms</CardDescription>
+              </TabsContent>
+
+              <TabsContent value="reset">
+                <CardTitle className="text-xl mt-4">Reset password</CardTitle>
+                <CardDescription>We will send a reset link if an account exists for your email.</CardDescription>
               </TabsContent>
             </Tabs>
           </CardHeader>
@@ -209,6 +236,14 @@ export function LoginPage() {
                       'Sign In'
                     )}
                   </Button>
+
+                  <button
+                    type="button"
+                    className="w-full text-center text-sm text-primary hover:underline"
+                    onClick={() => { setActiveTab('reset'); setError(''); setResetNotice(''); }}
+                  >
+                    Forgot your password?
+                  </button>
 
                   <p className="text-center text-sm text-muted-foreground">
                     Don&apos;t have an account?{' '}
@@ -306,6 +341,23 @@ export function LoginPage() {
                       Sign In
                     </button>
                   </p>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="reset">
+                <form onSubmit={handlePasswordResetRequest} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <Input id="reset-email" type="email" autoComplete="email" placeholder="you@example.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+                  </div>
+                  {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                  {resetNotice && <p role="status" className="text-sm text-emerald-700">{resetNotice}</p>}
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Sending reset link…' : 'Send reset link'}
+                  </Button>
+                  <button type="button" className="w-full text-center text-sm text-primary hover:underline" onClick={() => { setActiveTab('login'); setError(''); setResetNotice(''); }}>
+                    Back to sign in
+                  </button>
                 </form>
               </TabsContent>
             </Tabs>

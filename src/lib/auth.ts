@@ -49,6 +49,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             name: user.name,
+            sessionVersion: user.sessionVersion,
           };
         } catch (error) {
           console.error('[AUTH] Error during authorization:', error);
@@ -65,13 +66,24 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.email = user.email;
+        token.sessionVersion = user.sessionVersion;
+        return token;
+      }
+
+      // JWT sessions are otherwise stateless. Check the small credential version
+      // field so a password reset invalidates all previously issued sessions.
+      if (token.id) {
+        const account = await db.user.findUnique({ where: { id: token.id as string }, select: { sessionVersion: true } });
+        token.invalid = !account || account.sessionVersion !== token.sessionVersion;
       }
       return token;
     },
     async session({ session, token }) {
+      if (token.invalid) return null as unknown as typeof session;
       if (session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
+        session.user.sessionVersion = token.sessionVersion;
       }
       return session;
     },
