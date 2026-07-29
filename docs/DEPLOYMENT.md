@@ -47,10 +47,10 @@ bunx prisma validate
 
 Add the same values to the Vercel Production environment.
 
-Configure a daily scheduler to `POST /api/internal/cleanup` with
-`Authorization: Bearer $CRON_SECRET`. It removes expired password-reset and
+Configure a daily scheduler to `POST /api/internal/cleanup` and a frequent scheduler (for example every minute) to `POST /api/internal/google-sheets-sync`, both with
+`Authorization: Bearer $CRON_SECRET`. Cleanup removes expired password-reset and
 email-verification credentials, unusable abandoned drafts, and stale rate-limit
-buckets. Do not expose this endpoint without its bearer secret. Do not put database credentials in `NEXT_PUBLIC_*` variables.
+buckets; the Sheets worker delivers queued response rows with retries. Do not expose either endpoint without its bearer secret. Do not put database credentials in `NEXT_PUBLIC_*` variables.
 
 The repository now has a `postinstall` script that runs `prisma generate`, so the generated client is available during Vercel’s install/build step.
 

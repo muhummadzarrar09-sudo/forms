@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-function authorized(request: NextRequest): boolean {
+export function authorizedCronRequest(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   const supplied = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
   if (!secret || !supplied) return false;
@@ -16,7 +16,7 @@ function authorized(request: NextRequest): boolean {
  * only expired, unusable credentials and abandoned drafts are removed.
  */
 export async function POST(request: NextRequest) {
-  if (!authorized(request)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!authorizedCronRequest(request)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   try {
     const now = new Date();
