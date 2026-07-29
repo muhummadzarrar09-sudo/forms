@@ -134,6 +134,8 @@ model Response {
   completedAt DateTime?
   isPartial   Boolean  @default(false) // true = abandoned/in-progress
   score       Int      @default(0) // total score if scoring is enabled
+  status      String   @default("new") // new, reviewing, qualified, follow_up, closed
+  internalNote String  @default("")
   metadata    String   @default("{}") // JSON: userAgent, ip, referer, etc.
   // SHA-256 verifier for the anonymous draft-resume bearer credential. The
   // original credential is returned once and is never persisted in plaintext.

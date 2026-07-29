@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -117,6 +119,8 @@ interface DisplayResponse {
   timeTaken: number | null;
   score: number;
   isPartial: boolean;
+  status: FormResponse['status'];
+  internalNote: string;
   answers: {
     questionId: string;
     questionTitle: string;
@@ -293,6 +297,8 @@ export function ResponsesViewer() {
           timeTaken,
           score: r.score || 0,
           isPartial: r.isPartial ?? false,
+          status: r.status || 'new',
+          internalNote: r.internalNote || '',
           answers: r.answers.map((a) => ({
             questionId: a.questionId,
             questionTitle: a.question?.title || 'Unknown Question',
@@ -1147,6 +1153,15 @@ interface ResponseCardProps {
 function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDelete }: ResponseCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [status, setStatus] = useState(response.status);
+  const [note, setNote] = useState(response.internalNote);
+
+  const saveWorkspaceFields = async (updates: { status?: DisplayResponse['status']; internalNote?: string }) => {
+    const result = await fetch(`/api/forms/${formId}/responses/${response.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+    });
+    if (!result.ok) throw new Error('Response workspace update failed');
+  };
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -1216,6 +1231,9 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                   Partial
                 </Badge>
               )}
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+                {status.replace('_', ' ')}
+              </Badge>
               {response.score > 0 && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-violet-600 border-violet-200 bg-violet-50">
                   <BarChart3 className="size-2.5" />
@@ -1248,6 +1266,34 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
             >
               <Separator />
               <div className="p-4 space-y-4">
+                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Workflow status</p>
+                    <Select value={status} onValueChange={async (value) => {
+                      const next = value as DisplayResponse['status'];
+                      const previous = status;
+                      setStatus(next);
+                      try { await saveWorkspaceFields({ status: next }); }
+                      catch { setStatus(previous); toast({ title: 'Could not update status', variant: 'destructive' }); }
+                    }}>
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="reviewing">Reviewing</SelectItem>
+                        <SelectItem value="qualified">Qualified</SelectItem>
+                        <SelectItem value="follow_up">Follow up</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Private note</p>
+                    <Textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={async () => {
+                      try { await saveWorkspaceFields({ internalNote: note }); }
+                      catch { toast({ title: 'Could not save note', variant: 'destructive' }); }
+                    }} placeholder="Add an internal follow-up note…" className="min-h-20 text-sm" />
+                  </div>
+                </div>
                 {response.answers.map((answer, index) => {
                   const question = questions.find((q) => q.id === answer.questionId);
                   return (

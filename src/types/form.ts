@@ -177,6 +177,8 @@ export interface FormResponse {
   completedAt: string | null;
   isPartial: boolean;
   score: number;
+  status: 'new' | 'reviewing' | 'qualified' | 'follow_up' | 'closed';
+  internalNote: string;
   metadata: Record<string, unknown>;
   answers: FormAnswer[];
 }

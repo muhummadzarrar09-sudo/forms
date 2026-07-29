@@ -85,6 +85,8 @@ interface RawResponse {
   completedAt: Date | string | null;
   isPartial: boolean;
   score: number;
+  status: string;
+  internalNote: string;
   metadata: string;     // JSON string
   editTokenHash?: string | null;
   editTokenExpiresAt?: Date | string | null;
