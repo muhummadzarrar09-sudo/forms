@@ -150,6 +150,39 @@ export const FORM_TEMPLATES: FormTemplate[] = [
       { type: 'legal', title: 'I agree to receive email communications', required: true },
     ],
   },
+  {
+    id: 'lead-qualification',
+    title: 'Lead Qualification',
+    description: 'Qualify inbound leads, identify intent, and route the right follow-up.',
+    icon: 'Target',
+    color: '#7C3AED',
+    questions: [
+      { type: 'short_text', title: 'What is your name?', required: true, placeholder: 'Full name' },
+      { type: 'email', title: 'What is your work email?', required: true, placeholder: 'you@company.com' },
+      { type: 'short_text', title: 'What company do you represent?', required: true },
+      { type: 'multiple_choice', title: 'What are you looking to solve?', required: true, options: ['Generate more leads', 'Improve operations', 'Launch a new product', 'Get expert advice'] },
+      { type: 'multiple_choice', title: 'What is your estimated budget?', required: true, options: ['Under $1,000', '$1,000–$5,000', '$5,000–$20,000', '$20,000+'] },
+      { type: 'multiple_choice', title: 'When would you like to start?', required: true, options: ['Immediately', 'This month', 'This quarter', 'Just researching'] },
+      { type: 'long_text', title: 'Anything else we should know?', placeholder: 'Goals, constraints, or context…' },
+    ],
+  },
+  {
+    id: 'project-intake',
+    title: 'Client Project Intake',
+    description: 'Collect the context needed to scope a strong client project.',
+    icon: 'Briefcase',
+    color: '#0EA5E9',
+    questions: [
+      { type: 'short_text', title: 'Your name', required: true },
+      { type: 'email', title: 'Best email address', required: true },
+      { type: 'short_text', title: 'Business or organization name', required: true },
+      { type: 'long_text', title: 'Describe the project in your own words', required: true },
+      { type: 'multiple_choice', title: 'What is the primary project goal?', required: true, options: ['More sales', 'More qualified leads', 'Better customer experience', 'Internal efficiency', 'Brand awareness'] },
+      { type: 'long_text', title: 'What does success look like?', required: true },
+      { type: 'date', title: 'Ideal launch or decision date' },
+      { type: 'long_text', title: 'Share links, references, or inspiration', placeholder: 'URLs, competitors, examples…' },
+    ],
+  },
 ];
 
 export const QUESTION_TYPES: { type: QuestionType; label: string; icon: string; category: string }[] = [
