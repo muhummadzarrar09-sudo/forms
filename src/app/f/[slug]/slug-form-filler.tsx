@@ -30,6 +30,8 @@ interface FillerState {
   isLoading: boolean;
   errorMessage: string;
   activeEnding: FormEnding | null;
+  partialResponseId: string | null;
+  partialEditToken: string | null;
 }
 
 /* ─── Animation variants ─────────────────────────────────────────────── */
@@ -91,6 +93,9 @@ function fontFamilyClass(ff: string) {
 export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   const [showConfetti, setShowConfetti] = useState(false);
   const restoredDraftRef = useRef(false);
+  const draftCreationRef = useRef(false);
+  const autosaveInFlightRef = useRef(false);
+  const [hasRestorableDraft, setHasRestorableDraft] = useState(false);
   const draftStorageKey = `forms:public-draft:${initialForm.id}`;
 
   const [state, setState] = useState<FillerState>({
@@ -102,6 +107,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     isLoading: false,
     errorMessage: '',
     activeEnding: null,
+    partialResponseId: null,
+    partialEditToken: null,
   });
 
   // Keep an in-browser draft for accidental refreshes. This deliberately uses
@@ -112,8 +119,19 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       const raw = sessionStorage.getItem(draftStorageKey);
       const parsed = raw ? JSON.parse(raw) : null;
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const answers = Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
-        setState((current) => ({ ...current, answers }));
+        const draft = parsed as {
+          answers?: unknown; currentIndex?: unknown; responseId?: unknown; editToken?: unknown;
+        };
+        const answers = draft.answers && typeof draft.answers === 'object' && !Array.isArray(draft.answers)
+          ? Object.fromEntries(Object.entries(draft.answers).filter(([, value]) => typeof value === 'string')) as Record<string, string>
+          : {};
+        const currentIndex = typeof draft.currentIndex === 'number' && Number.isInteger(draft.currentIndex) && draft.currentIndex >= 0 ? draft.currentIndex : -1;
+        const responseId = typeof draft.responseId === 'string' ? draft.responseId : null;
+        const editToken = typeof draft.editToken === 'string' ? draft.editToken : null;
+        if (Object.keys(answers).length || (responseId && editToken)) {
+          setState((current) => ({ ...current, answers, currentIndex, partialResponseId: responseId, partialEditToken: editToken }));
+          setHasRestorableDraft(true);
+        }
       }
     } catch { /* Browser storage may be unavailable. */ }
     // Defer enabling persistence until the hydration state update above has
@@ -124,10 +142,17 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   useEffect(() => {
     if (!restoredDraftRef.current) return;
     try {
-      if (Object.keys(state.answers).length) sessionStorage.setItem(draftStorageKey, JSON.stringify(state.answers));
-      else sessionStorage.removeItem(draftStorageKey);
+      const hasDraft = Object.keys(state.answers).length || (state.partialResponseId && state.partialEditToken);
+      if (hasDraft) {
+        sessionStorage.setItem(draftStorageKey, JSON.stringify({
+          answers: state.answers,
+          currentIndex: state.currentIndex,
+          responseId: state.partialResponseId,
+          editToken: state.partialEditToken,
+        }));
+      } else sessionStorage.removeItem(draftStorageKey);
     } catch { /* Browser storage may be unavailable. */ }
-  }, [state.answers, draftStorageKey]);
+  }, [state.answers, state.currentIndex, state.partialResponseId, state.partialEditToken, draftStorageKey]);
 
   // Auto-hide confetti after animation
   useEffect(() => {
@@ -140,8 +165,12 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   // Reset form for "Submit another response"
   const handleSubmitAnother = useCallback(() => {
     try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
+    draftCreationRef.current = false;
+    setHasRestorableDraft(false);
     setState((prev) => ({
       ...prev,
+      partialResponseId: null,
+      partialEditToken: null,
       form: prev.form,
       screen: 'welcome' as const,
       currentIndex: -1,
@@ -178,27 +207,74 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     formRef.current = state.form;
   }, [state.form]);
 
+  // Create a server-side anonymous draft once a respondent actually begins.
+  useEffect(() => {
+    if (state.screen !== 'question' || !state.form || state.partialResponseId || draftCreationRef.current) return;
+    draftCreationRef.current = true;
+    void fetch(`/api/forms/${encodeURIComponent(state.form.id)}/responses`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isPartial: true, answers: [], metadata: { startedAt: new Date().toISOString() } }),
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const draft = await response.json() as { id?: string; editToken?: string };
+      if (draft.id && draft.editToken) {
+        setState((current) => ({ ...current, partialResponseId: draft.id!, partialEditToken: draft.editToken! }));
+      }
+    }).catch(() => undefined);
+  }, [state.screen, state.form, state.partialResponseId]);
+
+  // Persist answers server-side while the respondent progresses. A slow save
+  // never overlaps a later save, preserving the newest answer snapshot.
+  useEffect(() => {
+    if (!state.partialResponseId || !state.partialEditToken || !state.form) return;
+    const interval = window.setInterval(async () => {
+      if (autosaveInFlightRef.current) return;
+      const answers = Object.entries(answersRef.current).map(([questionId, value]) => ({ questionId, value }));
+      if (!answers.length) return;
+      autosaveInFlightRef.current = true;
+      try {
+        const response = await fetch(`/api/forms/${encodeURIComponent(state.form!.id)}/responses`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ responseId: state.partialResponseId, editToken: state.partialEditToken, answers, isPartial: true }),
+        });
+        if (!response.ok && (response.status === 404 || response.status === 400)) {
+          draftCreationRef.current = false;
+          setState((current) => ({ ...current, partialResponseId: null, partialEditToken: null }));
+        }
+      } finally {
+        autosaveInFlightRef.current = false;
+      }
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [state.partialResponseId, state.partialEditToken, state.form]);
+
   const handleSubmit = useCallback(async () => {
     const currentForm = formRef.current;
     if (!currentForm) return;
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    const partial = state.partialResponseId && state.partialEditToken
+      ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+      : undefined;
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues, partial);
     if (!result.ok) {
       setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
       return;
     }
     try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
-    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null, partialResponseId: null, partialEditToken: null }));
     setShowConfetti(true);
-  }, [hiddenFieldValues, draftStorageKey]);
+  }, [hiddenFieldValues, draftStorageKey, state.partialResponseId, state.partialEditToken]);
 
   const handleSubmitWithEnding = useCallback(async (endingId: string) => {
     const currentForm = formRef.current;
     if (!currentForm) return;
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    const partial = state.partialResponseId && state.partialEditToken
+      ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+      : undefined;
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues, partial);
     if (!result.ok) {
       setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
       return;
@@ -207,9 +283,9 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       ? currentForm.endings?.find((ending) => ending.id === endingId) ?? null
       : null;
     try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
-    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding }));
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding, partialResponseId: null, partialEditToken: null }));
     setShowConfetti(true);
-  }, [hiddenFieldValues, draftStorageKey]);
+  }, [hiddenFieldValues, draftStorageKey, state.partialResponseId, state.partialEditToken]);
 
   // ── Navigation ──
   const goNext = useCallback(() => {
@@ -218,7 +294,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
         setState((current) => ({ ...current, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
-        setState((current) => ({ ...current, screen: 'question', currentIndex: 0, direction: 1 }));
+        setHasRestorableDraft(false);
+        setState((current) => ({
+          ...current,
+          screen: 'question',
+          currentIndex: hasRestorableDraft && current.currentIndex >= 0 && current.currentIndex < questions.length ? current.currentIndex : 0,
+          direction: 1,
+        }));
       }
       return;
     }
@@ -234,7 +316,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     } else {
       setState((current) => ({ ...current, currentIndex: step.index, direction: 1 }));
     }
-  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding]);
+  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding, hasRestorableDraft]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -377,7 +459,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 </motion.p>
                 <FillerWelcomeMeta questionCount={questions.length} />
                 <p className={`text-xs opacity-45 ${ff}`} style={{ color: theme.textColor }}>
-                  Your progress is saved in this browser until you submit.
+                  {hasRestorableDraft ? 'A saved draft is ready to resume in this browser.' : 'Your progress is saved in this browser until you submit.'}
                 </p>
               </div>
             </motion.div>
@@ -576,7 +658,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
-              Start
+              {hasRestorableDraft ? 'Resume' : 'Start'}
               <ArrowRight className="size-4" />
             </motion.button>
           )}
