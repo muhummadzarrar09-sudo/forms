@@ -22,6 +22,7 @@ model User {
   workspaces Workspace[]
   passwordResetTokens PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  googleConnection GoogleConnection?
 }
 
 model EmailVerificationToken {
@@ -46,6 +47,52 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model GoogleConnection {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  encryptedRefreshToken String
+  encryptedAccessToken String?
+  accessTokenExpiresAt DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destinations         GoogleSheetDestination[]
+}
+
+model GoogleSheetDestination {
+  id             String   @id @default(cuid())
+  formId         String   @unique
+  connectionId   String
+  spreadsheetId  String
+  sheetName      String
+  active         Boolean  @default(true)
+  lastSyncedAt   DateTime?
+  lastError      String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  form           Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  connection     GoogleConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  events         GoogleSheetSyncEvent[]
+
+  @@index([connectionId])
+}
+
+model GoogleSheetSyncEvent {
+  id            String   @id @default(cuid())
+  destinationId String
+  responseId    String
+  status        String   @default("pending")
+  attempts      Int      @default(0)
+  lastError     String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  destination   GoogleSheetDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  response      Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique([destinationId, responseId])
+  @@index([status, updatedAt])
 }
 
 model Form {
@@ -84,6 +131,7 @@ model Form {
   questions   Question[]
   responses   Response[]
   endings     FormEnding[]
+  googleSheetDestination GoogleSheetDestination?
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
@@ -143,6 +191,7 @@ model Response {
   editTokenExpiresAt DateTime?
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
+  googleSheetSyncEvents GoogleSheetSyncEvent[]
 
   @@index([formId, startedAt])
   @@index([formId, isPartial])
