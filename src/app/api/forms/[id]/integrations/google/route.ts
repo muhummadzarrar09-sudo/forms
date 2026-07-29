@@ -15,7 +15,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const session = await getServerSession(authOptions); const { id } = await params;
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!await owner(id, session.user.id)) return NextResponse.json({ error: 'Form not found' }, { status: 404 });
-  const destination = await db.googleSheetDestination.findUnique({ where: { formId: id }, select: { spreadsheetId: true, sheetName: true, active: true, lastSyncedAt: true, lastError: true } });
+  const destination = await db.googleSheetDestination.findUnique({
+    where: { formId: id },
+    select: {
+      id: true, spreadsheetId: true, sheetName: true, active: true, lastSyncedAt: true, lastError: true,
+      _count: { select: { events: { where: { status: 'pending' } } } },
+      events: { orderBy: { updatedAt: 'desc' }, take: 8, select: { id: true, responseId: true, status: true, attempts: true, lastError: true, updatedAt: true } },
+    },
+  });
   const connected = Boolean(await db.googleConnection.findUnique({ where: { userId: session.user.id }, select: { id: true } }));
   return NextResponse.json({ connected, destination });
 }

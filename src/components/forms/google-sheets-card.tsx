@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, ExternalLink } from 'lucide-react';
 
-type Destination = { spreadsheetId: string; sheetName: string; active: boolean; lastSyncedAt: string | null; lastError: string };
+type SyncEvent = { id: string; responseId: string; status: string; attempts: number; lastError: string; updatedAt: string };
+type Destination = { id: string; spreadsheetId: string; sheetName: string; active: boolean; lastSyncedAt: string | null; lastError: string; _count?: { events: number }; events?: SyncEvent[] };
 
 export function GoogleSheetsCard({ formId }: { formId: string }) {
   const [connected, setConnected] = useState(false);
@@ -42,6 +43,12 @@ export function GoogleSheetsCard({ formId }: { formId: string }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Test failed'); }
     finally { setSaving(false); }
   };
+  const retry = async (eventId?: string) => {
+    setSaving(true); setError('');
+    try { const response = await fetch(`/api/forms/${encodeURIComponent(formId)}/integrations/google/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eventId ? { eventId } : { all: true }) }); if (!response.ok) throw new Error('Could not queue retry'); await load(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not queue retry'); }
+    finally { setSaving(false); }
+  };
   const disconnectGoogle = async () => {
     if (!window.confirm('Disconnect Google for all of your forms? This removes all Google Sheets destinations.')) return;
     setSaving(true); setError('');
@@ -55,6 +62,9 @@ export function GoogleSheetsCard({ formId }: { formId: string }) {
       {!connected ? <div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Connect a Google account to sync new responses automatically.</p><Button asChild size="sm"><a href="/api/integrations/google/connect">Connect Google <ExternalLink className="ml-1 size-3" /></a></Button></div> : <>
         <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label className="text-xs">Spreadsheet ID</Label><Input value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="Google Sheet ID" /></div><div className="space-y-1"><Label className="text-xs">Worksheet tab</Label><Input value={sheetName} onChange={(e) => setSheetName(e.target.value)} placeholder="Responses" /></div></div>
         <div className="flex flex-wrap items-center gap-3"><Button size="sm" onClick={() => save()} disabled={saving || !spreadsheetId || !sheetName}>{saving ? 'Verifying…' : destination ? 'Update destination' : 'Save destination'}</Button>{destination && <><div className="flex items-center gap-2 text-sm"><Switch checked={destination.active} onCheckedChange={(active) => save(active)} disabled={saving} /> Auto-sync new responses</div><Button variant="outline" size="sm" onClick={test} disabled={saving}>Test row</Button><Button variant="ghost" size="sm" onClick={remove}>Disconnect form</Button></>}</div>
+        {destination && <p className="text-xs text-muted-foreground">{destination._count?.events ?? 0} pending sync{destination._count?.events === 1 ? '' : 's'}</p>}
+        {destination?.events?.filter((event) => event.status === 'failed').length ? <Button variant="outline" size="sm" onClick={() => retry()} disabled={saving}>Retry failed syncs</Button> : null}
+        {destination?.events?.filter((event) => event.status === 'failed').map((event) => <div key={event.id} className="flex items-center justify-between gap-2 rounded border p-2 text-xs"><span className="truncate text-destructive">Response {event.responseId}: {event.lastError || 'Failed'}</span><Button variant="ghost" size="sm" onClick={() => retry(event.id)} disabled={saving}>Retry</Button></div>)}
         {destination?.lastSyncedAt && <p className="text-xs text-muted-foreground">Last synced {new Date(destination.lastSyncedAt).toLocaleString()}</p>}
         {destination?.lastError && <p role="alert" className="text-xs text-destructive">Last sync error: {destination.lastError}</p>}
         <Button variant="link" size="sm" className="h-auto px-0 text-xs text-muted-foreground" onClick={disconnectGoogle} disabled={saving}>Disconnect Google account</Button>
