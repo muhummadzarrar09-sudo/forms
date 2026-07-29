@@ -6,6 +6,7 @@ import { useFormStore } from '@/store/form-store';
 import type { FormResponse, FormSummary, QuestionSummary, FormQuestion, FormAnswer } from '@/types/form';
 import { formatDuration } from '@/lib/form-helpers';
 import { QuestionSummaryCard } from '@/components/forms/question-summary';
+import { GoogleSheetsCard } from '@/components/forms/google-sheets-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -654,6 +655,7 @@ export function ResponsesViewer() {
 
       {/* Main content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {selectedFormId && <GoogleSheetsCard formId={selectedFormId} />}
         {/* Stats cards with completion rate as circular indicator */}
         <div className={`grid grid-cols-1 ${hasScoring ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
