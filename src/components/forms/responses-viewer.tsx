@@ -337,6 +337,16 @@ export function ResponsesViewer() {
     }
   }, [selectedFormId, currentForm]);
 
+  const handleExportJSON = useCallback(async () => {
+    if (!selectedFormId) return;
+    try {
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses/export/json`);
+      if (!response.ok) throw new Error('JSON export failed');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = `${currentForm?.title || 'form'}-responses.json`; link.click(); URL.revokeObjectURL(url);
+    } catch { toast({ title: 'JSON export failed', variant: 'destructive' }); }
+  }, [selectedFormId, currentForm]);
+
   // ─── Bulk Delete All Responses ─────────────────────────────────────────────
   const handleClearAllResponses = useCallback(async () => {
     if (!selectedFormId) return;
@@ -614,6 +624,10 @@ export function ResponsesViewer() {
               >
                 <Download className="size-3.5" />
                 <span className="hidden sm:inline">Export CSV</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportJSON} className="gap-1.5">
+                <Download className="size-3.5" />
+                <span className="hidden sm:inline">JSON</span>
               </Button>
               <Button
                 variant="outline"
