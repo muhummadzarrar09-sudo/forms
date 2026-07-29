@@ -39,7 +39,7 @@ export async function GET(
     const choiceTypes = ['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'];
     const textTypes = ['short_text', 'long_text', 'email', 'phone', 'website'];
 
-    const [totalResponses, completedResponses, durations, choiceRows, numericRows, textAnswers] = await Promise.all([
+    const [totalResponses, completedResponses, durations, choiceRows, numericRows, textAnswers, statusRows] = await Promise.all([
       db.response.count({ where: { formId: id } }),
       db.response.count({ where: { formId: id, completedAt: { not: null } } }),
       db.$queryRaw<DurationRow[]>`
@@ -75,6 +75,7 @@ export async function GET(
         select: { questionId: true, value: true },
         take: MAX_TEXT_SAMPLES,
       }),
+      db.response.groupBy({ where: { formId: id }, by: ['status'], _count: { _all: true } }),
     ]);
 
     const choiceByQuestion = new Map<string, ChoiceRow[]>();
@@ -139,8 +140,11 @@ export async function GET(
       return summary;
     });
 
+    const statusCounts = Object.fromEntries(statusRows.map((row) => [row.status, row._count._all]));
+
     return NextResponse.json({
       totalResponses,
+      statusCounts,
       completedResponses,
       completionRate: totalResponses ? Math.round((completedResponses / totalResponses) * 100) : 0,
       averageTime: Number(durations[0]?.averageSeconds || 0),

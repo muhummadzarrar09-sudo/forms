@@ -649,6 +649,9 @@ export function ResponsesViewer() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Total Responses</p>
                     <p className="text-3xl font-bold tabular-nums">{animatedTotalResponses}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {summary?.statusCounts?.new ?? 0} new · {summary?.statusCounts?.qualified ?? 0} qualified
+                    </p>
                   </div>
                   <div className="size-11 rounded-xl bg-primary/10 flex items-center justify-center">
                     <Users className="size-5 text-primary" />

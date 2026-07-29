@@ -196,6 +196,7 @@ export type AppView = 'dashboard' | 'builder' | 'fill' | 'responses';
 
 export interface FormSummary {
   totalResponses: number;
+  statusCounts?: Partial<Record<FormResponse['status'], number>>;
   completionRate: number;
   averageTime: number;
   questionSummaries: QuestionSummary[];
