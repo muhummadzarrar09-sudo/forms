@@ -17,6 +17,7 @@ import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeM
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 import { pipeAnswerText } from '@/lib/answer-piping';
+import { interpolateCalculatedText, resolveCalculatedVariables } from '@/lib/calculation-engine';
 
 /* ─── Blinking cursor animation ────────────────────────────────────────── */
 
@@ -242,6 +243,8 @@ export function FormFiller() {
 
   const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
   const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
+  const calculatedVariables = useMemo(() => resolveCalculatedVariables(state.form?.calculatedVariables || [], state.answers), [state.form?.calculatedVariables, state.answers]);
+  const personalizedText = useCallback((text: string) => interpolateCalculatedText(pipeAnswerText(text, state.answers), state.answers, calculatedVariables), [state.answers, calculatedVariables]);
 
   // ── Submit ──
   // Use a ref to always have the latest answers (avoids stale closure)
@@ -771,7 +774,7 @@ export function FormFiller() {
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {pipeAnswerText(state.form.welcomeTitle || state.form.title || 'Welcome!', state.answers)}
+                  {personalizedText(state.form.welcomeTitle || state.form.title || 'Welcome!')}
                   {/* Blinking cursor */}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
@@ -785,7 +788,7 @@ export function FormFiller() {
                   className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {pipeAnswerText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.', state.answers)}
+                  {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
                 <FillerWelcomeMeta questionCount={questions.length} />
               </div>
@@ -807,8 +810,8 @@ export function FormFiller() {
               <FillerQuestionScreen
                 question={{
                   ...currentQuestion,
-                  title: pipeAnswerText(currentQuestion.title, state.answers),
-                  description: pipeAnswerText(currentQuestion.description, state.answers),
+                  title: personalizedText(currentQuestion.title),
+                  description: personalizedText(currentQuestion.description),
                 }}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
@@ -877,13 +880,13 @@ export function FormFiller() {
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {pipeAnswerText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!', state.answers)}
+                {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
                 className={`text-lg md:text-xl opacity-60 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {pipeAnswerText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.', state.answers)}
+                {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
 
               {/* Show redirect link if custom ending has one */}
