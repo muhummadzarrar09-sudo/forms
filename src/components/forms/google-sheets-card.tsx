@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
+import { CheckCircle2, ExternalLink } from 'lucide-react';
 
 type Destination = { spreadsheetId: string; sheetName: string; active: boolean; lastSyncedAt: string | null; lastError: string };
 
@@ -36,12 +36,18 @@ export function GoogleSheetsCard({ formId }: { formId: string }) {
     finally { setSaving(false); }
   };
   const remove = async () => { await fetch(`/api/forms/${encodeURIComponent(formId)}/integrations/google`, { method: 'DELETE' }); setDestination(null); };
+  const test = async () => {
+    setSaving(true); setError('');
+    try { const response = await fetch(`/api/forms/${encodeURIComponent(formId)}/integrations/google/test`, { method: 'POST' }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || 'Test failed'); await load(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Test failed'); }
+    finally { setSaving(false); }
+  };
   return <Card className="border-emerald-500/20 bg-emerald-500/[0.03]">
     <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><span className="grid size-6 place-items-center rounded bg-emerald-600 text-xs font-bold text-white">S</span>Google Sheets {connected && <CheckCircle2 className="size-4 text-emerald-600" />}</CardTitle></CardHeader>
     <CardContent className="space-y-3">
       {!connected ? <div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Connect a Google account to sync new responses automatically.</p><Button asChild size="sm"><a href="/api/integrations/google/connect">Connect Google <ExternalLink className="ml-1 size-3" /></a></Button></div> : <>
         <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label className="text-xs">Spreadsheet ID</Label><Input value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="Google Sheet ID" /></div><div className="space-y-1"><Label className="text-xs">Worksheet tab</Label><Input value={sheetName} onChange={(e) => setSheetName(e.target.value)} placeholder="Responses" /></div></div>
-        <div className="flex flex-wrap items-center gap-3"><Button size="sm" onClick={() => save()} disabled={saving || !spreadsheetId || !sheetName}>{saving ? 'Verifying…' : destination ? 'Update destination' : 'Save destination'}</Button>{destination && <><div className="flex items-center gap-2 text-sm"><Switch checked={destination.active} onCheckedChange={(active) => save(active)} disabled={saving} /> Auto-sync new responses</div><Button variant="ghost" size="sm" onClick={remove}>Disconnect form</Button></>}</div>
+        <div className="flex flex-wrap items-center gap-3"><Button size="sm" onClick={() => save()} disabled={saving || !spreadsheetId || !sheetName}>{saving ? 'Verifying…' : destination ? 'Update destination' : 'Save destination'}</Button>{destination && <><div className="flex items-center gap-2 text-sm"><Switch checked={destination.active} onCheckedChange={(active) => save(active)} disabled={saving} /> Auto-sync new responses</div><Button variant="outline" size="sm" onClick={test} disabled={saving}>Test row</Button><Button variant="ghost" size="sm" onClick={remove}>Disconnect form</Button></>}</div>
         {destination?.lastSyncedAt && <p className="text-xs text-muted-foreground">Last synced {new Date(destination.lastSyncedAt).toLocaleString()}</p>}
         {destination?.lastError && <p role="alert" className="text-xs text-destructive">Last sync error: {destination.lastError}</p>}
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
