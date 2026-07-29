@@ -12,6 +12,7 @@ import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
 import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
 import { sendNewResponseNotification } from '@/lib/email';
 import { queueGoogleSheetSync } from '@/lib/google-sheets-sync';
+import { resolveCalculatedVariables } from '@/lib/calculation-engine';
 const boundedMetadataSchema = z.record(z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Metadata must not exceed 20KB'
@@ -576,6 +577,12 @@ export async function POST(
       );
     }
 
+    let calculatedVariables: Record<string, number> = {};
+    try {
+      const definitions = JSON.parse(form.calculatedVariables || '[]');
+      if (Array.isArray(definitions)) calculatedVariables = resolveCalculatedVariables(definitions, Object.fromEntries(data.answers.map((answer) => [answer.questionId, answer.value])));
+    } catch { return NextResponse.json({ error: 'This form contains invalid calculated variables' }, { status: 400 }); }
+
     // Build a question lookup for scoring
     const questionMap = new Map<string, ResponseQuestionConfig>(form.questions.map((q) => [q.id, q]));
 
@@ -622,7 +629,7 @@ export async function POST(
           formId: id,
           completedAt: data.completedAt ? new Date(data.completedAt) : new Date(),
           isPartial: false,
-          metadata: JSON.stringify(data.metadata || {}),
+          metadata: JSON.stringify({ ...(data.metadata || {}), calculatedVariables }),
           score: totalScore,
         },
       });
