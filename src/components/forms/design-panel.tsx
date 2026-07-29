@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding, HiddenField } from '@/types/form';
+import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding, HiddenField, CalculatedVariable } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
@@ -1752,6 +1752,11 @@ function FormSettingsAdvancedTab() {
     updateForm(currentForm.id, { hiddenFields: updated });
   };
 
+  const variables = (currentForm.calculatedVariables || []) as CalculatedVariable[];
+  const saveVariables = async (next: CalculatedVariable[]) => {
+    updateForm(currentForm.id, { calculatedVariables: next });
+    await fetch(`/api/forms/${currentForm.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ calculatedVariables: next }) });
+  };
   const removeHiddenField = (fieldId: string) => {
     const updated = hiddenFields.filter((f) => f.id !== fieldId);
     updateForm(currentForm.id, { hiddenFields: updated });
@@ -1943,6 +1948,12 @@ function FormSettingsAdvancedTab() {
       </div>
 
       <Separator />
+
+      <div className="space-y-2 rounded-lg border p-3">
+        <div className="flex items-center justify-between"><Label className="text-sm font-medium">Calculated variables</Label><Button size="sm" variant="outline" onClick={() => saveVariables([...variables, { id: `var_${Date.now()}`, name: 'quote_total', formula: '{{answer:quantity}} * 49' }])}>Add variable</Button></div>
+        <p className="text-xs text-muted-foreground">Use safe arithmetic and tokens like {'{{answer:quantity}}'}; reference results with {'{{variable:quote_total}}'}.</p>
+        {variables.map((variable) => <div key={variable.id} className="flex gap-2"><Input value={variable.name} onChange={(e) => saveVariables(variables.map((v) => v.id === variable.id ? { ...v, name: e.target.value } : v))} placeholder="name" /><Input value={variable.formula} onChange={(e) => saveVariables(variables.map((v) => v.id === variable.id ? { ...v, formula: e.target.value } : v))} placeholder="formula" /><Button size="icon" variant="ghost" onClick={() => saveVariables(variables.filter((v) => v.id !== variable.id))}><X className="size-4" /></Button></div>)}
+      </div>
 
       {/* Response Limits */}
       <div className="space-y-2">
