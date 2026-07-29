@@ -107,6 +107,7 @@ export const createFormSchema = z.object({
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
   hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  calculatedVariables: z.array(z.object({ id: shortId, name: z.string().min(1).max(50), formula: z.string().min(1).max(500) })).max(20).optional(),
   workspaceId: shortId.optional(),
 });
 
@@ -138,6 +139,7 @@ export const updateFormSchema = z.object({
   archived: z.boolean().optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
   hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  calculatedVariables: z.array(z.object({ id: shortId, name: z.string().min(1).max(50), formula: z.string().min(1).max(500) })).max(20).optional(),
   workspaceId: shortId.nullable().optional(),
   maxResponses: z.number().int().min(0).optional(),
   closeDate: isoDateTime.nullable().optional(),

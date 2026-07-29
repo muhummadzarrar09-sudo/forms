@@ -63,6 +63,7 @@ interface RawForm {
   archived: boolean;
   tags: string;         // JSON string
   hiddenFields: string; // JSON string
+  calculatedVariables: string;
   maxResponses: number;
   closeDate: Date | string | null;
   metaTitle: string;
@@ -205,6 +206,7 @@ export function serializeForm(form: RawForm) {
     ...form,
     tags: parseJsonArray<string>(form.tags).filter((tag) => typeof tag === 'string'),
     hiddenFields: parseJsonArray<HiddenField>(form.hiddenFields),
+    calculatedVariables: parseJsonArray<{ id: string; name: string; formula: string }>(form.calculatedVariables),
     closeDate: form.closeDate instanceof Date
       ? form.closeDate.toISOString()
       : form.closeDate,

@@ -123,6 +123,12 @@ export interface FormEnding {
   updatedAt: string;
 }
 
+export interface CalculatedVariable {
+  id: string;
+  name: string;
+  formula: string;
+}
+
 export interface HiddenField {
   id: string;
   name: string;
@@ -154,6 +160,7 @@ export interface Form {
   archived: boolean;
   tags: string[];
   hiddenFields: HiddenField[];
+  calculatedVariables: CalculatedVariable[];
   maxResponses: number;
   closeDate: string | null;
   metaTitle: string;

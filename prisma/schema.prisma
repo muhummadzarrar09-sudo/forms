@@ -120,6 +120,7 @@ model Form {
   archived    Boolean    @default(false)
   tags        String     @default("[]") // JSON array of tag strings
   hiddenFields String    @default("[]") // JSON array of hidden field definitions
+  calculatedVariables String @default("[]") // JSON array of named safe arithmetic formulas
   maxResponses Int       @default(0) // 0 = unlimited
   closeDate   DateTime?  // auto-close date, null = no auto-close
   metaTitle   String     @default("") // SEO meta title
