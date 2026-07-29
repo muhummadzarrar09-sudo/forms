@@ -20,6 +20,15 @@ export function evaluateCalculation(expression: string, values: Record<string, s
   try { const value = sum(); skip(); if (index !== substituted.length || !Number.isFinite(value)) return { error: 'Invalid formula' }; return { value }; } catch (error) { return { error: error instanceof Error ? error.message : 'Invalid formula' }; }
 }
 
+export function resolveCalculatedVariables(definitions: Array<{ name: string; formula: string }>, answers: Record<string, string>): Record<string, number> {
+  const variables: Record<string, number> = {};
+  for (const definition of definitions) {
+    const result = evaluateCalculation(definition.formula, { ...answers, ...variables });
+    if ('value' in result) variables[definition.name] = result.value;
+  }
+  return variables;
+}
+
 export function interpolateCalculatedText(template: string, answers: Record<string, string>, variables: Record<string, number>, score = 0): string {
   return template
     .replace(/{{score}}/g, String(score))

@@ -16,6 +16,7 @@ import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeM
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 import { pipeAnswerText } from '@/lib/answer-piping';
+import { interpolateCalculatedText, resolveCalculatedVariables } from '@/lib/calculation-engine';
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
@@ -183,6 +184,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
 
   const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
   const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
+  const calculatedVariables = useMemo(() => resolveCalculatedVariables(state.form?.calculatedVariables || [], state.answers), [state.form?.calculatedVariables, state.answers]);
+  const personalizedText = useCallback((text: string) => interpolateCalculatedText(pipeAnswerText(text, state.answers), state.answers, calculatedVariables), [state.answers, calculatedVariables]);
 
   // Public links can carry configured hidden-field values. Keep them in response
   // metadata rather than fabricating Answer.questionId values.
@@ -442,7 +445,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {pipeAnswerText(state.form.welcomeTitle || state.form.title || 'Welcome!', state.answers)}
+                  {personalizedText(state.form.welcomeTitle || state.form.title || 'Welcome!')}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
                     style={{ backgroundColor: theme.textColor }}
@@ -455,7 +458,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                   className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {pipeAnswerText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.', state.answers)}
+                  {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
                 <FillerWelcomeMeta questionCount={questions.length} />
                 <p className={`text-xs opacity-45 ${ff}`} style={{ color: theme.textColor }}>
@@ -480,8 +483,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               <FillerQuestionScreen
                 question={{
                   ...currentQuestion,
-                  title: pipeAnswerText(currentQuestion.title, state.answers),
-                  description: pipeAnswerText(currentQuestion.description, state.answers),
+                  title: personalizedText(currentQuestion.title),
+                  description: personalizedText(currentQuestion.description),
                 }}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
@@ -549,13 +552,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {pipeAnswerText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!', state.answers)}
+                {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
                 className={`text-lg md:text-xl opacity-60 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {pipeAnswerText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.', state.answers)}
+                {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
               {state.activeEnding?.redirectUrl && (
                 <a
