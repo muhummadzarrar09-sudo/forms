@@ -264,6 +264,7 @@ export async function GET(
     // are passed to Prisma.
     const { searchParams } = new URL(request.url);
     const search = (searchParams.get('search') || '').trim().slice(0, 200);
+    const status = searchParams.get('status') || '';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
     const cursor = searchParams.get('cursor') || undefined;
@@ -276,6 +277,11 @@ export async function GET(
       return NextResponse.json({ error: 'Date filters must use YYYY-MM-DD' }, { status: 400 });
     }
 
+    const validStatuses = new Set(['new', 'reviewing', 'qualified', 'follow_up', 'closed']);
+    if (status && !validStatuses.has(status)) {
+      return NextResponse.json({ error: 'Invalid response status filter' }, { status: 400 });
+    }
+
     if (cursor) {
       const cursorResponse = await db.response.findFirst({ where: { id: cursor, formId: id }, select: { id: true } });
       if (!cursorResponse) return NextResponse.json({ error: 'Invalid response cursor' }, { status: 400 });
@@ -283,6 +289,7 @@ export async function GET(
 
     // Build where clause
     const whereClause: Record<string, unknown> = { formId: id };
+    if (status) whereClause.status = status;
 
     // Date range filter
     if (startDate || endDate) {

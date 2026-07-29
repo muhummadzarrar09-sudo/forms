@@ -156,6 +156,7 @@ export function ResponsesViewer() {
   const [showClearAllDialog, setShowClearAllDialog] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
   const [showPartial, setShowPartial] = useState(true); // filter for partial responses
+  const [statusFilter, setStatusFilter] = useState<'all' | FormResponse['status']>('all');
 
   // Fetch form data + summary + responses
   useEffect(() => {
@@ -209,6 +210,7 @@ export function ResponsesViewer() {
       try {
         const params = new URLSearchParams({ limit: '50' });
         if (searchQuery.trim()) params.set('search', searchQuery.trim());
+        if (statusFilter !== 'all') params.set('status', statusFilter);
         if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
         if (dateTo) params.set('endDate', dateFilterParam(dateTo));
         const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`, { signal: controller.signal });
@@ -227,7 +229,7 @@ export function ResponsesViewer() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [selectedFormId, searchQuery, dateFrom, dateTo]);
+  }, [selectedFormId, searchQuery, dateFrom, dateTo, statusFilter]);
 
   const loadMoreResponses = useCallback(async () => {
     if (!selectedFormId || !nextResponseCursor || isLoadingMore) return;
@@ -235,6 +237,7 @@ export function ResponsesViewer() {
     try {
       const params = new URLSearchParams({ limit: '50', cursor: nextResponseCursor });
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
       if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
       if (dateTo) params.set('endDate', dateFilterParam(dateTo));
       const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`);
@@ -251,7 +254,7 @@ export function ResponsesViewer() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [selectedFormId, nextResponseCursor, isLoadingMore, searchQuery, dateFrom, dateTo]);
+  }, [selectedFormId, nextResponseCursor, isLoadingMore, searchQuery, dateFrom, dateTo, statusFilter]);
 
   // ─── Process responses for display ─────────────────────────────────────────
 
@@ -943,6 +946,18 @@ export function ResponsesViewer() {
                 {showPartial ? 'All' : 'Complete only'}
               </Button>
 
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="h-8 w-28 text-xs shrink-0"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="new">New</SelectItem>
+                  <SelectItem value="reviewing">Reviewing</SelectItem>
+                  <SelectItem value="qualified">Qualified</SelectItem>
+                  <SelectItem value="follow_up">Follow up</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Search */}
               <div className="relative flex-1 sm:flex-initial sm:w-56">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -1038,11 +1053,11 @@ export function ResponsesViewer() {
                 <CardContent className="py-12 text-center">
                   <Search className="size-10 text-muted-foreground/40 mx-auto mb-3" />
                   <p className="text-muted-foreground">
-                    {searchQuery || dateFrom || dateTo
+                    {searchQuery || dateFrom || dateTo || statusFilter !== 'all'
                       ? 'No responses match your filters'
                       : 'No responses yet'}
                   </p>
-                  {(searchQuery || dateFrom || dateTo) && (
+                  {(searchQuery || dateFrom || dateTo || statusFilter !== 'all') && (
                     <Button
                       variant="link"
                       className="mt-2"
@@ -1050,6 +1065,7 @@ export function ResponsesViewer() {
                         setSearchQuery('');
                         setDateFrom(undefined);
                         setDateTo(undefined);
+                        setStatusFilter('all');
                       }}
                     >
                       Clear filters
