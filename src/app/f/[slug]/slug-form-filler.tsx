@@ -90,6 +90,8 @@ function fontFamilyClass(ff: string) {
 
 export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const restoredDraftRef = useRef(false);
+  const draftStorageKey = `forms:public-draft:${initialForm.id}`;
 
   const [state, setState] = useState<FillerState>({
     form: initialForm,
@@ -102,6 +104,31 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     activeEnding: null,
   });
 
+  // Keep an in-browser draft for accidental refreshes. This deliberately uses
+  // sessionStorage (not a long-lived server credential) and never stores it in
+  // the owner's response data until the respondent submits.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(draftStorageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const answers = Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === 'string')) as Record<string, string>;
+        setState((current) => ({ ...current, answers }));
+      }
+    } catch { /* Browser storage may be unavailable. */ }
+    // Defer enabling persistence until the hydration state update above has
+    // committed, avoiding an initial empty render erasing a restored draft.
+    window.setTimeout(() => { restoredDraftRef.current = true; }, 0);
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!restoredDraftRef.current) return;
+    try {
+      if (Object.keys(state.answers).length) sessionStorage.setItem(draftStorageKey, JSON.stringify(state.answers));
+      else sessionStorage.removeItem(draftStorageKey);
+    } catch { /* Browser storage may be unavailable. */ }
+  }, [state.answers, draftStorageKey]);
+
   // Auto-hide confetti after animation
   useEffect(() => {
     if (showConfetti) {
@@ -112,6 +139,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
 
   // Reset form for "Submit another response"
   const handleSubmitAnother = useCallback(() => {
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
     setState((prev) => ({
       ...prev,
       form: prev.form,
@@ -122,7 +150,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       isLoading: false,
       errorMessage: '',
     }));
-  }, []);
+  }, [draftStorageKey]);
 
   const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
   const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
@@ -160,9 +188,10 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
       return;
     }
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
     setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
     setShowConfetti(true);
-  }, [hiddenFieldValues]);
+  }, [hiddenFieldValues, draftStorageKey]);
 
   const handleSubmitWithEnding = useCallback(async (endingId: string) => {
     const currentForm = formRef.current;
@@ -177,9 +206,10 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     const activeEnding = endingId && endingId !== '__default__'
       ? currentForm.endings?.find((ending) => ending.id === endingId) ?? null
       : null;
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
     setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding }));
     setShowConfetti(true);
-  }, [hiddenFieldValues]);
+  }, [hiddenFieldValues, draftStorageKey]);
 
   // ── Navigation ──
   const goNext = useCallback(() => {
@@ -346,6 +376,9 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                   {pipeAnswerText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.', state.answers)}
                 </motion.p>
                 <FillerWelcomeMeta questionCount={questions.length} />
+                <p className={`text-xs opacity-45 ${ff}`} style={{ color: theme.textColor }}>
+                  Your progress is saved in this browser until you submit.
+                </p>
               </div>
             </motion.div>
           )}
