@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
 import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
 import { sendNewResponseNotification } from '@/lib/email';
+import { queueGoogleSheetSync } from '@/lib/google-sheets-sync';
 const boundedMetadataSchema = z.record(z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Metadata must not exceed 20KB'
@@ -645,6 +646,9 @@ export async function POST(
       });
     });
 
+    // Queue integrations before notification; outbox creation is idempotent and
+    // avoids keeping the respondent request open for third-party delivery.
+    await queueGoogleSheetSync(id, result!.id);
     // Notification delivery is deliberately best-effort; the helper catches SMTP
     // failures so a completed response is never rolled back because mail failed.
     const responseCount = await db.response.count({ where: { formId: id, isPartial: false } });
