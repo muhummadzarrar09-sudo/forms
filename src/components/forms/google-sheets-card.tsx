@@ -42,6 +42,13 @@ export function GoogleSheetsCard({ formId }: { formId: string }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Test failed'); }
     finally { setSaving(false); }
   };
+  const disconnectGoogle = async () => {
+    if (!window.confirm('Disconnect Google for all of your forms? This removes all Google Sheets destinations.')) return;
+    setSaving(true); setError('');
+    try { const response = await fetch('/api/integrations/google/disconnect', { method: 'DELETE' }); if (!response.ok) throw new Error('Could not disconnect Google'); setConnected(false); setDestination(null); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not disconnect Google'); }
+    finally { setSaving(false); }
+  };
   return <Card className="border-emerald-500/20 bg-emerald-500/[0.03]">
     <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><span className="grid size-6 place-items-center rounded bg-emerald-600 text-xs font-bold text-white">S</span>Google Sheets {connected && <CheckCircle2 className="size-4 text-emerald-600" />}</CardTitle></CardHeader>
     <CardContent className="space-y-3">
@@ -50,6 +57,7 @@ export function GoogleSheetsCard({ formId }: { formId: string }) {
         <div className="flex flex-wrap items-center gap-3"><Button size="sm" onClick={() => save()} disabled={saving || !spreadsheetId || !sheetName}>{saving ? 'Verifying…' : destination ? 'Update destination' : 'Save destination'}</Button>{destination && <><div className="flex items-center gap-2 text-sm"><Switch checked={destination.active} onCheckedChange={(active) => save(active)} disabled={saving} /> Auto-sync new responses</div><Button variant="outline" size="sm" onClick={test} disabled={saving}>Test row</Button><Button variant="ghost" size="sm" onClick={remove}>Disconnect form</Button></>}</div>
         {destination?.lastSyncedAt && <p className="text-xs text-muted-foreground">Last synced {new Date(destination.lastSyncedAt).toLocaleString()}</p>}
         {destination?.lastError && <p role="alert" className="text-xs text-destructive">Last sync error: {destination.lastError}</p>}
+        <Button variant="link" size="sm" className="h-auto px-0 text-xs text-muted-foreground" onClick={disconnectGoogle} disabled={saving}>Disconnect Google account</Button>
         {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </>}
     </CardContent>
