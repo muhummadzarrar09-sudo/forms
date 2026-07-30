@@ -24,6 +24,8 @@ export function LoginPage() {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetNotice, setResetNotice] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +56,8 @@ export function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (registerPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (registerPassword.length < 12) {
+      setError('Password must be at least 12 characters');
       return;
     }
 
@@ -89,16 +91,53 @@ export function LoginPage() {
       });
 
       if (result?.error) {
-        // Account was created but auto sign-in failed
-        // Still redirect to home - the user can sign in manually
-        console.warn('[REGISTER] Auto sign-in failed after registration, redirecting anyway');
+        // New accounts must verify ownership before a session is issued.
+        setActiveTab('login');
+        setError('Check your inbox and verify your email before signing in.');
+        return;
       }
 
-      // Always redirect to home page after successful registration
-      // Even if auto sign-in fails, the account was created
       window.location.href = '/';
     } catch {
       setError('An error occurred. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!loginEmail.trim()) return setError('Enter your email address first.');
+    setError('');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/email-verification/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail }),
+      });
+      const body = await response.json().catch(() => ({}));
+      setError(body.message || body.error || 'If applicable, a verification link has been sent.');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setResetNotice('');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/password-reset/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return setError(body.error || 'Unable to request a password reset.');
+      setResetNotice(body.message || 'If an account exists for this email, a password reset link will be sent.');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -143,6 +182,11 @@ export function LoginPage() {
               <TabsContent value="register">
                 <CardTitle className="text-xl mt-4">Sign Up</CardTitle>
                 <CardDescription>Create a free account to start building forms</CardDescription>
+              </TabsContent>
+
+              <TabsContent value="reset">
+                <CardTitle className="text-xl mt-4">Reset password</CardTitle>
+                <CardDescription>We will send a reset link if an account exists for your email.</CardDescription>
               </TabsContent>
             </Tabs>
           </CardHeader>
@@ -210,6 +254,15 @@ export function LoginPage() {
                     )}
                   </Button>
 
+                  <div className="space-y-2 text-center text-sm">
+                    <button type="button" className="block w-full text-primary hover:underline" onClick={() => { setActiveTab('reset'); setError(''); setResetNotice(''); }}>
+                      Forgot your password?
+                    </button>
+                    <button type="button" className="block w-full text-primary hover:underline" onClick={handleResendVerification} disabled={isLoading}>
+                      Resend verification email
+                    </button>
+                  </div>
+
                   <p className="text-center text-sm text-muted-foreground">
                     Don&apos;t have an account?{' '}
                     <button
@@ -255,11 +308,11 @@ export function LoginPage() {
                       <Input
                         id="register-password"
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Minimum 6 characters"
+                        placeholder="Minimum 12 characters"
                         value={registerPassword}
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         required
-                        minLength={6}
+                        minLength={12}
                         autoComplete="new-password"
                         className="pr-10"
                       />
@@ -306,6 +359,23 @@ export function LoginPage() {
                       Sign In
                     </button>
                   </p>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="reset">
+                <form onSubmit={handlePasswordResetRequest} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <Input id="reset-email" type="email" autoComplete="email" placeholder="you@example.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+                  </div>
+                  {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                  {resetNotice && <p role="status" className="text-sm text-emerald-700">{resetNotice}</p>}
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Sending reset link…' : 'Send reset link'}
+                  </Button>
+                  <button type="button" className="w-full text-center text-sm text-primary hover:underline" onClick={() => { setActiveTab('login'); setError(''); setResetNotice(''); }}>
+                    Back to sign in
+                  </button>
                 </form>
               </TabsContent>
             </Tabs>

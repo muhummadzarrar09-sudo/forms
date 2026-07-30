@@ -6,10 +6,13 @@ import { useFormStore } from '@/store/form-store';
 import type { FormResponse, FormSummary, QuestionSummary, FormQuestion, FormAnswer } from '@/types/form';
 import { formatDuration } from '@/lib/form-helpers';
 import { QuestionSummaryCard } from '@/components/forms/question-summary';
+import { GoogleSheetsCard } from '@/components/forms/google-sheets-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -117,6 +120,8 @@ interface DisplayResponse {
   timeTaken: number | null;
   score: number;
   isPartial: boolean;
+  status: FormResponse['status'];
+  internalNote: string;
   answers: {
     questionId: string;
     questionTitle: string;
@@ -128,12 +133,18 @@ interface DisplayResponse {
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
+function dateFilterParam(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function ResponsesViewer() {
   const { selectedFormId, openBuilder, openFiller, currentForm, setCurrentForm, openResponses } = useFormStore();
 
   // Data state
   const [summary, setSummary] = useState<FormSummary | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [nextResponseCursor, setNextResponseCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [questions, setQuestions] = useState<FormQuestion[]>([]);
 
   // UI state
@@ -146,6 +157,7 @@ export function ResponsesViewer() {
   const [showClearAllDialog, setShowClearAllDialog] = useState(false);
   const [isClearingAll, setIsClearingAll] = useState(false);
   const [showPartial, setShowPartial] = useState(true); // filter for partial responses
+  const [statusFilter, setStatusFilter] = useState<'all' | FormResponse['status']>('all');
 
   // Fetch form data + summary + responses
   useEffect(() => {
@@ -173,7 +185,8 @@ export function ResponsesViewer() {
 
         if (responsesRes.ok) {
           const responsesData = await responsesRes.json();
-          setResponses(responsesData);
+          setResponses(responsesData.responses || []);
+          setNextResponseCursor(responsesData.nextCursor || null);
         }
       } catch {
         toast({
@@ -188,6 +201,61 @@ export function ResponsesViewer() {
 
     fetchData();
   }, [selectedFormId, setCurrentForm]);
+
+  // Search and date filters must query the paginated API rather than filtering
+  // only whichever response page happens to be in browser memory.
+  useEffect(() => {
+    if (!selectedFormId) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ limit: '50' });
+        if (searchQuery.trim()) params.set('search', searchQuery.trim());
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
+        if (dateTo) params.set('endDate', dateFilterParam(dateTo));
+        const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Response filter request failed');
+        const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
+        if (controller.signal.aborted) return;
+        setResponses(page.responses || []);
+        setNextResponseCursor(page.nextCursor || null);
+      } catch (error) {
+        if ((error as { name?: string }).name !== 'AbortError') {
+          toast({ title: 'Could not filter responses', description: 'Please try again.', variant: 'destructive' });
+        }
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [selectedFormId, searchQuery, dateFrom, dateTo, statusFilter]);
+
+  const loadMoreResponses = useCallback(async () => {
+    if (!selectedFormId || !nextResponseCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ limit: '50', cursor: nextResponseCursor });
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (dateFrom) params.set('startDate', dateFilterParam(dateFrom));
+      if (dateTo) params.set('endDate', dateFilterParam(dateTo));
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses?${params}`);
+      if (!response.ok) throw new Error('Response page request failed');
+      const page = await response.json() as { responses?: FormResponse[]; nextCursor?: string | null };
+      setResponses((current) => [...current, ...(page.responses || [])]);
+      setNextResponseCursor(page.nextCursor || null);
+    } catch {
+      toast({
+        title: 'Could not load more responses',
+        description: 'Please check your connection and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [selectedFormId, nextResponseCursor, isLoadingMore, searchQuery, dateFrom, dateTo, statusFilter]);
 
   // ─── Process responses for display ─────────────────────────────────────────
 
@@ -233,6 +301,8 @@ export function ResponsesViewer() {
           timeTaken,
           score: r.score || 0,
           isPartial: r.isPartial ?? false,
+          status: r.status || 'new',
+          internalNote: r.internalNote || '',
           answers: r.answers.map((a) => ({
             questionId: a.questionId,
             questionTitle: a.question?.title || 'Unknown Question',
@@ -246,54 +316,37 @@ export function ResponsesViewer() {
 
   // ─── CSV Export ────────────────────────────────────────────────────────────
 
-  const handleExportCSV = useCallback(() => {
-    if (responses.length === 0) {
-      toast({
-        title: 'No responses to export',
-        description: 'There are no responses to download.',
-        variant: 'destructive',
-      });
-      return;
+  const handleExportCSV = useCallback(async () => {
+    if (!selectedFormId) return;
+    try {
+      // Export is streamed server-side, so it includes every response rather
+      // than only the currently loaded cursor page.
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses/export`);
+      if (!response.ok) throw new Error('Export request failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${currentForm?.title || 'form'}-responses.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: 'Export successful', description: 'All responses were downloaded as CSV.' });
+    } catch {
+      toast({ title: 'Export failed', description: 'Could not create the response export. Please try again.', variant: 'destructive' });
     }
+  }, [selectedFormId, currentForm]);
 
-    const headers = ['Response #', 'Submitted At', 'Time Taken', ...questions.map((q) => q.title)];
-    const rows = displayResponses.map((r) => {
-      const timeTakenStr = r.timeTaken !== null ? formatDuration(r.timeTaken) : 'N/A';
-      const answerMap: Record<string, string> = {};
-      r.answers.forEach((a) => {
-        answerMap[a.questionId] = a.value;
-      });
-      return [
-        r.number.toString(),
-        new Date(r.submittedAt).toLocaleString(),
-        timeTakenStr,
-        ...questions.map((q) => {
-          const val = answerMap[q.id] || '';
-          // Escape CSV values
-          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-            return `"${val.replace(/"/g, '""')}"`;
-          }
-          return val;
-        }),
-      ];
-    });
-
-    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${currentForm?.title || 'form'}-responses.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: 'Export successful',
-      description: `${displayResponses.length} responses downloaded as CSV.`,
-    });
-  }, [responses, displayResponses, questions, currentForm]);
+  const handleExportJSON = useCallback(async () => {
+    if (!selectedFormId) return;
+    try {
+      const response = await fetch(`/api/forms/${encodeURIComponent(selectedFormId)}/responses/export/json`);
+      if (!response.ok) throw new Error('JSON export failed');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = `${currentForm?.title || 'form'}-responses.json`; link.click(); URL.revokeObjectURL(url);
+    } catch { toast({ title: 'JSON export failed', variant: 'destructive' }); }
+  }, [selectedFormId, currentForm]);
 
   // ─── Bulk Delete All Responses ─────────────────────────────────────────────
   const handleClearAllResponses = useCallback(async () => {
@@ -573,6 +626,10 @@ export function ResponsesViewer() {
                 <Download className="size-3.5" />
                 <span className="hidden sm:inline">Export CSV</span>
               </Button>
+              <Button variant="outline" size="sm" onClick={handleExportJSON} className="gap-1.5">
+                <Download className="size-3.5" />
+                <span className="hidden sm:inline">JSON</span>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -598,6 +655,7 @@ export function ResponsesViewer() {
 
       {/* Main content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {selectedFormId && <GoogleSheetsCard formId={selectedFormId} />}
         {/* Stats cards with completion rate as circular indicator */}
         <div className={`grid grid-cols-1 ${hasScoring ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
@@ -607,6 +665,9 @@ export function ResponsesViewer() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Total Responses</p>
                     <p className="text-3xl font-bold tabular-nums">{animatedTotalResponses}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {summary?.statusCounts?.new ?? 0} new · {summary?.statusCounts?.qualified ?? 0} qualified
+                    </p>
                   </div>
                   <div className="size-11 rounded-xl bg-primary/10 flex items-center justify-center">
                     <Users className="size-5 text-primary" />
@@ -904,6 +965,18 @@ export function ResponsesViewer() {
                 {showPartial ? 'All' : 'Complete only'}
               </Button>
 
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="h-8 w-28 text-xs shrink-0"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="new">New</SelectItem>
+                  <SelectItem value="reviewing">Reviewing</SelectItem>
+                  <SelectItem value="qualified">Qualified</SelectItem>
+                  <SelectItem value="follow_up">Follow up</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Search */}
               <div className="relative flex-1 sm:flex-initial sm:w-56">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -999,11 +1072,11 @@ export function ResponsesViewer() {
                 <CardContent className="py-12 text-center">
                   <Search className="size-10 text-muted-foreground/40 mx-auto mb-3" />
                   <p className="text-muted-foreground">
-                    {searchQuery || dateFrom || dateTo
+                    {searchQuery || dateFrom || dateTo || statusFilter !== 'all'
                       ? 'No responses match your filters'
                       : 'No responses yet'}
                   </p>
-                  {(searchQuery || dateFrom || dateTo) && (
+                  {(searchQuery || dateFrom || dateTo || statusFilter !== 'all') && (
                     <Button
                       variant="link"
                       className="mt-2"
@@ -1011,6 +1084,7 @@ export function ResponsesViewer() {
                         setSearchQuery('');
                         setDateFrom(undefined);
                         setDateTo(undefined);
+                        setStatusFilter('all');
                       }}
                     >
                       Clear filters
@@ -1048,6 +1122,13 @@ export function ResponsesViewer() {
                     />
                   ))}
                 </AnimatePresence>
+                {nextResponseCursor && (
+                  <div className="flex justify-center pt-2">
+                    <Button variant="outline" onClick={loadMoreResponses} disabled={isLoadingMore}>
+                      {isLoadingMore ? 'Loading…' : 'Load more responses'}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
@@ -1107,6 +1188,15 @@ interface ResponseCardProps {
 function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDelete }: ResponseCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [status, setStatus] = useState(response.status);
+  const [note, setNote] = useState(response.internalNote);
+
+  const saveWorkspaceFields = async (updates: { status?: DisplayResponse['status']; internalNote?: string }) => {
+    const result = await fetch(`/api/forms/${formId}/responses/${response.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+    });
+    if (!result.ok) throw new Error('Response workspace update failed');
+  };
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -1176,6 +1266,9 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                   Partial
                 </Badge>
               )}
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+                {status.replace('_', ' ')}
+              </Badge>
               {response.score > 0 && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-violet-600 border-violet-200 bg-violet-50">
                   <BarChart3 className="size-2.5" />
@@ -1208,6 +1301,34 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
             >
               <Separator />
               <div className="p-4 space-y-4">
+                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Workflow status</p>
+                    <Select value={status} onValueChange={async (value) => {
+                      const next = value as DisplayResponse['status'];
+                      const previous = status;
+                      setStatus(next);
+                      try { await saveWorkspaceFields({ status: next }); }
+                      catch { setStatus(previous); toast({ title: 'Could not update status', variant: 'destructive' }); }
+                    }}>
+                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="reviewing">Reviewing</SelectItem>
+                        <SelectItem value="qualified">Qualified</SelectItem>
+                        <SelectItem value="follow_up">Follow up</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Private note</p>
+                    <Textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={async () => {
+                      try { await saveWorkspaceFields({ internalNote: note }); }
+                      catch { toast({ title: 'Could not save note', variant: 'destructive' }); }
+                    }} placeholder="Add an internal follow-up note…" className="min-h-20 text-sm" />
+                  </div>
+                </div>
                 {response.answers.map((answer, index) => {
                   const question = questions.find((q) => q.id === answer.questionId);
                   return (

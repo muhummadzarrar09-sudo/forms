@@ -13,9 +13,11 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { FillerConfetti, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeMeta, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
+import { pipeAnswerText } from '@/lib/answer-piping';
+import { interpolateCalculatedText, resolveCalculatedVariables } from '@/lib/calculation-engine';
 
 /* ─── Blinking cursor animation ────────────────────────────────────────── */
 
@@ -36,6 +38,7 @@ interface FillerState {
   partialResponseId: string | null; // ID of the partial response being tracked
   partialEditToken: string | null; // bearer token required to resume this anonymous response
   hiddenFieldValues: Record<string, string>; // hidden field values from URL params
+  draftSaveStatus: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 /* ─── Animation variants ─────────────────────────────────────────────── */
@@ -100,6 +103,7 @@ export function FormFiller() {
   const [showConfetti, setShowConfetti] = useState(false);
   // Tracks the current anonymous draft across renders without exposing it in UI.
   const partialResponseRef = useRef<string | null>(null);
+  const autosaveInFlightRef = useRef(false);
 
   const [state, setState] = useState<FillerState>({
     form: null,
@@ -114,6 +118,7 @@ export function FormFiller() {
     partialResponseId: null,
     partialEditToken: null,
     hiddenFieldValues: {},
+    draftSaveStatus: 'idle',
   });
 
   const handleClose = useCallback(() => {
@@ -149,6 +154,7 @@ export function FormFiller() {
       activeEnding: null,
       partialResponseId: null,
       partialEditToken: null,
+      draftSaveStatus: 'idle',
     }));
   }, []);
 
@@ -237,6 +243,8 @@ export function FormFiller() {
 
   const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
   const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
+  const calculatedVariables = useMemo(() => resolveCalculatedVariables(state.form?.calculatedVariables || [], state.answers), [state.form?.calculatedVariables, state.answers]);
+  const personalizedText = useCallback((text: string) => interpolateCalculatedText(pipeAnswerText(text, state.answers), state.answers, calculatedVariables), [state.answers, calculatedVariables]);
 
   // ── Submit ──
   // Use a ref to always have the latest answers (avoids stale closure)
@@ -440,12 +448,25 @@ export function FormFiller() {
             metadata: { startedAt: new Date().toISOString() },
           }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          partialResponseRef.current = data.id;
-          setState((s) => ({ ...s, partialResponseId: data.id, partialEditToken: data.editToken ?? null }));
+        if (!res.ok) {
+          setState((s) => ({ ...s, draftSaveStatus: 'error' }));
+          return;
         }
-      } catch { /* ignore */ }
+        const data = await res.json();
+        if (!data.id || !data.editToken) {
+          setState((s) => ({ ...s, draftSaveStatus: 'error' }));
+          return;
+        }
+        partialResponseRef.current = data.id;
+        setState((s) => ({
+          ...s,
+          partialResponseId: data.id,
+          partialEditToken: data.editToken,
+          draftSaveStatus: 'saved',
+        }));
+      } catch {
+        setState((s) => ({ ...s, draftSaveStatus: 'error' }));
+      }
     };
 
     createPartial();
@@ -456,8 +477,10 @@ export function FormFiller() {
     if (!state.partialResponseId || !state.partialEditToken || !state.form || !shareMode) return;
 
     const interval = setInterval(async () => {
+      // Do not overlap network writes: an earlier slow request must finish
+      // before the next autosave can send a newer snapshot.
+      if (autosaveInFlightRef.current) return;
       const currentAnswers = answersRef.current;
-      const currentScores = { ...state.scores };
       const answerList = Object.entries(currentAnswers).map(([questionId, value]) => ({
         questionId,
         value,
@@ -465,8 +488,10 @@ export function FormFiller() {
 
       if (answerList.length === 0) return;
 
+      autosaveInFlightRef.current = true;
+      setState((s) => ({ ...s, draftSaveStatus: 'saving' }));
       try {
-        await fetch(`/api/forms/${state.form!.id}/responses`, {
+        const response = await fetch(`/api/forms/${state.form!.id}/responses`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -476,7 +501,12 @@ export function FormFiller() {
             isPartial: true,
           }),
         });
-      } catch { /* ignore */ }
+        setState((s) => ({ ...s, draftSaveStatus: response.ok ? 'saved' : 'error' }));
+      } catch {
+        setState((s) => ({ ...s, draftSaveStatus: 'error' }));
+      } finally {
+        autosaveInFlightRef.current = false;
+      }
     }, 5000); // Save every 5 seconds
 
     return () => clearInterval(interval);
@@ -644,10 +674,31 @@ export function FormFiller() {
     >
       {/* ── Confetti ── */}
       {showConfetti && state.screen === 'ending' && <FillerConfetti />}
+      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} />}
+
+      {shareMode && state.draftSaveStatus !== 'idle' && (
+        <p
+          className="absolute right-4 top-4 z-30 rounded-full px-3 py-1 text-xs"
+          role={state.draftSaveStatus === 'error' ? 'alert' : 'status'}
+          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+        >
+          {state.draftSaveStatus === 'saving' && 'Saving draft…'}
+          {state.draftSaveStatus === 'saved' && 'Draft saved'}
+          {state.draftSaveStatus === 'error' && 'Draft could not be saved — your answers remain on this screen.'}
+        </p>
+      )}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
-        <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
+        <div
+          className="absolute top-0 left-0 right-0 h-1.5 z-30"
+          style={{ backgroundColor: `${theme.textColor}10` }}
+          role="progressbar"
+          aria-label="Form completion progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+        >
           <motion.div
             className="h-full relative progress-bar-glow"
             style={{
@@ -715,6 +766,7 @@ export function FormFiller() {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
+                <FillerWelcomeBranding form={state.form} />
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -722,7 +774,7 @@ export function FormFiller() {
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeTitle || state.form.title || 'Welcome!'}
+                  {personalizedText(state.form.welcomeTitle || state.form.title || 'Welcome!')}
                   {/* Blinking cursor */}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
@@ -736,8 +788,9 @@ export function FormFiller() {
                   className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeMessage || 'Thanks for taking the time to fill this out.'}
+                  {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
+                <FillerWelcomeMeta questionCount={questions.length} />
               </div>
             </motion.div>
           )}
@@ -755,7 +808,11 @@ export function FormFiller() {
               className="max-w-2xl mx-auto w-full"
             >
               <FillerQuestionScreen
-                question={currentQuestion}
+                question={{
+                  ...currentQuestion,
+                  title: personalizedText(currentQuestion.title),
+                  description: personalizedText(currentQuestion.description),
+                }}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
                 answer={state.answers[currentQuestion.id] || ''}
@@ -823,13 +880,13 @@ export function FormFiller() {
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.title || state.form.endingTitle || 'Thank you!'}
+                {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
                 className={`text-lg md:text-xl opacity-60 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.'}
+                {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
 
               {/* Show redirect link if custom ending has one */}

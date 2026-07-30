@@ -13,21 +13,67 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color (e.g. #FF5733)');
+const isoDateTime = z.string().datetime({ offset: true }).refine(
+  (value) => !Number.isNaN(Date.parse(value)),
+  'Must be a valid ISO-8601 datetime'
+);
+const questionType = z.enum([
+  'short_text', 'long_text', 'multiple_choice', 'dropdown', 'email', 'number',
+  'rating', 'opinion_scale', 'yes_no', 'date', 'picture_choice', 'phone',
+  'website', 'legal', 'statement', 'ending',
+]);
+
+// Question settings are persisted as JSON. Bound their serialized size at the
+// API boundary so arbitrary nested configuration cannot become a storage/CPU DoS.
+const boundedSettings = z.record(z.unknown()).refine(
+  (value) => JSON.stringify(value).length <= 20_000,
+  'Question settings must not exceed 20KB'
+);
+
+/** External redirects must never be executable/data URLs. */
+const safeHttpsUrl = z.string().url().max(2048).refine((value) => {
+  try { return new URL(value).protocol === 'https:'; } catch { return false; }
+}, 'URL must use HTTPS');
+
+export const safeRedirectUrl = safeHttpsUrl;
+
+export const createEndingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  message: z.string().min(1).max(2_000).optional(),
+  redirectUrl: safeRedirectUrl.nullable().optional(),
+  showScore: z.boolean().optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+}).strict();
+
+export const updateEndingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  message: z.string().min(1).max(2_000).optional(),
+  redirectUrl: safeRedirectUrl.nullable().optional(),
+  showScore: z.boolean().optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+}).strict();
+
+const shortId = z.string().min(1).max(100);
+const hiddenFieldSchema = z.object({
+  id: shortId,
+  name: z.string().min(1).max(100),
+  defaultValue: z.string().max(1_000).optional(),
+});
 
 const questionOptionSchema = z.object({
-  id: z.string(),
-  label: z.string().max(200),
-  image: z.string().url().optional(),
+  id: shortId,
+  label: z.string().min(1).max(200),
+  image: safeHttpsUrl.optional(),
 });
 
 const logicConditionSchema = z.object({
-  field: z.string(),
+  field: z.string().max(200),
   operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_filled', 'is_empty']),
-  value: z.string(),
+  value: z.string().max(1_000),
 });
 
 const logicRuleSchema = z.object({
-  id: z.string(),
+  id: shortId,
   // `condition` remains required for backward-compatible existing rules.
   condition: logicConditionSchema,
   // New rules may evaluate every condition (ALL, default) or any condition.
@@ -35,7 +81,7 @@ const logicRuleSchema = z.object({
   conditionMatch: z.enum(['all', 'any']).optional(),
   action: z.object({
     type: z.enum(['jump_to', 'show_ending']),
-    targetQuestionId: z.string(),
+    targetQuestionId: shortId,
   }),
 });
 
@@ -60,8 +106,9 @@ export const createFormSchema = z.object({
   progressbar: z.boolean().optional(),
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
-  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
-  workspaceId: z.string().optional(),
+  hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  calculatedVariables: z.array(z.object({ id: shortId, name: z.string().min(1).max(50), formula: z.string().min(1).max(500) })).max(20).optional(),
+  workspaceId: shortId.optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -83,18 +130,19 @@ export const updateFormSchema = z.object({
   buttonColor: hexColor.optional(),
   buttonTextColor: hexColor.optional(),
   fontFamily: z.enum(['sans', 'serif', 'mono']).optional(),
-  logoUrl: z.string().url().nullable().optional(),
-  coverUrl: z.string().url().nullable().optional(),
+  logoUrl: safeHttpsUrl.nullable().optional(),
+  coverUrl: safeHttpsUrl.nullable().optional(),
   progressbar: z.boolean().optional(),
   showQuestionNumbers: z.boolean().optional(),
   allowBackNavigation: z.boolean().optional(),
   favorite: z.boolean().optional(),
   archived: z.boolean().optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
-  hiddenFields: z.array(z.object({ id: z.string(), name: z.string(), defaultValue: z.string().optional() })).max(20).optional(),
-  workspaceId: z.string().nullable().optional(),
+  hiddenFields: z.array(hiddenFieldSchema).max(20).optional(),
+  calculatedVariables: z.array(z.object({ id: shortId, name: z.string().min(1).max(50), formula: z.string().min(1).max(500) })).max(20).optional(),
+  workspaceId: shortId.nullable().optional(),
   maxResponses: z.number().int().min(0).optional(),
-  closeDate: z.string().nullable().optional(),
+  closeDate: isoDateTime.nullable().optional(),
   metaTitle: z.string().max(200).optional(),
   metaDescription: z.string().max(500).optional(),
 });
@@ -104,15 +152,15 @@ export const updateFormSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const questionSchema = z.object({
-  id: z.string().min(1).max(100).optional(),
-  type: z.string().max(30),
+  id: shortId.optional(),
+  type: questionType,
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   required: z.boolean().optional().default(false),
   order: z.number().int().min(0).optional().default(0),
   options: z.array(questionOptionSchema).optional().default([]),
-  imageUrls: z.array(z.string().url()).optional().default([]),
-  settings: z.record(z.unknown()).optional().default({}),
+  imageUrls: z.array(safeHttpsUrl).max(20).optional().default([]),
+  settings: boundedSettings.optional().default({}),
   logic: z.array(logicRuleSchema).optional().default([]),
   placeholder: z.string().max(200).optional().default(''),
 });
@@ -129,13 +177,13 @@ export const submitResponseSchema = z.object({
   answers: z
     .array(
       z.object({
-        questionId: z.string().min(1),
+        questionId: shortId,
         value: z.string().max(10000),
       })
     )
     .min(1),
-  metadata: z.record(z.unknown()).optional(),
-  completedAt: z.string().optional(),
+  metadata: boundedSettings.optional(),
+  completedAt: isoDateTime.optional(),
 });
 
 // ---------------------------------------------------------------------------

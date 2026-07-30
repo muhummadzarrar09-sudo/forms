@@ -2,10 +2,12 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding, HiddenField } from '@/types/form';
+import type { FormQuestion, QuestionType, LogicRule, LogicCondition, FormEnding, HiddenField, CalculatedVariable } from '@/types/form';
 import { useFormStore } from '@/store/form-store';
 import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
+import { BrandingUrlEditor } from '@/components/forms/branding-url-editor';
+import { contrastRatio } from '@/lib/color-contrast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
@@ -1463,9 +1465,11 @@ function DesignTabContent() {
   const localText = currentForm.textColor;
   const localBtn = currentForm.buttonColor;
   const localBtnText = currentForm.buttonTextColor;
+  const textContrast = contrastRatio(localText, localBg);
+  const buttonContrast = contrastRatio(localBtnText, localBtn);
 
   // Persist design changes to DB — store alone is not enough
-  const saveDesign = async (updates: Record<string, string>) => {
+  const saveDesign = async (updates: Record<string, string | null>) => {
     try {
       await fetch(`/api/forms/${currentForm.id}`, {
         method: 'PUT',
@@ -1583,6 +1587,39 @@ function DesignTabContent() {
             onChange={(v) => handleColorChange('btnText', v)}
           />
         </div>
+        {((textContrast !== null && textContrast < 4.5) || (buttonContrast !== null && buttonContrast < 4.5)) && (
+          <p role="alert" className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+            Low contrast detected. Use at least 4.5:1 contrast for readable public-form text and buttons.
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Public Branding & Share Preview */}
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Public Branding & Share Preview
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          A cover image becomes the social preview for published forms. Use an HTTPS image URL.
+        </p>
+        <BrandingUrlEditor
+          label="Logo image URL"
+          value={currentForm.logoUrl || ''}
+          onSave={(logoUrl) => {
+            updateForm(currentForm.id, { logoUrl });
+            saveDesign({ logoUrl: logoUrl || null });
+          }}
+        />
+        <BrandingUrlEditor
+          label="Cover / social preview image URL"
+          value={currentForm.coverUrl || ''}
+          onSave={(coverUrl) => {
+            updateForm(currentForm.id, { coverUrl });
+            saveDesign({ coverUrl: coverUrl || null });
+          }}
+        />
       </div>
 
       <Separator />
@@ -1715,6 +1752,11 @@ function FormSettingsAdvancedTab() {
     updateForm(currentForm.id, { hiddenFields: updated });
   };
 
+  const variables = (currentForm.calculatedVariables || []) as CalculatedVariable[];
+  const saveVariables = async (next: CalculatedVariable[]) => {
+    updateForm(currentForm.id, { calculatedVariables: next });
+    await fetch(`/api/forms/${currentForm.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ calculatedVariables: next }) });
+  };
   const removeHiddenField = (fieldId: string) => {
     const updated = hiddenFields.filter((f) => f.id !== fieldId);
     updateForm(currentForm.id, { hiddenFields: updated });
@@ -1907,6 +1949,12 @@ function FormSettingsAdvancedTab() {
 
       <Separator />
 
+      <div className="space-y-2 rounded-lg border p-3">
+        <div className="flex items-center justify-between"><Label className="text-sm font-medium">Calculated variables</Label><Button size="sm" variant="outline" onClick={() => saveVariables([...variables, { id: `var_${Date.now()}`, name: 'quote_total', formula: '{{answer:quantity}} * 49' }])}>Add variable</Button></div>
+        <p className="text-xs text-muted-foreground">Use safe arithmetic and tokens like {'{{answer:quantity}}'}; reference results with {'{{variable:quote_total}}'}.</p>
+        {variables.map((variable) => <div key={variable.id} className="flex gap-2"><Input value={variable.name} onChange={(e) => saveVariables(variables.map((v) => v.id === variable.id ? { ...v, name: e.target.value } : v))} placeholder="name" /><Input value={variable.formula} onChange={(e) => saveVariables(variables.map((v) => v.id === variable.id ? { ...v, formula: e.target.value } : v))} placeholder="formula" /><Button size="icon" variant="ghost" onClick={() => saveVariables(variables.filter((v) => v.id !== variable.id))}><X className="size-4" /></Button></div>)}
+      </div>
+
       {/* Response Limits */}
       <div className="space-y-2">
         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1944,7 +1992,9 @@ function FormSettingsAdvancedTab() {
           value={closeDate}
           onChange={(e) => setCloseDate(e.target.value)}
           onBlur={() => {
-            const newValue = closeDate || null;
+            // A date-only control represents the end of that UTC day, not its
+            // first millisecond; the API accepts only explicit ISO instants.
+            const newValue = closeDate ? `${closeDate}T23:59:59.999Z` : null;
             const currentValue = currentForm.closeDate ? currentForm.closeDate.split('T')[0] : '';
             if (closeDate !== currentValue) {
               updateForm(currentForm.id, { closeDate: newValue });

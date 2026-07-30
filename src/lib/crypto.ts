@@ -8,7 +8,7 @@
  * Hash format: `pbkdf2:<iterations>:<salt-hex>:<hash-hex>`
  */
 
-import { randomBytes, pbkdf2Sync, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, pbkdf2Sync, timingSafeEqual } from 'crypto';
 
 const PBKDF2_ITERATIONS = 210000;
 const SALT_LENGTH = 32; // bytes
@@ -23,6 +23,20 @@ export function hashPassword(password: string): string {
   const salt = randomBytes(SALT_LENGTH).toString('hex');
   const hash = pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, KEY_LENGTH, DIGEST).toString('hex');
   return `${PREFIX}${PBKDF2_ITERATIONS}:${salt}:${hash}`;
+}
+
+/** One-way verifier for high-entropy response-resume bearer tokens. */
+export function hashResponseEditToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+export function verifyResponseEditToken(token: string, expectedHash: string): boolean {
+  const actualHash = hashResponseEditToken(token);
+  try {
+    return timingSafeEqual(Buffer.from(actualHash, 'hex'), Buffer.from(expectedHash, 'hex'));
+  } catch {
+    return false;
+  }
 }
 
 /**

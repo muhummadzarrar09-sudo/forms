@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Form, FormTheme } from '@/types/form';
 import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
@@ -44,6 +44,47 @@ export function useFillerTheme(form: Form | null): FormTheme {
     buttonTextColor: '#FFFFFF',
     fontFamily: 'sans',
   }, [form]);
+}
+
+export function FillerWelcomeMeta({ questionCount }: { questionCount: number }) {
+  if (questionCount === 0) return null;
+  const minutes = Math.max(1, Math.ceil(questionCount / 8));
+  return <p className="text-sm opacity-55" aria-label={`${questionCount} questions, about ${minutes} minute${minutes === 1 ? '' : 's'}`}>
+    {questionCount} question{questionCount === 1 ? '' : 's'} · about {minutes} min
+  </p>;
+}
+
+/** Compact brand mark retained while respondents move beyond the welcome screen. */
+export function FillerHeaderLogo({ form }: { form: Form }) {
+  const [failed, setFailed] = useState(false);
+  if (!form.logoUrl || failed) return null;
+  return <img
+    src={form.logoUrl}
+    alt={`${form.title} logo`}
+    className="absolute left-5 top-4 z-20 max-h-8 max-w-32 object-contain object-left"
+    onError={() => setFailed(true)}
+  />;
+}
+
+/** Shared public-form branding shown on the welcome screen. Failed remote image
+ * loads disappear gracefully rather than leaving a broken image icon. */
+export function FillerWelcomeBranding({ form }: { form: Form }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const [coverFailed, setCoverFailed] = useState(false);
+  const logoUrl = form.logoUrl && !logoFailed ? form.logoUrl : null;
+  const coverUrl = form.coverUrl && !coverFailed ? form.coverUrl : null;
+  if (!logoUrl && !coverUrl) return null;
+
+  return <div className="space-y-4">
+    {coverUrl && (
+      <div className="overflow-hidden rounded-2xl border border-black/10 shadow-sm">
+        <img src={coverUrl} alt="" className="h-32 w-full object-cover md:h-44" onError={() => setCoverFailed(true)} />
+      </div>
+    )}
+    {logoUrl && (
+      <img src={logoUrl} alt={`${form.title} logo`} className="max-h-14 max-w-48 object-contain object-left" onError={() => setLogoFailed(true)} />
+    )}
+  </div>;
 }
 
 /** Shared celebratory layer. It is mounted only after successful completion. */

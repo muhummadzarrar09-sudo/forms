@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
         showQuestionNumbers: data.showQuestionNumbers ?? true,
         allowBackNavigation: data.allowBackNavigation ?? true,
         hiddenFields: JSON.stringify(data.hiddenFields ?? []),
+        calculatedVariables: JSON.stringify(data.calculatedVariables ?? []),
         userId: session.user.id,
         ...(data.workspaceId && { workspaceId: data.workspaceId }),
       },

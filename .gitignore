@@ -56,3 +56,7 @@ server.log
 /skills/
 # Explicitly never commit local production credentials
 .env
+
+# Local database artifacts (never commit respondent/user data)
+db/*.db
+!db/.gitkeep

@@ -20,6 +20,40 @@ function getTransporter() {
   });
 }
 
+export async function sendVerificationEmail(ownerEmail: string, verificationUrl: string): Promise<boolean> {
+  try {
+    const transporter = getTransporter();
+    if (!transporter) return false;
+    await transporter.sendMail({
+      from: process.env.SMTP_USER || 'noreply@forms.app',
+      to: ownerEmail,
+      subject: 'Verify your Forms email address',
+      text: `Welcome to Forms. Verify your email address: ${verificationUrl}\n\nThis link expires in 24 hours.`,
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to send verification email:', error);
+    return false;
+  }
+}
+
+export async function sendPasswordResetEmail(ownerEmail: string, resetUrl: string): Promise<boolean> {
+  try {
+    const transporter = getTransporter();
+    if (!transporter) return false;
+    await transporter.sendMail({
+      from: process.env.SMTP_USER || 'noreply@forms.app',
+      to: ownerEmail,
+      subject: 'Reset your Forms password',
+      text: `A password reset was requested for your Forms account.\n\nReset your password: ${resetUrl}\n\nThis link expires in one hour. If you did not request this, you can ignore this email.`,
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to send password reset email:', error);
+    return false;
+  }
+}
+
 export async function sendNewResponseNotification(
   formTitle: string,
   ownerEmail: string,

@@ -12,6 +12,7 @@ export interface FormTemplateQuestion {
 
 export interface FormTemplate {
   id: string;
+  category?: 'Leads' | 'Client intake' | 'Feedback' | 'Events' | 'HR' | 'Commerce' | 'Assessments';
   title: string;
   description: string;
   icon: string;
@@ -148,6 +149,71 @@ export const FORM_TEMPLATES: FormTemplate[] = [
       { type: 'multiple_choice', title: 'What topics are you interested in?', options: ['Technology', 'Design', 'Business', 'Lifestyle', 'Science'], required: true, settings: { allowMultiple: true } },
       { type: 'dropdown', title: 'How often would you like to receive updates?', options: ['Daily', 'Weekly', 'Monthly'], required: true },
       { type: 'legal', title: 'I agree to receive email communications', required: true },
+    ],
+  },
+  {
+    id: 'lead-qualification',
+    title: 'Lead Qualification',
+    description: 'Qualify inbound leads, identify intent, and route the right follow-up.',
+    icon: 'Target',
+    color: '#7C3AED',
+    questions: [
+      { type: 'short_text', title: 'What is your name?', required: true, placeholder: 'Full name' },
+      { type: 'email', title: 'What is your work email?', required: true, placeholder: 'you@company.com' },
+      { type: 'short_text', title: 'What company do you represent?', required: true },
+      { type: 'multiple_choice', title: 'What are you looking to solve?', required: true, options: ['Generate more leads', 'Improve operations', 'Launch a new product', 'Get expert advice'] },
+      { type: 'multiple_choice', title: 'What is your estimated budget?', required: true, options: ['Under $1,000', '$1,000–$5,000', '$5,000–$20,000', '$20,000+'] },
+      { type: 'multiple_choice', title: 'When would you like to start?', required: true, options: ['Immediately', 'This month', 'This quarter', 'Just researching'] },
+      { type: 'long_text', title: 'Anything else we should know?', placeholder: 'Goals, constraints, or context…' },
+    ],
+  },
+  {
+    id: 'project-intake',
+    title: 'Client Project Intake',
+    description: 'Collect the context needed to scope a strong client project.',
+    icon: 'Briefcase',
+    color: '#0EA5E9',
+    questions: [
+      { type: 'short_text', title: 'Your name', required: true },
+      { type: 'email', title: 'Best email address', required: true },
+      { type: 'short_text', title: 'Business or organization name', required: true },
+      { type: 'long_text', title: 'Describe the project in your own words', required: true },
+      { type: 'multiple_choice', title: 'What is the primary project goal?', required: true, options: ['More sales', 'More qualified leads', 'Better customer experience', 'Internal efficiency', 'Brand awareness'] },
+      { type: 'long_text', title: 'What does success look like?', required: true },
+      { type: 'date', title: 'Ideal launch or decision date' },
+      { type: 'long_text', title: 'Share links, references, or inspiration', placeholder: 'URLs, competitors, examples…' },
+    ],
+  },
+  {
+    id: 'booking-request', category: 'Leads', title: 'Booking Request', description: 'Capture appointment requests and preferred times.', icon: 'Calendar', color: '#0EA5E9',
+    questions: [
+      { type: 'short_text', title: 'Your name', required: true }, { type: 'email', title: 'Your email', required: true },
+      { type: 'multiple_choice', title: 'What would you like to book?', required: true, options: ['Discovery call', 'Consultation', 'Demo', 'Support session'] },
+      { type: 'date', title: 'Preferred date', required: true }, { type: 'long_text', title: 'What should we prepare for?' },
+    ],
+  },
+  {
+    id: 'nps-survey', category: 'Feedback', title: 'NPS Survey', description: 'Measure customer loyalty and uncover follow-up opportunities.', icon: 'BarChart3', color: '#10B981',
+    questions: [
+      { type: 'opinion_scale', title: 'How likely are you to recommend us?', required: true, settings: { steps: 10, startAtOne: false } },
+      { type: 'long_text', title: 'What is the main reason for your score?', required: true },
+      { type: 'multiple_choice', title: 'May we follow up?', options: ['Yes', 'No'], required: true }, { type: 'email', title: 'Email for follow-up' },
+    ],
+  },
+  {
+    id: 'job-application', category: 'HR', title: 'Job Application', description: 'A structured application flow for collecting candidate information.', icon: 'Briefcase', color: '#F97316',
+    questions: [
+      { type: 'short_text', title: 'Full name', required: true }, { type: 'email', title: 'Email address', required: true },
+      { type: 'phone', title: 'Phone number', required: true }, { type: 'website', title: 'Portfolio or LinkedIn URL' },
+      { type: 'long_text', title: 'Why are you a great fit?', required: true }, { type: 'long_text', title: 'Relevant experience', required: true },
+    ],
+  },
+  {
+    id: 'brand-discovery', category: 'Client intake', title: 'Brand Discovery', description: 'Understand a client’s audience, positioning, personality, and visual direction.', icon: 'Palette', color: '#A855F7',
+    questions: [
+      { type: 'short_text', title: 'Brand or business name', required: true }, { type: 'long_text', title: 'What do you offer?', required: true },
+      { type: 'long_text', title: 'Who is your ideal customer?', required: true }, { type: 'multiple_choice', title: 'Which brand personality fits best?', required: true, options: ['Bold', 'Minimal', 'Warm', 'Premium', 'Playful'] },
+      { type: 'long_text', title: 'What should your audience feel?', required: true }, { type: 'website', title: 'Reference website or inspiration link' },
     ],
   },
 ];

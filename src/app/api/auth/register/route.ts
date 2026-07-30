@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword } from '@/lib/crypto';
+import { issueEmailVerification } from '@/lib/email-verification';
 
 // POST /api/auth/register - Register a new user
 export async function POST(request: NextRequest) {
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 12) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'Password must be at least 12 characters' },
         { status: 400 }
       );
     }
@@ -43,9 +44,10 @@ export async function POST(request: NextRequest) {
       where: { email: normalizedEmail },
     });
     if (existingUser) {
+      // Do not reveal account membership to unauthenticated callers.
       return NextResponse.json(
-        { error: 'An account with this email already exists' },
-        { status: 409 }
+        { message: 'If registration can proceed, you can now sign in.' },
+        { status: 202 }
       );
     }
 
@@ -59,13 +61,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await issueEmailVerification({ id: user.id, email: user.email });
     console.log('[REGISTER] User created:', normalizedEmail);
 
-    return NextResponse.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    }, { status: 201 });
+    return NextResponse.json(
+      { message: 'If registration can proceed, you can now sign in.' },
+      { status: 202 }
+    );
   } catch (error) {
     console.error('[REGISTER] Error:', error);
     return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });

@@ -63,6 +63,7 @@ interface RawForm {
   archived: boolean;
   tags: string;         // JSON string
   hiddenFields: string; // JSON string
+  calculatedVariables: string;
   maxResponses: number;
   closeDate: Date | string | null;
   metaTitle: string;
@@ -85,8 +86,11 @@ interface RawResponse {
   completedAt: Date | string | null;
   isPartial: boolean;
   score: number;
+  status: string;
+  internalNote: string;
   metadata: string;     // JSON string
-  editToken?: string | null;
+  editTokenHash?: string | null;
+  editTokenExpiresAt?: Date | string | null;
   answers: RawAnswer[];
 }
 
@@ -202,6 +206,7 @@ export function serializeForm(form: RawForm) {
     ...form,
     tags: parseJsonArray<string>(form.tags).filter((tag) => typeof tag === 'string'),
     hiddenFields: parseJsonArray<HiddenField>(form.hiddenFields),
+    calculatedVariables: parseJsonArray<{ id: string; name: string; formula: string }>(form.calculatedVariables),
     closeDate: form.closeDate instanceof Date
       ? form.closeDate.toISOString()
       : form.closeDate,
@@ -233,8 +238,8 @@ export function serializePublicForm(form: RawForm) {
  * Serialize a raw Prisma response row, parsing metadata and question JSON fields.
  */
 export function serializeResponse(r: RawResponse) {
-  // The anonymous resume token must never be exposed in owner response listings.
-  const { editToken: _editToken, ...response } = r;
+  // Draft credential verifiers and expiry details are never owner/public data.
+  const { editTokenHash: _editTokenHash, editTokenExpiresAt: _editTokenExpiresAt, ...response } = r;
   return {
     ...response,
     isPartial: r.isPartial ?? false,

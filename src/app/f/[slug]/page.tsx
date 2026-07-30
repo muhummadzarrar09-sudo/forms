@@ -16,6 +16,11 @@ function getBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
+function safePreviewImage(url: string | null): string | null {
+  if (!url) return null;
+  try { return new URL(url).protocol === 'https:' ? url : null; } catch { return null; }
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
 
@@ -30,6 +35,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       metaDescription: true,
       buttonColor: true,
       backgroundColor: true,
+      coverUrl: true,
       published: true,
       _count: { select: { questions: true } },
     },
@@ -47,7 +53,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     `${form._count.questions} question${form._count.questions !== 1 ? 's' : ''} · Takes less than 2 minutes`;
 
   const baseUrl = getBaseUrl();
-  const ogImageUrl = `${baseUrl}/api/og?slug=${encodeURIComponent(slug)}`;
+  const generatedOgImageUrl = `${baseUrl}/api/og?slug=${encodeURIComponent(slug)}`;
+  // Every published form can opt into a branded public preview using its
+  // HTTPS cover image. The generated OG card remains a reliable fallback.
+  const customPreview = safePreviewImage(form.coverUrl);
+  const socialImages = customPreview
+    ? [{ url: customPreview, alt: title }]
+    : [{ url: generatedOgImageUrl, width: 1200, height: 630, alt: title }];
 
   return {
     title,
@@ -57,13 +69,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       type: 'website',
       url: `${baseUrl}/f/${slug}`,
-      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: title }],
+      images: socialImages,
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [ogImageUrl],
+      images: [customPreview || generatedOgImageUrl],
     },
   };
 }

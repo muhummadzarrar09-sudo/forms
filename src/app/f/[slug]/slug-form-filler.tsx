@@ -12,9 +12,11 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
-import { FillerConfetti, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeMeta, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
+import { pipeAnswerText } from '@/lib/answer-piping';
+import { interpolateCalculatedText, resolveCalculatedVariables } from '@/lib/calculation-engine';
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
@@ -29,6 +31,8 @@ interface FillerState {
   isLoading: boolean;
   errorMessage: string;
   activeEnding: FormEnding | null;
+  partialResponseId: string | null;
+  partialEditToken: string | null;
 }
 
 /* ─── Animation variants ─────────────────────────────────────────────── */
@@ -89,6 +93,11 @@ function fontFamilyClass(ff: string) {
 
 export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const restoredDraftRef = useRef(false);
+  const draftCreationRef = useRef(false);
+  const autosaveInFlightRef = useRef(false);
+  const [hasRestorableDraft, setHasRestorableDraft] = useState(false);
+  const draftStorageKey = `forms:public-draft:${initialForm.id}`;
 
   const [state, setState] = useState<FillerState>({
     form: initialForm,
@@ -99,7 +108,52 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     isLoading: false,
     errorMessage: '',
     activeEnding: null,
+    partialResponseId: null,
+    partialEditToken: null,
   });
+
+  // Keep an in-browser draft for accidental refreshes. This deliberately uses
+  // sessionStorage (not a long-lived server credential) and never stores it in
+  // the owner's response data until the respondent submits.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(draftStorageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const draft = parsed as {
+          answers?: unknown; currentIndex?: unknown; responseId?: unknown; editToken?: unknown;
+        };
+        const answers = draft.answers && typeof draft.answers === 'object' && !Array.isArray(draft.answers)
+          ? Object.fromEntries(Object.entries(draft.answers).filter(([, value]) => typeof value === 'string')) as Record<string, string>
+          : {};
+        const currentIndex = typeof draft.currentIndex === 'number' && Number.isInteger(draft.currentIndex) && draft.currentIndex >= 0 ? draft.currentIndex : -1;
+        const responseId = typeof draft.responseId === 'string' ? draft.responseId : null;
+        const editToken = typeof draft.editToken === 'string' ? draft.editToken : null;
+        if (Object.keys(answers).length || (responseId && editToken)) {
+          setState((current) => ({ ...current, answers, currentIndex, partialResponseId: responseId, partialEditToken: editToken }));
+          setHasRestorableDraft(true);
+        }
+      }
+    } catch { /* Browser storage may be unavailable. */ }
+    // Defer enabling persistence until the hydration state update above has
+    // committed, avoiding an initial empty render erasing a restored draft.
+    window.setTimeout(() => { restoredDraftRef.current = true; }, 0);
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!restoredDraftRef.current) return;
+    try {
+      const hasDraft = Object.keys(state.answers).length || (state.partialResponseId && state.partialEditToken);
+      if (hasDraft) {
+        sessionStorage.setItem(draftStorageKey, JSON.stringify({
+          answers: state.answers,
+          currentIndex: state.currentIndex,
+          responseId: state.partialResponseId,
+          editToken: state.partialEditToken,
+        }));
+      } else sessionStorage.removeItem(draftStorageKey);
+    } catch { /* Browser storage may be unavailable. */ }
+  }, [state.answers, state.currentIndex, state.partialResponseId, state.partialEditToken, draftStorageKey]);
 
   // Auto-hide confetti after animation
   useEffect(() => {
@@ -111,8 +165,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
 
   // Reset form for "Submit another response"
   const handleSubmitAnother = useCallback(() => {
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
+    draftCreationRef.current = false;
+    setHasRestorableDraft(false);
     setState((prev) => ({
       ...prev,
+      partialResponseId: null,
+      partialEditToken: null,
       form: prev.form,
       screen: 'welcome' as const,
       currentIndex: -1,
@@ -121,10 +180,12 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       isLoading: false,
       errorMessage: '',
     }));
-  }, []);
+  }, [draftStorageKey]);
 
   const questions = useMemo(() => getFillableQuestions(state.form), [state.form]);
   const currentQuestion = useMemo(() => getCurrentQuestion(questions, state.currentIndex), [state.currentIndex, questions]);
+  const calculatedVariables = useMemo(() => resolveCalculatedVariables(state.form?.calculatedVariables || [], state.answers), [state.form?.calculatedVariables, state.answers]);
+  const personalizedText = useCallback((text: string) => interpolateCalculatedText(pipeAnswerText(text, state.answers), state.answers, calculatedVariables), [state.answers, calculatedVariables]);
 
   // Public links can carry configured hidden-field values. Keep them in response
   // metadata rather than fabricating Answer.questionId values.
@@ -149,26 +210,74 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     formRef.current = state.form;
   }, [state.form]);
 
+  // Create a server-side anonymous draft once a respondent actually begins.
+  useEffect(() => {
+    if (state.screen !== 'question' || !state.form || state.partialResponseId || draftCreationRef.current) return;
+    draftCreationRef.current = true;
+    void fetch(`/api/forms/${encodeURIComponent(state.form.id)}/responses`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isPartial: true, answers: [], metadata: { startedAt: new Date().toISOString() } }),
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const draft = await response.json() as { id?: string; editToken?: string };
+      if (draft.id && draft.editToken) {
+        setState((current) => ({ ...current, partialResponseId: draft.id!, partialEditToken: draft.editToken! }));
+      }
+    }).catch(() => undefined);
+  }, [state.screen, state.form, state.partialResponseId]);
+
+  // Persist answers server-side while the respondent progresses. A slow save
+  // never overlaps a later save, preserving the newest answer snapshot.
+  useEffect(() => {
+    if (!state.partialResponseId || !state.partialEditToken || !state.form) return;
+    const interval = window.setInterval(async () => {
+      if (autosaveInFlightRef.current) return;
+      const answers = Object.entries(answersRef.current).map(([questionId, value]) => ({ questionId, value }));
+      if (!answers.length) return;
+      autosaveInFlightRef.current = true;
+      try {
+        const response = await fetch(`/api/forms/${encodeURIComponent(state.form!.id)}/responses`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ responseId: state.partialResponseId, editToken: state.partialEditToken, answers, isPartial: true }),
+        });
+        if (!response.ok && (response.status === 404 || response.status === 400)) {
+          draftCreationRef.current = false;
+          setState((current) => ({ ...current, partialResponseId: null, partialEditToken: null }));
+        }
+      } finally {
+        autosaveInFlightRef.current = false;
+      }
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [state.partialResponseId, state.partialEditToken, state.form]);
+
   const handleSubmit = useCallback(async () => {
     const currentForm = formRef.current;
     if (!currentForm) return;
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    const partial = state.partialResponseId && state.partialEditToken
+      ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+      : undefined;
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues, partial);
     if (!result.ok) {
       setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
       return;
     }
-    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null }));
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding: null, partialResponseId: null, partialEditToken: null }));
     setShowConfetti(true);
-  }, [hiddenFieldValues]);
+  }, [hiddenFieldValues, draftStorageKey, state.partialResponseId, state.partialEditToken]);
 
   const handleSubmitWithEnding = useCallback(async (endingId: string) => {
     const currentForm = formRef.current;
     if (!currentForm) return;
     setState((s) => ({ ...s, screen: 'submitting', direction: 1 }));
 
-    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues);
+    const partial = state.partialResponseId && state.partialEditToken
+      ? { responseId: state.partialResponseId, editToken: state.partialEditToken }
+      : undefined;
+    const result = await submitFillerResponse(currentForm.id, answersRef.current, hiddenFieldValues, partial);
     if (!result.ok) {
       setState((s) => ({ ...s, screen: 'error', errorMessage: result.error || 'Something went wrong submitting your response.' }));
       return;
@@ -176,9 +285,10 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     const activeEnding = endingId && endingId !== '__default__'
       ? currentForm.endings?.find((ending) => ending.id === endingId) ?? null
       : null;
-    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding }));
+    try { sessionStorage.removeItem(draftStorageKey); } catch { /* storage optional */ }
+    setState((s) => ({ ...s, screen: 'ending', direction: 1, activeEnding, partialResponseId: null, partialEditToken: null }));
     setShowConfetti(true);
-  }, [hiddenFieldValues]);
+  }, [hiddenFieldValues, draftStorageKey, state.partialResponseId, state.partialEditToken]);
 
   // ── Navigation ──
   const goNext = useCallback(() => {
@@ -187,7 +297,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
         setState((current) => ({ ...current, screen: 'ending', direction: 1 }));
         setShowConfetti(true);
       } else {
-        setState((current) => ({ ...current, screen: 'question', currentIndex: 0, direction: 1 }));
+        setHasRestorableDraft(false);
+        setState((current) => ({
+          ...current,
+          screen: 'question',
+          currentIndex: hasRestorableDraft && current.currentIndex >= 0 && current.currentIndex < questions.length ? current.currentIndex : 0,
+          direction: 1,
+        }));
       }
       return;
     }
@@ -203,7 +319,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     } else {
       setState((current) => ({ ...current, currentIndex: step.index, direction: 1 }));
     }
-  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding]);
+  }, [state.screen, state.currentIndex, questions, currentQuestion, handleSubmit, handleSubmitWithEnding, hasRestorableDraft]);
 
   const goBack = useCallback(() => {
     if (state.screen === 'question' && state.currentIndex > 0) {
@@ -259,10 +375,19 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
     >
       {/* ── Confetti ── */}
       {showConfetti && state.screen === 'ending' && <FillerConfetti />}
+      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} />}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
-        <div className="absolute top-0 left-0 right-0 h-1.5 z-30" style={{ backgroundColor: `${theme.textColor}10` }}>
+        <div
+          className="absolute top-0 left-0 right-0 h-1.5 z-30"
+          style={{ backgroundColor: `${theme.textColor}10` }}
+          role="progressbar"
+          aria-label="Form completion progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+        >
           <motion.div
             className="h-full relative progress-bar-glow"
             style={{
@@ -312,6 +437,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
+                <FillerWelcomeBranding form={state.form} />
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -319,7 +445,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                   className={`text-4xl md:text-6xl font-bold leading-tight ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeTitle || state.form.title || 'Welcome!'}
+                  {personalizedText(state.form.welcomeTitle || state.form.title || 'Welcome!')}
                   <span
                     className="inline-block w-0.5 h-[0.8em] ml-1 align-middle rounded-sm animate-[blink_1s_step-end_infinite]"
                     style={{ backgroundColor: theme.textColor }}
@@ -332,8 +458,12 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                   className={`text-lg md:text-xl ${ff}`}
                   style={{ color: theme.textColor }}
                 >
-                  {state.form.welcomeMessage || 'Thanks for taking the time to fill this out.'}
+                  {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
+                <FillerWelcomeMeta questionCount={questions.length} />
+                <p className={`text-xs opacity-45 ${ff}`} style={{ color: theme.textColor }}>
+                  {hasRestorableDraft ? 'A saved draft is ready to resume in this browser.' : 'Your progress is saved in this browser until you submit.'}
+                </p>
               </div>
             </motion.div>
           )}
@@ -351,7 +481,11 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="max-w-2xl mx-auto w-full"
             >
               <FillerQuestionScreen
-                question={currentQuestion}
+                question={{
+                  ...currentQuestion,
+                  title: personalizedText(currentQuestion.title),
+                  description: personalizedText(currentQuestion.description),
+                }}
                 questionIndex={state.currentIndex}
                 totalQuestions={questions.length}
                 answer={state.answers[currentQuestion.id] || ''}
@@ -418,13 +552,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 className={`text-4xl md:text-5xl font-bold mb-4 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.title || state.form.endingTitle || 'Thank you!'}
+                {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
                 className={`text-lg md:text-xl opacity-60 ${ff}`}
                 style={{ color: theme.textColor }}
               >
-                {state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.'}
+                {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
               {state.activeEnding?.redirectUrl && (
                 <a
@@ -527,7 +661,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
-              Start
+              {hasRestorableDraft ? 'Resume' : 'Start'}
               <ArrowRight className="size-4" />
             </motion.button>
           )}

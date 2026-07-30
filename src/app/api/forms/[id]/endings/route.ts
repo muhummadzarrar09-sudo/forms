@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeEnding } from '@/lib/api-serialization';
+import { createEndingSchema } from '@/lib/validations';
 
 // GET /api/forms/[id]/endings - List all endings for a form
 export async function GET(
@@ -67,6 +68,12 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    const validation = createEndingSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
+    }
+    const data = validation.data;
+
     // Get current max order
     const maxOrderEnding = await db.formEnding.findFirst({
       where: { formId: id },
@@ -78,11 +85,11 @@ export async function POST(
     const ending = await db.formEnding.create({
       data: {
         formId: id,
-        title: body.title || 'Thank you!',
-        message: body.message || 'Your response has been recorded.',
-        redirectUrl: body.redirectUrl || null,
-        showScore: body.showScore ?? false,
-        order: body.order ?? nextOrder,
+        title: data.title ?? 'Thank you!',
+        message: data.message ?? 'Your response has been recorded.',
+        redirectUrl: data.redirectUrl ?? null,
+        showScore: data.showScore ?? false,
+        order: data.order ?? nextOrder,
       },
     });
 

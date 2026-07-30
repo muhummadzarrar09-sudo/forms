@@ -123,6 +123,12 @@ export interface FormEnding {
   updatedAt: string;
 }
 
+export interface CalculatedVariable {
+  id: string;
+  name: string;
+  formula: string;
+}
+
 export interface HiddenField {
   id: string;
   name: string;
@@ -154,6 +160,7 @@ export interface Form {
   archived: boolean;
   tags: string[];
   hiddenFields: HiddenField[];
+  calculatedVariables: CalculatedVariable[];
   maxResponses: number;
   closeDate: string | null;
   metaTitle: string;
@@ -177,6 +184,8 @@ export interface FormResponse {
   completedAt: string | null;
   isPartial: boolean;
   score: number;
+  status: 'new' | 'reviewing' | 'qualified' | 'follow_up' | 'closed';
+  internalNote: string;
   metadata: Record<string, unknown>;
   answers: FormAnswer[];
 }
@@ -194,6 +203,7 @@ export type AppView = 'dashboard' | 'builder' | 'fill' | 'responses';
 
 export interface FormSummary {
   totalResponses: number;
+  statusCounts?: Partial<Record<FormResponse['status'], number>>;
   completionRate: number;
   averageTime: number;
   questionSummaries: QuestionSummary[];

@@ -172,6 +172,7 @@ export async function PUT(
           ...(data.archived !== undefined && { archived: data.archived }),
           ...(data.tags !== undefined && { tags: JSON.stringify(data.tags) }),
           ...(data.hiddenFields !== undefined && { hiddenFields: JSON.stringify(data.hiddenFields) }),
+          ...(data.calculatedVariables !== undefined && { calculatedVariables: JSON.stringify(data.calculatedVariables) }),
           ...(data.workspaceId !== undefined && { workspaceId: data.workspaceId || null }),
           ...(data.maxResponses !== undefined && { maxResponses: data.maxResponses }),
           ...(data.closeDate !== undefined && { closeDate: data.closeDate ? new Date(data.closeDate) : null }),

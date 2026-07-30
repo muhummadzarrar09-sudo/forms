@@ -11,12 +11,88 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
+  emailVerified DateTime?
   password  String
   name      String   @default("")
+  // Incremented on credential resets to invalidate previously issued JWTs.
+  sessionVersion Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   forms     Form[]
   workspaces Workspace[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  googleConnection GoogleConnection?
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model GoogleConnection {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  encryptedRefreshToken String
+  encryptedAccessToken String?
+  accessTokenExpiresAt DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destinations         GoogleSheetDestination[]
+}
+
+model GoogleSheetDestination {
+  id             String   @id @default(cuid())
+  formId         String   @unique
+  connectionId   String
+  spreadsheetId  String
+  sheetName      String
+  active         Boolean  @default(true)
+  lastSyncedAt   DateTime?
+  lastError      String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  form           Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  connection     GoogleConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  events         GoogleSheetSyncEvent[]
+
+  @@index([connectionId])
+}
+
+model GoogleSheetSyncEvent {
+  id            String   @id @default(cuid())
+  destinationId String
+  responseId    String
+  status        String   @default("pending")
+  attempts      Int      @default(0)
+  lastError     String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  destination   GoogleSheetDestination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  response      Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique([destinationId, responseId])
+  @@index([status, updatedAt])
 }
 
 model Form {
@@ -44,6 +120,7 @@ model Form {
   archived    Boolean    @default(false)
   tags        String     @default("[]") // JSON array of tag strings
   hiddenFields String    @default("[]") // JSON array of hidden field definitions
+  calculatedVariables String @default("[]") // JSON array of named safe arithmetic formulas
   maxResponses Int       @default(0) // 0 = unlimited
   closeDate   DateTime?  // auto-close date, null = no auto-close
   metaTitle   String     @default("") // SEO meta title
@@ -55,8 +132,12 @@ model Form {
   questions   Question[]
   responses   Response[]
   endings     FormEnding[]
+  googleSheetDestination GoogleSheetDestination?
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, updatedAt])
+  @@index([workspaceId])
 }
 
 model Workspace {
@@ -70,6 +151,8 @@ model Workspace {
   updatedAt   DateTime   @updatedAt
   forms       Form[]
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, order])
 }
 
 model Question {
@@ -89,6 +172,8 @@ model Question {
   updatedAt   DateTime @updatedAt
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
+
+  @@index([formId, order])
 }
 
 model Response {
@@ -98,12 +183,19 @@ model Response {
   completedAt DateTime?
   isPartial   Boolean  @default(false) // true = abandoned/in-progress
   score       Int      @default(0) // total score if scoring is enabled
+  status      String   @default("new") // new, reviewing, qualified, follow_up, closed
+  internalNote String  @default("")
   metadata    String   @default("{}") // JSON: userAgent, ip, referer, etc.
-  // Bearer credential used only to resume an anonymous in-progress response.
-  // It is never returned in owner response listings.
-  editToken   String?  @unique
+  // SHA-256 verifier for the anonymous draft-resume bearer credential. The
+  // original credential is returned once and is never persisted in plaintext.
+  editTokenHash      String?   @unique
+  editTokenExpiresAt DateTime?
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
   answers     Answer[]
+  googleSheetSyncEvents GoogleSheetSyncEvent[]
+
+  @@index([formId, startedAt])
+  @@index([formId, isPartial])
 }
 
 model Answer {
@@ -114,6 +206,9 @@ model Answer {
   score      Int      @default(0) // score awarded for this answer
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
 }
 
 model FormEnding {
@@ -127,4 +222,16 @@ model FormEnding {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId, order])
+}
+
+
+/// Durable, cluster-wide fixed-window counter for unauthenticated endpoints.
+/// `key` is a SHA-256 digest, never a raw IP address.
+model PublicRateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
 }

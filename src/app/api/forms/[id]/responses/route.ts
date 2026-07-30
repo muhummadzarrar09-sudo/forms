@@ -8,29 +8,48 @@ import { resolveLogicAction } from '@/lib/logic-engine';
 import type { FormQuestion, LogicRule, QuestionOption, QuestionSettings } from '@/types/form';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
+import { hashResponseEditToken, verifyResponseEditToken } from '@/lib/crypto';
+import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit';
+import { sendNewResponseNotification } from '@/lib/email';
+import { queueGoogleSheetSync } from '@/lib/google-sheets-sync';
+import { resolveCalculatedVariables } from '@/lib/calculation-engine';
+const boundedMetadataSchema = z.record(z.unknown()).refine(
+  (value) => JSON.stringify(value).length <= 20_000,
+  'Metadata must not exceed 20KB'
+);
+const responseIdSchema = z.string().min(1).max(100);
 
 // Schema for creating partial responses
 const createPartialResponseSchema = z.object({
   isPartial: z.boolean().optional().default(false),
   answers: z.array(z.object({
-    questionId: z.string().min(1),
+    questionId: responseIdSchema,
     value: z.string().max(10000),
   })).optional().default([]),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: boundedMetadataSchema.optional(),
 });
 
 // Schema for updating partial responses (PUT)
 const updatePartialResponseSchema = z.object({
-  responseId: z.string().min(1),
-  editToken: z.string().min(32).max(256),
+  responseId: responseIdSchema,
+  // 32 random bytes encoded with base64url are exactly 43 characters.
+  editToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Invalid response edit token'),
   answers: z.array(z.object({
-    questionId: z.string().min(1),
+    questionId: responseIdSchema,
     value: z.string().max(10000),
   })).optional(),
   isPartial: z.boolean().optional(),
-  completedAt: z.string().nullable().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  completedAt: z.string().datetime({ offset: true }).nullable().optional(),
+  metadata: boundedMetadataSchema.optional(),
 });
+
+function parseUtcDateFilter(value: string, endOfDay: boolean): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
+}
 
 function answersBelongToForm(
   answers: Array<{ questionId: string }>,
@@ -242,26 +261,43 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Parse query parameters for search and date filtering
+    // Cursor pagination protects the owner dashboard from loading an entire
+    // form's response history into memory. Query values are bounded before they
+    // are passed to Prisma.
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
+    const search = (searchParams.get('search') || '').trim().slice(0, 200);
+    const status = searchParams.get('status') || '';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
+    const cursor = searchParams.get('cursor') || undefined;
+    const requestedLimit = Number(searchParams.get('limit') || '50');
+    const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
+
+    const startBoundary = startDate ? parseUtcDateFilter(startDate, false) : null;
+    const endBoundary = endDate ? parseUtcDateFilter(endDate, true) : null;
+    if ((startDate && !startBoundary) || (endDate && !endBoundary)) {
+      return NextResponse.json({ error: 'Date filters must use YYYY-MM-DD' }, { status: 400 });
+    }
+
+    const validStatuses = new Set(['new', 'reviewing', 'qualified', 'follow_up', 'closed']);
+    if (status && !validStatuses.has(status)) {
+      return NextResponse.json({ error: 'Invalid response status filter' }, { status: 400 });
+    }
+
+    if (cursor) {
+      const cursorResponse = await db.response.findFirst({ where: { id: cursor, formId: id }, select: { id: true } });
+      if (!cursorResponse) return NextResponse.json({ error: 'Invalid response cursor' }, { status: 400 });
+    }
 
     // Build where clause
     const whereClause: Record<string, unknown> = { formId: id };
+    if (status) whereClause.status = status;
 
     // Date range filter
     if (startDate || endDate) {
       const dateFilter: Record<string, unknown> = {};
-      if (startDate) {
-        dateFilter.gte = new Date(startDate);
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        dateFilter.lte = end;
-      }
+      if (startBoundary) dateFilter.gte = startBoundary;
+      if (endBoundary) dateFilter.lte = endBoundary;
       // Filter by startedAt OR completedAt falling in range
       whereClause.OR = [
         { startedAt: dateFilter },
@@ -269,9 +305,22 @@ export async function GET(
       ];
     }
 
+    if (search) {
+      whereClause.answers = {
+        some: {
+          OR: [
+            { value: { contains: search, mode: 'insensitive' } },
+            { question: { title: { contains: search, mode: 'insensitive' } } },
+          ],
+        },
+      };
+    }
+
     const responses = await db.response.findMany({
       where: whereClause,
-      orderBy: { startedAt: 'desc' },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: limit + 1,
       include: {
         answers: {
           include: {
@@ -281,21 +330,14 @@ export async function GET(
       },
     });
 
-    let serialized = responses.map((r) => serializeResponse(r));
+    const hasMore = responses.length > limit;
+    const page = hasMore ? responses.slice(0, limit) : responses;
+    const nextCursor = hasMore ? page[page.length - 1]?.id : null;
 
-    // Server-side search: filter by answer content
-    if (search.trim()) {
-      const query = search.toLowerCase();
-      serialized = serialized.filter((r) =>
-        r.answers.some(
-          (a) =>
-            a.value.toLowerCase().includes(query) ||
-            (a.question?.title?.toLowerCase() || '').includes(query)
-        )
-      );
-    }
-
-    return NextResponse.json(serialized);
+    return NextResponse.json({
+      responses: page.map((response) => serializeResponse(response)),
+      nextCursor,
+    });
   } catch (error) {
     console.error('Error fetching responses:', error);
     return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
@@ -371,6 +413,15 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const limit = await enforcePublicRateLimit({
+      scope: 'response-create', formId: id, clientId: publicClientId(request.headers),
+      maxRequests: 30, windowSeconds: 15 * 60,
+    });
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many response attempts. Please try again later.' }, {
+        status: 429, headers: { 'Retry-After': String(limit.retryAfter) },
+      });
+    }
 
     let body;
     try {
@@ -435,14 +486,17 @@ export async function POST(
       for (const answer of (data.answers || [])) {
         const question = questionMap.get(answer.questionId);
         if (question) {
-          const settings = JSON.parse(question.settings || '{}');
+          const settings = parseQuestionSettings(question);
           const score = calculateAnswerScore(question.type, answer.value, settings);
           answerScores[answer.questionId] = score;
           totalScore += score;
         }
       }
 
-      // Create partial response
+      // Return this high-entropy bearer credential exactly once; persist only its
+      // one-way verifier and expire it if the draft is abandoned.
+      const rawEditToken = randomBytes(32).toString('base64url');
+      const editTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const result = await db.$transaction(async (tx) => {
         const response = await tx.response.create({
           data: {
@@ -451,7 +505,8 @@ export async function POST(
             completedAt: null,
             metadata: JSON.stringify(data.metadata || {}),
             score: totalScore,
-            editToken: randomBytes(32).toString('base64url'),
+            editTokenHash: hashResponseEditToken(rawEditToken),
+            editTokenExpiresAt,
           },
         });
 
@@ -477,9 +532,9 @@ export async function POST(
       });
 
       // Return the anonymous resume token only to the request that created it.
-      // `serializeResponse` deliberately strips it from owner-facing listings.
+      // `serializeResponse` deliberately strips database credential fields.
       return NextResponse.json(
-        { ...serializeResponse(result!), editToken: result!.editToken },
+        { ...serializeResponse(result!), editToken: rawEditToken },
         { status: 201 }
       );
     }
@@ -498,7 +553,7 @@ export async function POST(
     // Verify form exists and is published
     const form = await db.form.findUnique({
       where: { id },
-      include: { questions: true },
+      include: { questions: true, user: { select: { email: true } } },
     });
     if (!form) {
       return NextResponse.json({ error: 'Form not found' }, { status: 404 });
@@ -522,6 +577,12 @@ export async function POST(
       );
     }
 
+    let calculatedVariables: Record<string, number> = {};
+    try {
+      const definitions = JSON.parse(form.calculatedVariables || '[]');
+      if (Array.isArray(definitions)) calculatedVariables = resolveCalculatedVariables(definitions, Object.fromEntries(data.answers.map((answer) => [answer.questionId, answer.value])));
+    } catch { return NextResponse.json({ error: 'This form contains invalid calculated variables' }, { status: 400 }); }
+
     // Build a question lookup for scoring
     const questionMap = new Map<string, ResponseQuestionConfig>(form.questions.map((q) => [q.id, q]));
 
@@ -532,7 +593,7 @@ export async function POST(
     for (const answer of data.answers) {
       const question = questionMap.get(answer.questionId);
       if (question) {
-        const settings = JSON.parse(question.settings || '{}');
+        const settings = parseQuestionSettings(question);
         const score = calculateAnswerScore(question.type, answer.value, settings);
         answerScores[answer.questionId] = score;
         totalScore += score;
@@ -568,7 +629,7 @@ export async function POST(
           formId: id,
           completedAt: data.completedAt ? new Date(data.completedAt) : new Date(),
           isPartial: false,
-          metadata: JSON.stringify(data.metadata || {}),
+          metadata: JSON.stringify({ ...(data.metadata || {}), calculatedVariables }),
           score: totalScore,
         },
       });
@@ -591,6 +652,14 @@ export async function POST(
         include: { answers: true },
       });
     });
+
+    // Queue integrations before notification; outbox creation is idempotent and
+    // avoids keeping the respondent request open for third-party delivery.
+    await queueGoogleSheetSync(id, result!.id);
+    // Notification delivery is deliberately best-effort; the helper catches SMTP
+    // failures so a completed response is never rolled back because mail failed.
+    const responseCount = await db.response.count({ where: { formId: id, isPartial: false } });
+    await sendNewResponseNotification(form.title, form.user.email, responseCount);
 
     return NextResponse.json(
       serializeResponse(result!),
@@ -619,6 +688,15 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const limit = await enforcePublicRateLimit({
+      scope: 'response-update', formId: id, clientId: publicClientId(request.headers),
+      maxRequests: 120, windowSeconds: 15 * 60,
+    });
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many draft-save attempts. Please try again later.' }, {
+        status: 429, headers: { 'Retry-After': String(limit.retryAfter) },
+      });
+    }
 
     let body;
     try {
@@ -644,7 +722,8 @@ export async function PUT(
     if (!existingResponse || existingResponse.formId !== id || !existingResponse.isPartial) {
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
     }
-    if (!existingResponse.editToken || existingResponse.editToken !== data.editToken) {
+    const tokenExpired = !existingResponse.editTokenExpiresAt || existingResponse.editTokenExpiresAt <= new Date();
+    if (!existingResponse.editTokenHash || tokenExpired || !verifyResponseEditToken(data.editToken, existingResponse.editTokenHash)) {
       // Do not reveal whether the response ID exists to an unauthorised caller.
       return NextResponse.json({ error: 'Response not found' }, { status: 404 });
     }
@@ -679,6 +758,18 @@ export async function PUT(
 
     // Update the response
     const result = await db.$transaction(async (tx) => {
+      // Re-check inside the write transaction so concurrent completion requests
+      // cannot both mutate a draft after its bearer token has been revoked.
+      const lockedResponse = await tx.response.findUnique({
+        where: { id: data.responseId },
+        select: { isPartial: true, editTokenHash: true, editTokenExpiresAt: true },
+      });
+      if (!lockedResponse || !lockedResponse.isPartial || !lockedResponse.editTokenHash ||
+        !lockedResponse.editTokenExpiresAt || lockedResponse.editTokenExpiresAt <= new Date() ||
+        !verifyResponseEditToken(data.editToken, lockedResponse.editTokenHash)) {
+        throw new Error('DRAFT_UNAVAILABLE');
+      }
+
       if (data.isPartial === false) {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         const lockedForm = await tx.form.findUnique({
@@ -716,34 +807,27 @@ export async function PUT(
           const question = questionMap.get(answer.questionId);
           let answerScore = 0;
           if (question) {
-            const settings = JSON.parse(question.settings || '{}');
+            const settings = parseQuestionSettings(question);
             answerScore = calculateAnswerScore(question.type, answer.value, settings);
           }
           totalScore += answerScore;
 
-          // Check if answer exists for this question
-          const existingAnswer = await tx.answer.findFirst({
+          // The compound unique constraint makes this atomic across concurrent saves.
+          await tx.answer.upsert({
             where: {
-              responseId: data.responseId,
-              questionId: answer.questionId,
-            },
-          });
-
-          if (existingAnswer) {
-            await tx.answer.update({
-              where: { id: existingAnswer.id },
-              data: { value: answer.value, score: answerScore },
-            });
-          } else {
-            await tx.answer.create({
-              data: {
+              responseId_questionId: {
                 responseId: data.responseId,
                 questionId: answer.questionId,
-                value: answer.value,
-                score: answerScore,
               },
-            });
-          }
+            },
+            update: { value: answer.value, score: answerScore },
+            create: {
+              responseId: data.responseId,
+              questionId: answer.questionId,
+              value: answer.value,
+              score: answerScore,
+            },
+          });
         }
 
         // Recalculate total score from all answers
@@ -761,6 +845,7 @@ export async function PUT(
               ? (data.completedAt ? new Date(data.completedAt) : null)
               : (data.isPartial === false ? new Date() : existingResponse.completedAt),
             metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+            ...(data.isPartial === false && { editTokenHash: null, editTokenExpiresAt: null }),
             score: recalculatedScore,
           },
         });
@@ -774,6 +859,7 @@ export async function PUT(
               ? (data.completedAt ? new Date(data.completedAt) : null)
               : (data.isPartial === false ? new Date() : existingResponse.completedAt),
             metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+            ...(data.isPartial === false && { editTokenHash: null, editTokenExpiresAt: null }),
           },
         });
       }
@@ -786,6 +872,9 @@ export async function PUT(
 
     return NextResponse.json(serializeResponse(result!));
   } catch (error) {
+    if (error instanceof Error && error.message === 'DRAFT_UNAVAILABLE') {
+      return NextResponse.json({ error: 'Response not found' }, { status: 404 });
+    }
     if (error instanceof Error && error.message === 'FORM_CLOSED') {
       return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
     }
@@ -832,13 +921,12 @@ export async function DELETE(
     const responseIds = responses.map((r) => r.id);
 
     if (responseIds.length > 0) {
-      await db.answer.deleteMany({
-        where: { responseId: { in: responseIds } },
-      });
-
-      await db.response.deleteMany({
-        where: { formId: id },
-      });
+      // Keep explicit answer deletion for deployments whose database constraints
+      // predate the Prisma cascade, but make both destructive writes atomic.
+      await db.$transaction([
+        db.answer.deleteMany({ where: { responseId: { in: responseIds } } }),
+        db.response.deleteMany({ where: { formId: id } }),
+      ]);
     }
 
     return NextResponse.json({
