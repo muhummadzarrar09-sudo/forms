@@ -21,12 +21,16 @@ export async function POST(request: NextRequest) {
   try {
     const now = new Date();
     const staleRateLimitBefore = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const [passwordTokens, verificationTokens, drafts, rateLimits] = await db.$transaction([
-      db.passwordResetToken.deleteMany({ where: { expiresAt: { lt: now } } }),
-      db.emailVerificationToken.deleteMany({ where: { expiresAt: { lt: now } } }),
-      db.response.deleteMany({ where: { isPartial: true, editTokenExpiresAt: { lt: now } } }),
-      db.publicRateLimit.deleteMany({ where: { updatedAt: { lt: staleRateLimitBefore } } }),
-    ]);
+    // Interactive transaction avoids prepared-statement logs on Supabase PgBouncer.
+    // Sequential deletes are still safe; they don't need atomic cross-table guarantee.
+    const result = await db.$transaction(async (tx) => {
+      const passwordTokens = await tx.passwordResetToken.deleteMany({ where: { expiresAt: { lt: now } } });
+      const verificationTokens = await tx.emailVerificationToken.deleteMany({ where: { expiresAt: { lt: now } } });
+      const drafts = await tx.response.deleteMany({ where: { isPartial: true, editTokenExpiresAt: { lt: now } } });
+      const rateLimits = await tx.publicRateLimit.deleteMany({ where: { updatedAt: { lt: staleRateLimitBefore } } });
+      return { passwordTokens, verificationTokens, drafts, rateLimits };
+    });
+    const { passwordTokens, verificationTokens, drafts, rateLimits } = result;
     return NextResponse.json({
       deleted: {
         passwordTokens: passwordTokens.count,

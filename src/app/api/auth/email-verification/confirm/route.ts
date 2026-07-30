@@ -21,10 +21,11 @@ export async function POST(request: NextRequest) {
     if (!token || token.expiresAt <= new Date() || !verifyResponseEditToken(parsed.data.token, token.tokenHash)) {
       return NextResponse.json({ error: 'Invalid or expired verification link.' }, { status: 400 });
     }
-    await db.$transaction([
-      db.user.update({ where: { id: token.userId }, data: { emailVerified: new Date() } }),
-      db.emailVerificationToken.deleteMany({ where: { userId: token.userId } }),
-    ]);
+    // Interactive transaction for Supabase pooler compatibility
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: token.userId }, data: { emailVerified: new Date() } });
+      await tx.emailVerificationToken.deleteMany({ where: { userId: token.userId } });
+    });
     return NextResponse.json({ message: 'Email verified. You can now sign in.' });
   } catch (error) {
     console.error('Email verification failed:', error);

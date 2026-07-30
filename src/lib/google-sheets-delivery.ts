@@ -29,17 +29,18 @@ export async function deliverPendingGoogleSheetEvents(limit = 25) {
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(event.destination.spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const response = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [row] }), cache: 'no-store' });
       if (!response.ok) throw new Error(`Google Sheets append failed (${response.status})`);
-      await db.$transaction([
-        db.googleSheetSyncEvent.update({ where: { id: event.id }, data: { status: 'delivered', lastError: '' } }),
-        db.googleSheetDestination.update({ where: { id: event.destinationId }, data: { lastSyncedAt: new Date(), lastError: '' } }),
-      ]);
+      // Use sequential updates inside interactive tx for Supabase PgBouncer compatibility
+      await db.$transaction(async (tx) => {
+        await tx.googleSheetSyncEvent.update({ where: { id: event.id }, data: { status: 'delivered', lastError: '' } });
+        await tx.googleSheetDestination.update({ where: { id: event.destinationId }, data: { lastSyncedAt: new Date(), lastError: '' } });
+      });
       delivered += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 500) : 'Google Sheets sync failed';
-      await db.$transaction([
-        db.googleSheetSyncEvent.update({ where: { id: event.id }, data: { status: event.attempts + 1 >= 5 ? 'failed' : 'pending', lastError: message } }),
-        db.googleSheetDestination.update({ where: { id: event.destinationId }, data: { lastError: message } }),
-      ]);
+      await db.$transaction(async (tx) => {
+        await tx.googleSheetSyncEvent.update({ where: { id: event.id }, data: { status: event.attempts + 1 >= 5 ? 'failed' : 'pending', lastError: message } });
+        await tx.googleSheetDestination.update({ where: { id: event.destinationId }, data: { lastError: message } });
+      });
     }
   }
   return { processed: events.length, delivered };

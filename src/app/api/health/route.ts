@@ -4,7 +4,9 @@ import { db } from '@/lib/db';
 /** Lightweight readiness endpoint for the reverse proxy/orchestrator. */
 export async function GET() {
   try {
-    await db.$queryRaw`SELECT 1`;
+    // Use $queryRawUnsafe so Supabase PgBouncer (transaction mode) does not try
+    // to use prepared statements which would log "prepared statement s0 exists".
+    await db.$queryRawUnsafe('SELECT 1');
     return NextResponse.json({ status: 'ok' }, {
       headers: { 'Cache-Control': 'no-store' },
     });

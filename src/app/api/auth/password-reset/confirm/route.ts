@@ -31,13 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired reset link.' }, { status: 400 });
     }
 
-    await db.$transaction([
-      db.user.update({
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: resetToken.userId },
         data: { password: hashPassword(parsed.data.password), sessionVersion: { increment: 1 } },
-      }),
-      db.passwordResetToken.delete({ where: { id: resetToken.id } }),
-    ]);
+      });
+      await tx.passwordResetToken.delete({ where: { id: resetToken.id } });
+    });
 
     return NextResponse.json({ message: 'Password reset successfully. You can now sign in.' });
   } catch (error) {
