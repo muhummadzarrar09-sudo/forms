@@ -39,44 +39,53 @@ export async function GET(
     const choiceTypes = ['multiple_choice', 'picture_choice', 'dropdown', 'yes_no'];
     const textTypes = ['short_text', 'long_text', 'email', 'phone', 'website'];
 
-    const [totalResponses, completedResponses, durations, choiceRows, numericRows, textAnswers, statusRows] = await Promise.all([
-      db.response.count({ where: { formId: id } }),
-      db.response.count({ where: { formId: id, completedAt: { not: null } } }),
-      db.$queryRaw<DurationRow[]>`
-        SELECT AVG(EXTRACT(EPOCH FROM ("completedAt" - "startedAt"))) AS "averageSeconds"
-        FROM "Response"
-        WHERE "formId" = ${id} AND "completedAt" IS NOT NULL
-      `,
-      db.$queryRaw<ChoiceRow[]>`
-        SELECT a."questionId", trim(selected.value) AS value, COUNT(*)::bigint AS count
-        FROM "Answer" a
-        INNER JOIN "Question" q ON q.id = a."questionId"
-        CROSS JOIN LATERAL unnest(string_to_array(a.value, ',')) AS selected(value)
-        WHERE q."formId" = ${id}
-          AND q.type IN ('multiple_choice', 'picture_choice', 'dropdown', 'yes_no')
-          AND trim(selected.value) <> ''
-        GROUP BY a."questionId", trim(selected.value)
-      `,
-      db.$queryRaw<NumericRow[]>`
-        SELECT a."questionId",
-          COUNT(*)::bigint AS count,
-          AVG(a.value::double precision) AS average,
-          MIN(a.value::double precision) AS min,
-          MAX(a.value::double precision) AS max
-        FROM "Answer" a
-        INNER JOIN "Question" q ON q.id = a."questionId"
-        WHERE q."formId" = ${id}
-          AND q.type IN ('number', 'rating', 'opinion_scale')
-          AND a.value ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
-        GROUP BY a."questionId"
-      `,
-      db.answer.findMany({
-        where: { question: { formId: id, type: { in: textTypes } }, value: { not: '' } },
-        select: { questionId: true, value: true },
-        take: MAX_TEXT_SAMPLES,
-      }),
-      db.response.groupBy({ where: { formId: id }, by: ['status'], _count: { _all: true } }),
-    ]);
+    // For Supabase PgBouncer compatibility we use $queryRawUnsafe with explicit $1
+    // parameters. When DATABASE_URL includes ?pgbouncer=true Prisma disables
+    // prepared statements, but using Unsafe with positional params is the most
+    // stable path and avoids "prepared statement s0 already exists" logs.
+    //
+    // We run aggregations sequentially (not Promise.all of 7) to avoid holding
+    // 7 connections at once when connection_limit=1. This reduces pressure on
+    // Supabase's shared pool that Realtime also uses (your MigrationsFailedToRun logs).
+    const totalResponses = await db.response.count({ where: { formId: id } });
+    const completedResponses = await db.response.count({ where: { formId: id, completedAt: { not: null } } });
+    const durations = await db.$queryRawUnsafe<DurationRow[]>(
+      `SELECT AVG(EXTRACT(EPOCH FROM ("completedAt" - "startedAt"))) AS "averageSeconds"
+       FROM "Response"
+       WHERE "formId" = $1 AND "completedAt" IS NOT NULL`,
+      id
+    );
+    const choiceRows = await db.$queryRawUnsafe<ChoiceRow[]>(
+      `SELECT a."questionId", trim(selected.value) AS value, COUNT(*)::bigint AS count
+       FROM "Answer" a
+       INNER JOIN "Question" q ON q.id = a."questionId"
+       CROSS JOIN LATERAL unnest(string_to_array(a.value, ',')) AS selected(value)
+       WHERE q."formId" = $1
+         AND q.type IN ('multiple_choice', 'picture_choice', 'dropdown', 'yes_no')
+         AND trim(selected.value) <> ''
+       GROUP BY a."questionId", trim(selected.value)`,
+      id
+    );
+    const numericRows = await db.$queryRawUnsafe<NumericRow[]>(
+      `SELECT a."questionId",
+         COUNT(*)::bigint AS count,
+         AVG(a.value::double precision) AS average,
+         MIN(a.value::double precision) AS min,
+         MAX(a.value::double precision) AS max
+       FROM "Answer" a
+       INNER JOIN "Question" q ON q.id = a."questionId"
+       WHERE q."formId" = $1
+         AND q.type IN ('number', 'rating', 'opinion_scale')
+         AND a.value ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
+       GROUP BY a."questionId"`,
+      id
+    );
+    const textAnswers = await db.answer.findMany({
+      where: { question: { formId: id, type: { in: textTypes } }, value: { not: '' } },
+      select: { questionId: true, value: true },
+      take: MAX_TEXT_SAMPLES,
+    });
+    const statusRows = await db.response.groupBy({ where: { formId: id }, by: ['status'], _count: { _all: true } });
 
     const choiceByQuestion = new Map<string, ChoiceRow[]>();
     for (const row of choiceRows) {

@@ -489,9 +489,10 @@ export async function POST(
 
       // Use the same advisory-lock transaction pattern as full submissions so
       // concurrent partial creations cannot race past the maxResponses cap.
+      // $executeRaw avoids prepared-statement errors behind PgBouncer.
       const result = await db.$transaction(async (tx) => {
         if (form.maxResponses > 0) {
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
           const currentResponseCount = await tx.response.count({
             where: { formId: id, isPartial: false },
           });
@@ -513,18 +514,15 @@ export async function POST(
         });
 
         if (data.answers && data.answers.length > 0) {
-          await Promise.all(
-            data.answers.map((answer) =>
-              tx.answer.create({
-                data: {
-                  responseId: response.id,
-                  questionId: answer.questionId,
-                  value: answer.value,
-                  score: answerScores[answer.questionId] || 0,
-                },
-              })
-            )
-          );
+          // createMany is more pool-friendly than 50 parallel creates
+          await tx.answer.createMany({
+            data: data.answers.map((answer) => ({
+              responseId: response.id,
+              questionId: answer.questionId,
+              value: answer.value,
+              score: answerScores[answer.questionId] || 0,
+            })),
+          });
         }
 
         return tx.response.findUnique({
@@ -605,8 +603,9 @@ export async function POST(
     // Wrap response + answers creation in a transaction. PostgreSQL advisory lock
     // serializes submissions for this form, so an aggregate count cannot be read
     // concurrently by two transactions that then both insert past the cap.
+    // $executeRaw is used for compatibility with Supabase PgBouncer.
     const result = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
       const lockedForm = await tx.form.findUnique({
         where: { id },
         select: { maxResponses: true, published: true, closeDate: true },
@@ -636,18 +635,15 @@ export async function POST(
         },
       });
 
-      await Promise.all(
-        data.answers.map((answer) =>
-          tx.answer.create({
-            data: {
-              responseId: response.id,
-              questionId: answer.questionId,
-              value: answer.value,
-              score: answerScores[answer.questionId] || 0,
-            },
-          })
-        )
-      );
+      // createMany instead of Promise.all(tx.answer.create) - less pool pressure
+      await tx.answer.createMany({
+        data: data.answers.map((answer) => ({
+          responseId: response.id,
+          questionId: answer.questionId,
+          value: answer.value,
+          score: answerScores[answer.questionId] || 0,
+        })),
+      });
 
       return tx.response.findUnique({
         where: { id: response.id },
@@ -773,7 +769,7 @@ export async function PUT(
       }
 
       if (data.isPartial === false) {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         const lockedForm = await tx.form.findUnique({
           where: { id },
           select: { maxResponses: true, published: true, closeDate: true },
@@ -796,8 +792,8 @@ export async function PUT(
 
       // Update answers (upsert)
       if (data.answers && data.answers.length > 0) {
-        // Get form questions for scoring
-        const form = await db.form.findUnique({
+        // Get form questions for scoring - use tx to avoid extra connection inside transaction
+        const form = await tx.form.findUnique({
           where: { id },
           include: { questions: true },
         });
@@ -925,10 +921,12 @@ export async function DELETE(
     if (responseIds.length > 0) {
       // Keep explicit answer deletion for deployments whose database constraints
       // predate the Prisma cascade, but make both destructive writes atomic.
-      await db.$transaction([
-        db.answer.deleteMany({ where: { responseId: { in: responseIds } } }),
-        db.response.deleteMany({ where: { formId: id } }),
-      ]);
+      // Use interactive transaction for PgBouncer compatibility (arrays can trigger
+      // prepared-statement issues on Supabase pooler).
+      await db.$transaction(async (tx) => {
+        await tx.answer.deleteMany({ where: { responseId: { in: responseIds } } });
+        await tx.response.deleteMany({ where: { formId: id } });
+      });
     }
 
     return NextResponse.json({
