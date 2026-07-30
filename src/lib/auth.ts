@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
 import { hashPassword, verifyPassword } from './crypto';
 import { clearPublicRateLimit, enforcePublicRateLimit } from './public-rate-limit';
+import { getCachedSessionVersion, setCachedSessionVersion } from './session-cache';
 
 // Keep missing-account attempts on the same PBKDF2 path as wrong passwords.
 // This value is intentionally process-local and contains no user credential.
@@ -72,9 +73,19 @@ export const authOptions: NextAuthOptions = {
 
       // JWT sessions are otherwise stateless. Check the small credential version
       // field so a password reset invalidates all previously issued sessions.
+      //
+      // An in-process cache (30s TTL) avoids a database roundtrip on every
+      // authenticated request. Password-reset invalidation takes effect within
+      // one cache window — acceptable for this application.
       if (token.id) {
-        const account = await db.user.findUnique({ where: { id: token.id as string }, select: { sessionVersion: true } });
-        token.invalid = !account || account.sessionVersion !== token.sessionVersion;
+        const userId = token.id as string;
+        let currentVersion: number = getCachedSessionVersion(userId) ?? -1;
+        if (currentVersion === -1) {
+          const account = await db.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
+          currentVersion = account?.sessionVersion ?? -1;
+          if (currentVersion !== -1) setCachedSessionVersion(userId, currentVersion);
+        }
+        token.invalid = currentVersion === -1 || currentVersion !== token.sessionVersion;
       }
       return token;
     },

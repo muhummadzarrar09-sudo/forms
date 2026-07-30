@@ -459,17 +459,6 @@ export async function POST(
       if (form.closeDate && new Date() > new Date(form.closeDate)) {
         return NextResponse.json({ error: 'This form is no longer accepting responses.' }, { status: 403 });
       }
-      if (form.maxResponses > 0) {
-        const currentResponseCount = await db.response.count({
-          where: { formId: id, isPartial: false },
-        });
-        if (currentResponseCount >= form.maxResponses) {
-          return NextResponse.json(
-            { error: `This form has reached its maximum response limit of ${form.maxResponses}.` },
-            { status: 403 }
-          );
-        }
-      }
       if (!answersBelongToForm(data.answers, new Set(form.questions.map((q) => q.id)))) {
         return NextResponse.json({ error: 'One or more answers do not belong to this form' }, { status: 400 });
       }
@@ -497,7 +486,20 @@ export async function POST(
       // one-way verifier and expire it if the draft is abandoned.
       const rawEditToken = randomBytes(32).toString('base64url');
       const editTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      // Use the same advisory-lock transaction pattern as full submissions so
+      // concurrent partial creations cannot race past the maxResponses cap.
       const result = await db.$transaction(async (tx) => {
+        if (form.maxResponses > 0) {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+          const currentResponseCount = await tx.response.count({
+            where: { formId: id, isPartial: false },
+          });
+          if (currentResponseCount >= form.maxResponses) {
+            throw new Error(`LIMIT_REACHED:${form.maxResponses}`);
+          }
+        }
+
         const response = await tx.response.create({
           data: {
             formId: id,

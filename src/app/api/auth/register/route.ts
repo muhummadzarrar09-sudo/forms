@@ -61,7 +61,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await issueEmailVerification({ id: user.id, email: user.email });
+    const verificationSent = await issueEmailVerification({ id: user.id, email: user.email });
+    if (!verificationSent) {
+      console.warn('[REGISTER] User created but verification email could not be sent. Check SMTP and NEXTAUTH_URL configuration.');
+    }
     console.log('[REGISTER] User created:', normalizedEmail);
 
     return NextResponse.json(

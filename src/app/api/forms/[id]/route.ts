@@ -4,36 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeForm, serializePublicForm } from '@/lib/api-serialization';
 import { updateFormSchema } from '@/lib/validations';
-
-// Helper: generate a URL-friendly slug from a title
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-}
-
-// Helper: ensure slug uniqueness — must check GLOBALLY because slug has @unique constraint
-async function ensureUniqueSlug(baseSlug: string, _userId: string, excludeId: string): Promise<string> {
-  let slug = baseSlug;
-  let attempts = 0;
-
-  while (attempts < 10) {
-    const existing = await db.form.findFirst({
-      where: { slug, id: { not: excludeId } },
-      select: { id: true },
-    });
-
-    if (!existing) return slug;
-
-    const suffix = Math.random().toString(36).substring(2, 6);
-    slug = `${baseSlug}-${suffix}`;
-    attempts++;
-  }
-
-  return `${baseSlug}-${Date.now().toString(36)}`;
-}
+import { generateSlug, ensureUniqueSlug } from '@/lib/slug';
+import { unauthorized, forbidden, validationError, badRequest, notFound, internalError } from '@/lib/api-errors';
 
 // GET /api/forms/[id]
 // Public for published forms (form filler), protected for drafts (owner only)
@@ -69,13 +41,13 @@ export async function GET(
     // published form. This keeps legacy public links working for respondents
     // who happen to be signed into their own creator account.
     if (!form.published) {
-      return NextResponse.json({ error: session?.user?.id ? 'Forbidden' : 'Form not found' }, { status: session?.user?.id ? 403 : 404 });
+      return session?.user?.id ? forbidden() : notFound('Form not found');
     }
 
     return NextResponse.json(serializePublicForm(form));
   } catch (error) {
     console.error('Error fetching form:', error);
-    return NextResponse.json({ error: 'Failed to fetch form' }, { status: 500 });
+    return internalError('Failed to fetch form');
   }
 }
 
@@ -86,35 +58,24 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     const { id } = await params;
 
     // Verify ownership
     const existingForm = await db.form.findUnique({ where: { id }, select: { userId: true } });
-    if (!existingForm) {
-      return NextResponse.json({ error: 'Form not found' }, { status: 404 });
-    }
-    if (existingForm.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (!existingForm) return notFound('Form not found');
+    if (existingForm.userId !== session.user.id) return forbidden();
 
     let body;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return badRequest('Invalid JSON body');
     }
 
     const validation = updateFormSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
-        { status: 400 }
-      );
-    }
+    if (!validation.success) return validationError(validation.error);
 
     const data = validation.data;
 
@@ -124,9 +85,7 @@ export async function PUT(
         where: { id: data.workspaceId, userId: session.user.id },
         select: { id: true },
       });
-      if (!workspace) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
-      }
+      if (!workspace) return notFound('Workspace not found');
     }
 
     // Handle slug: validate uniqueness if provided
@@ -137,7 +96,7 @@ export async function PUT(
         slugValue = null;
       } else {
         // Validate uniqueness
-        slugValue = await ensureUniqueSlug(data.slug, session.user.id, id);
+        slugValue = await ensureUniqueSlug(data.slug, id);
       }
     }
 
@@ -242,11 +201,9 @@ export async function PUT(
 
     return NextResponse.json(serializeForm(updatedForm!));
   } catch (error) {
-    if (error instanceof Error && error.message === 'ENDING_NOT_FOUND') {
-      return NextResponse.json({ error: 'Ending not found' }, { status: 404 });
-    }
+    if (error instanceof Error && error.message === 'ENDING_NOT_FOUND') return notFound('Ending not found');
     console.error('Error updating form:', error);
-    return NextResponse.json({ error: 'Failed to update form' }, { status: 500 });
+    return internalError('Failed to update form');
   }
 }
 
@@ -257,25 +214,19 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     const { id } = await params;
 
     // Verify ownership
     const existingForm = await db.form.findUnique({ where: { id }, select: { userId: true } });
-    if (!existingForm) {
-      return NextResponse.json({ error: 'Form not found' }, { status: 404 });
-    }
-    if (existingForm.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (!existingForm) return notFound('Form not found');
+    if (existingForm.userId !== session.user.id) return forbidden();
 
     await db.form.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting form:', error);
-    return NextResponse.json({ error: 'Failed to delete form' }, { status: 500 });
+    return internalError('Failed to delete form');
   }
 }
