@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { passesCsrfCheck } from './lib/csrf';
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_REGISTER = 5;
@@ -25,12 +26,24 @@ function check(key: string, limit: number): { allowed: boolean; retryAfter: numb
 }
 
 export function proxy(request: NextRequest) {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'unknown';
-
   const { pathname } = request.nextUrl;
+
+  // ── CSRF protection: reject mutating API requests without Content-Type: application/json ──
+  if (pathname.startsWith('/api/') && !passesCsrfCheck(request.method, pathname, request.headers)) {
+    return NextResponse.json(
+      { error: 'Request must include Content-Type: application/json' },
+      { status: 403 }
+    );
+  }
+
+  // ── IP-based rate limiting for auth endpoints ──
+  // Only trust forwarded headers when the deployment declares a trusted edge.
+  const ip =
+    process.env.TRUST_PROXY_HEADERS === 'true'
+      ? (request.headers.get('x-real-ip') ||
+         request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+         'anonymous')
+      : 'anonymous';
 
   if (pathname === '/api/auth/register' && request.method === 'POST') {
     const { allowed, retryAfter } = check(`register:${ip}`, MAX_REGISTER);
@@ -56,5 +69,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/auth/register', '/api/auth/callback/credentials'],
+  matcher: ['/api/:path*'],
 };

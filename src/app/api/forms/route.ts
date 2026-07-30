@@ -4,51 +4,14 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeForm } from '@/lib/api-serialization';
 import { createFormSchema } from '@/lib/validations';
-
-// Helper: generate a URL-friendly slug from a title
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // replace non-alphanumeric with hyphens
-    .replace(/^-+|-+$/g, '')     // trim leading/trailing hyphens
-    .slice(0, 80);               // limit length
-}
-
-// Helper: ensure slug uniqueness by appending a short random suffix if needed
-// NOTE: The `slug` column has a GLOBAL @unique constraint in Prisma, so we must
-// check across ALL users — not just the current one — to avoid unique-violation errors.
-async function ensureUniqueSlug(baseSlug: string, _userId: string, excludeId?: string): Promise<string> {
-  let slug = baseSlug;
-  let attempts = 0;
-
-  while (attempts < 10) {
-    const existing = await db.form.findFirst({
-      where: {
-        slug,
-        ...(excludeId ? { id: { not: excludeId } } : {}),
-      },
-      select: { id: true },
-    });
-
-    if (!existing) return slug;
-
-    // Append a short random suffix
-    const suffix = Math.random().toString(36).substring(2, 6);
-    slug = `${baseSlug}-${suffix}`;
-    attempts++;
-  }
-
-  // Fallback: use timestamp-based suffix
-  return `${baseSlug}-${Date.now().toString(36)}`;
-}
+import { generateSlug, ensureUniqueSlug } from '@/lib/slug';
+import { unauthorized, forbidden, validationError, badRequest, notFound, internalError } from '@/lib/api-errors';
 
 // GET /api/forms - List all forms for the authenticated user
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     const forms = await db.form.findMany({
       where: { userId: session.user.id },
@@ -65,7 +28,7 @@ export async function GET() {
     return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error fetching forms:', error);
-    return NextResponse.json({ error: 'Failed to fetch forms' }, { status: 500 });
+    return internalError('Failed to fetch forms');
   }
 }
 
@@ -73,24 +36,17 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     let body;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return badRequest('Invalid JSON body');
     }
 
     const validation = createFormSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
-        { status: 400 }
-      );
-    }
+    if (!validation.success) return validationError(validation.error);
 
     const data = validation.data;
 
@@ -101,9 +57,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.workspaceId, userId: session.user.id },
         select: { id: true },
       });
-      if (!workspace) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
-      }
+      if (!workspace) return notFound('Workspace not found');
     }
 
     // Auto-generate slug from title if not provided
@@ -111,13 +65,13 @@ export async function POST(request: NextRequest) {
     if (data.slug !== undefined) {
       // Explicit slug provided (could be null to clear)
       if (data.slug) {
-        slug = await ensureUniqueSlug(data.slug, session.user.id);
+        slug = await ensureUniqueSlug(data.slug);
       }
     } else {
       // No slug provided — auto-generate from title
       const baseSlug = generateSlug(data.title || 'untitled-form');
       if (baseSlug) {
-        slug = await ensureUniqueSlug(baseSlug, session.user.id);
+        slug = await ensureUniqueSlug(baseSlug);
       }
     }
 
@@ -155,6 +109,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(serializeForm(form), { status: 201 });
   } catch (error) {
     console.error('Error creating form:', error);
-    return NextResponse.json({ error: 'Failed to create form' }, { status: 500 });
+    return internalError('Failed to create form');
   }
 }

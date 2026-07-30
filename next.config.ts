@@ -3,11 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
-  allowedDevOrigins: [
-    '21.0.4.136:3000',
-    '127.0.0.1:3000',
-    'localhost:81',
-  ],
+  // allowedDevOrigins: Uncomment and add specific IPs/hosts only when
+  // dev-server access is needed from non-localhost origins (e.g. LAN testing).
+  // Keep empty in committed code to avoid widening the attack surface.
   async headers() {
     return [{
       source: '/:path*',

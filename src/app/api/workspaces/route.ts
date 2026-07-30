@@ -4,14 +4,13 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { serializeWorkspace } from '@/lib/api-serialization';
 import { createWorkspaceSchema } from '@/lib/validations';
+import { unauthorized, validationError, badRequest, internalError } from '@/lib/api-errors';
 
 // GET /api/workspaces - List all workspaces for the authenticated user
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     const workspaces = await db.workspace.findMany({
       where: { userId: session.user.id },
@@ -25,7 +24,7 @@ export async function GET() {
     return NextResponse.json(serialized);
   } catch (error) {
     console.error('Error fetching workspaces:', error);
-    return NextResponse.json({ error: 'Failed to fetch workspaces' }, { status: 500 });
+    return internalError('Failed to fetch workspaces');
   }
 }
 
@@ -33,24 +32,17 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return unauthorized();
 
     let body;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return badRequest('Invalid JSON body');
     }
 
     const validation = createWorkspaceSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
-        { status: 400 }
-      );
-    }
+    if (!validation.success) return validationError(validation.error);
 
     const data = validation.data;
 
@@ -78,6 +70,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(serializeWorkspace(workspace), { status: 201 });
   } catch (error) {
     console.error('Error creating workspace:', error);
-    return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 });
+    return internalError('Failed to create workspace');
   }
 }

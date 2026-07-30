@@ -69,6 +69,11 @@ function ChartContainer({
   )
 }
 
+/**
+ * NOTE: The injected CSS comes from `config`, which is developer-controlled.
+ * Never pass user-supplied data through the config prop — that would turn
+ * this `dangerouslySetInnerHTML` into an XSS vector.
+ */
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color

@@ -54,6 +54,12 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Runtime artifacts
+*.pid
+
+# Lock files (project uses bun.lock)
+package-lock.json
 # Explicitly never commit local production credentials
 .env
 

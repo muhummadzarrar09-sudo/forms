@@ -201,7 +201,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'job-application', category: 'HR', title: 'Job Application', description: 'A structured application flow for collecting candidate information.', icon: 'Briefcase', color: '#F97316',
+    id: 'job-application-hr', category: 'HR', title: 'Job Application', description: 'A structured application flow for collecting candidate information.', icon: 'Briefcase', color: '#F97316',
     questions: [
       { type: 'short_text', title: 'Full name', required: true }, { type: 'email', title: 'Email address', required: true },
       { type: 'phone', title: 'Phone number', required: true }, { type: 'website', title: 'Portfolio or LinkedIn URL' },

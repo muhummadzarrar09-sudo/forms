@@ -258,35 +258,13 @@ export function ResponsesViewer() {
   }, [selectedFormId, nextResponseCursor, isLoadingMore, searchQuery, dateFrom, dateTo, statusFilter]);
 
   // ─── Process responses for display ─────────────────────────────────────────
+  // Note: search, date range, and status filters are already applied server-side
+  // via the paginated API. Only the client-side `showPartial` toggle is applied here.
 
   const displayResponses: DisplayResponse[] = useMemo(() => {
     return responses
       .filter((r) => {
-        // Partial response filter
         if (!showPartial && r.isPartial) return false;
-
-        // Date range filter
-        if (dateFrom || dateTo) {
-          const submittedDate = r.completedAt ? new Date(r.completedAt) : new Date(r.startedAt);
-          if (dateFrom && submittedDate < dateFrom) return false;
-          if (dateTo) {
-            const endOfDay = new Date(dateTo);
-            endOfDay.setHours(23, 59, 59, 999);
-            if (submittedDate > endOfDay) return false;
-          }
-        }
-
-        // Search filter
-        if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase();
-          const hasMatch = r.answers.some(
-            (a) =>
-              a.value.toLowerCase().includes(query) ||
-              (a.question?.title?.toLowerCase() || '').includes(query)
-          );
-          if (!hasMatch) return false;
-        }
-
         return true;
       })
       .map((r, index) => {
@@ -312,7 +290,7 @@ export function ResponsesViewer() {
           })),
         };
       });
-  }, [responses, dateFrom, dateTo, searchQuery, showPartial]);
+  }, [responses, showPartial]);
 
   // ─── CSV Export ────────────────────────────────────────────────────────────
 
