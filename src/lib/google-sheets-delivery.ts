@@ -16,7 +16,7 @@ export async function deliverPendingGoogleSheetEvents(limit = 25) {
     try {
       await db.googleSheetSyncEvent.update({ where: { id: event.id }, data: { status: 'processing', attempts: { increment: 1 }, lastError: '' } });
       const token = await googleAccessToken(event.destination.connectionId);
-      const answers = new Map(event.response.answers.map((answer) => [answer.questionId, answer.value]));
+      const answers = new Map<string, string>(event.response.answers.map((answer) => [answer.questionId, answer.value]));
       const row = [event.response.id, event.response.completedAt?.toISOString() || '', ...event.destination.form.questions.map((question) => cell(answers.get(question.id) || ''))];
       const range = `${event.destination.sheetName}!A1`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(event.destination.spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;

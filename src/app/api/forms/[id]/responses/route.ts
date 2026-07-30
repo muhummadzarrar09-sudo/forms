@@ -121,7 +121,7 @@ function getRequiredQuestionIdsOnSubmittedPath(
   answers: Array<{ questionId: string; value: string }>,
   questions: ResponseQuestionConfig[]
 ): Set<string> {
-  const answerMap = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+  const answerMap = new Map<string, string>(answers.map((answer) => [answer.questionId, answer.value]));
   const answerRecord = Object.fromEntries(answerMap.entries());
   const runtimeQuestions = questions
     .map(toRuntimeQuestion)
@@ -166,7 +166,7 @@ function validateRequiredAnswers(
   answers: Array<{ questionId: string; value: string }>,
   questions: ResponseQuestionConfig[]
 ): string | null {
-  const answerMap = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+  const answerMap = new Map<string, string>(answers.map((answer) => [answer.questionId, answer.value]));
   const requiredIds = getRequiredQuestionIdsOnSubmittedPath(answers, questions);
 
   for (const question of questions) {
@@ -187,7 +187,7 @@ function validateAnswerValues(
   answers: Array<{ questionId: string; value: string }>,
   questions: ResponseQuestionConfig[]
 ): string | null {
-  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const questionMap = new Map<string, ResponseQuestionConfig>(questions.map((question) => [question.id, question]));
 
   for (const answer of answers) {
     const question = questionMap.get(answer.questionId);

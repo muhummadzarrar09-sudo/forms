@@ -44,7 +44,7 @@ export async function GET(
           });
           if (!responses.length) break;
           for (const response of responses) {
-            const answers = new Map(response.answers.map((answer) => [answer.questionId, answer.value]));
+            const answers = new Map<string, string>(response.answers.map((answer) => [answer.questionId, answer.value]));
             const seconds = response.completedAt
               ? Math.max(0, Math.round((response.completedAt.getTime() - response.startedAt.getTime()) / 1000)).toString()
               : '';
