@@ -21,7 +21,9 @@ export async function enforcePublicRateLimit(options: {
   return db.$transaction(async (tx) => {
     // Serialize all writers for this hashed key. PostgreSQL advisory locks are
     // transaction-scoped, parameterized, and work across application instances.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+    // $executeRaw is used instead of $queryRaw so PgBouncer (transaction mode)
+    // does not need to keep a prepared statement.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
     const existing = await tx.publicRateLimit.findUnique({ where: { key } });
     const startsNewWindow = !existing || now.getTime() - existing.windowStart.getTime() >= windowMs;
 

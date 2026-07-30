@@ -2,12 +2,58 @@
 
 This runbook assumes a **new, empty Supabase PostgreSQL project**. It is not a migration procedure for an existing client database.
 
+## 0. Supabase connection string — MUST fix before deploy (avoids logs)
+
+Supabase shows confusing Postgres logs if the pooler is mis-configured. This project has been patched to tolerate the pooler, but you must set URLs correctly:
+
+- **`DATABASE_URL` = POOLED, port 6543, with `?pgbouncer=true&connection_limit=1`**
+
+  ```
+  postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&pool_timeout=20
+  ```
+
+  In Supabase dashboard: **Project Settings → Database → Connection String → Connection Pooling → Nodejs**
+  Take the port 6543 URL and append `?pgbouncer=true&connection_limit=1`.
+
+  Without `pgbouncer=true` you will see in Supabase logs:
+  - `ERROR: prepared statement "s0" already exists`
+  - `ERROR: prepared statement "s0" does not exist`
+  - Prisma `P1001: Can't reach database server`
+  These happen because PgBouncer transaction mode doesn't support prepared statements.
+  Prisma auto-disables them when `pgbouncer=true` is present.
+
+  Without `connection_limit=1` (or with a non-singleton PrismaClient) you will see:
+  - `FATAL: MaxClientsInSessionMode: max clients reached`
+  - `remaining connection slots are reserved for non-replication superuser`
+  `src/lib/db.ts` now caches the client globally in all envs to avoid this.
+
+- **`DIRECT_URL` = DIRECT, port 5432 (or 6543 without pgbouncer)**
+
+  ```
+  postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+  # or db.<ref>.supabase.co:5432
+  ```
+
+  Used only for `prisma migrate deploy` / `prisma db push`. Never use pooled URL here.
+
+**Fixes applied in code:**
+- `db.ts` singleton cached globally even in production + warning if pgbouncer missing
+- All `pg_advisory_xact_lock` now via `$executeRaw` not `$queryRaw`
+- `summary` + `health` raw SQL now via `$queryRawUnsafe(..., $1)` positional binds
+- All `db.$transaction([ ... ])` batch arrays converted to interactive `db.$transaction(async (tx)=>{ ... })` for pooler compatibility
+- `.env.example` documents correct format
+
+If you still see errors, confirm in Vercel env:
+- DATABASE_URL contains port 6543 + `pgbouncer=true`
+- DIRECT_URL contains port 5432
+- No `NEXT_PUBLIC_*` DB vars
+
 ## 1. Create secrets outside Git
 
 Create a local ignored `.env` from `.env.example`, or set these directly in Vercel:
 
-- `DATABASE_URL`
-- `DIRECT_URL`
+- `DATABASE_URL` (pooled + pgbouncer=true + connection_limit=1)
+- `DIRECT_URL` (direct, port 5432)
 - `NEXTAUTH_URL` (the canonical production HTTPS URL)
 - `NEXTAUTH_SECRET` (`openssl rand -hex 32`)
 - optionally `NEXT_PUBLIC_APP_URL`

@@ -33,16 +33,16 @@ export async function POST(request: NextRequest) {
     const baseUrl = canonicalAppUrl();
     if (user && baseUrl) {
       const rawToken = randomBytes(32).toString('base64url');
-      await db.$transaction([
-        db.passwordResetToken.deleteMany({ where: { userId: user.id } }),
-        db.passwordResetToken.create({
+      await db.$transaction(async (tx) => {
+        await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
+        await tx.passwordResetToken.create({
           data: {
             userId: user.id,
             tokenHash: hashResponseEditToken(rawToken),
             expiresAt: new Date(Date.now() + 60 * 60 * 1000),
           },
-        }),
-      ]);
+        });
+      });
       // Delivery failure is intentionally not disclosed, to avoid enumeration.
       await sendPasswordResetEmail(user.email, `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`);
     }
