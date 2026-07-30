@@ -9,7 +9,14 @@ export async function deliverPendingGoogleSheetEvents(limit = 25) {
   const events = await db.googleSheetSyncEvent.findMany({
     where: { status: 'pending', attempts: { lt: 5 }, destination: { active: true } },
     orderBy: { createdAt: 'asc' }, take: limit,
-    include: { destination: { include: { form: { include: { questions: { orderBy: { order: 'asc' } } } } }, response: { include: { answers: true } } } },
+    include: {
+      destination: {
+        include: {
+          form: { include: { questions: { orderBy: { order: 'asc' } } } },
+        },
+      },
+      response: { include: { answers: true } },
+    },
   });
   let delivered = 0;
   for (const event of events) {
