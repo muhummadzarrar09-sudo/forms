@@ -163,7 +163,7 @@ export const useFormStore = create<FormState>((set, get) => ({
   }),
   reorderQuestions: (questionIds) => set((state) => {
     if (!state.currentForm) return state;
-    const questionMap = new Map(state.currentForm.questions.map(q => [q.id, q]));
+    const questionMap = new Map<string, FormQuestion>(state.currentForm.questions.map(q => [q.id, q]));
     const reordered = questionIds
       .map((id, index) => {
         const q = questionMap.get(id);

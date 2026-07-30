@@ -122,7 +122,7 @@ export function convertCatalogIntake(value: unknown): CatalogImportResult | null
       id: `${questionId}_option_${index}`,
       label: decodeHtml(label),
     }));
-    optionIds.set(sourceQuestion.id, new Map(sourceOptions.map((label, index) => [label, options[index].id])));
+    optionIds.set(sourceQuestion.id, new Map<string, string>(sourceOptions.map((label, index) => [label, options[index].id])));
   }
 
   for (const sourceQuestion of source.questions) {

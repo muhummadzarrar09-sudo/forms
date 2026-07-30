@@ -82,7 +82,10 @@ export async function GET(
     for (const row of choiceRows) {
       choiceByQuestion.set(row.questionId, [...(choiceByQuestion.get(row.questionId) || []), row]);
     }
-    const numericByQuestion = new Map(numericRows.map((row) => [row.questionId, row]));
+    const numericByQuestion = new Map<string, NumericRow>();
+    for (const row of numericRows) {
+      numericByQuestion.set(row.questionId, row);
+    }
     const textByQuestion = new Map<string, string[]>();
     for (const answer of textAnswers) {
       textByQuestion.set(answer.questionId, [...(textByQuestion.get(answer.questionId) || []), answer.value]);
@@ -99,7 +102,7 @@ export async function GET(
 
       if (choiceTypes.includes(question.type)) {
         const choiceCounts: Record<string, number> = {};
-        const optionLabelById = new Map(serialized.options.map((option) => [option.id, option.label]));
+        const optionLabelById = new Map<string, string>(serialized.options.map((option) => [option.id, option.label]));
         if (question.type === 'yes_no') {
           choiceCounts.Yes = 0;
           choiceCounts.No = 0;
