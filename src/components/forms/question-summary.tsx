@@ -74,17 +74,14 @@ const NUMBER_TYPE: QuestionType = 'number';
 const DATE_TYPE: QuestionType = 'date';
 const STATEMENT_TYPES: QuestionType[] = ['statement', 'legal'];
 
+// A compact data-vis palette. Each color is at least 3:1 against both the
+// light and dark analytics card surfaces; ordering is carried by labels too.
 const CHART_COLORS = [
-  'hsl(221, 83%, 53%)',
-  'hsl(142, 71%, 45%)',
-  'hsl(38, 92%, 50%)',
-  'hsl(0, 84%, 60%)',
-  'hsl(262, 83%, 58%)',
-  'hsl(199, 89%, 48%)',
-  'hsl(326, 100%, 74%)',
-  'hsl(45, 93%, 47%)',
-  'hsl(173, 80%, 40%)',
-  'hsl(15, 85%, 55%)',
+  '#2563EB',
+  '#0F766E',
+  '#B45309',
+  '#7C3AED',
+  '#C2410C',
 ];
 
 export function QuestionSummaryCard({ summary, questionIndex, totalQuestions }: QuestionSummaryProps) {
@@ -108,7 +105,7 @@ export function QuestionSummaryCard({ summary, questionIndex, totalQuestions }: 
                   <span className="text-xs text-muted-foreground font-medium">
                     {questionIndex + 1} of {totalQuestions}
                   </span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  <Badge variant="secondary" className="min-h-7 px-2 text-xs">
                     {getQuestionTypeLabel(summary.questionType)}
                   </Badge>
                 </div>
@@ -310,7 +307,7 @@ function RatingSummary({ summary }: { summary: QuestionSummary }) {
               key={i}
               className={`size-7 ${
                 i < Math.round(average)
-                  ? 'fill-yellow-400 text-yellow-400'
+                  ? 'fill-warning text-warning'
                   : 'fill-muted text-muted'
               }`}
             />
@@ -367,15 +364,15 @@ function TextSummary({ textAnswers }: { textAnswers: string[] }) {
         <div className="flex flex-wrap gap-2 items-center justify-center py-3">
           {wordFrequency.map(([word, count], index) => {
             const size = Math.max(12, Math.min(28, 12 + (count / maxFreq) * 16));
-            const opacity = 0.4 + (count / maxFreq) * 0.6;
+            const fontWeight = count === maxFreq ? 700 : 500;
             return (
               <motion.span
                 key={word}
                 initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity, scale: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.02 }}
-                className="inline-block font-medium cursor-default hover:text-primary transition-colors"
-                style={{ fontSize: `${size}px` }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.22, delay: index * 0.02 }}
+                className="inline-block cursor-default transition-colors hover:text-primary"
+                style={{ fontSize: `${size}px`, fontWeight }}
               >
                 {word}
               </motion.span>
@@ -396,7 +393,7 @@ function TextSummary({ textAnswers }: { textAnswers: string[] }) {
               className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors"
             >
               <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px] font-bold text-primary">{index + 1}</span>
+                <span className="text-xs font-bold text-primary">{index + 1}</span>
               </div>
               <p className="text-sm break-words flex-1">{answer}</p>
             </motion.div>
@@ -504,7 +501,7 @@ function DateSummary({ textAnswers }: { textAnswers: string[] }) {
   }, [textAnswers]);
 
   const chartConfig: ChartConfig = {
-    count: { label: 'Responses', color: CHART_COLORS[5] },
+    count: { label: 'Responses', color: CHART_COLORS[1] },
   };
 
   return (
@@ -516,7 +513,7 @@ function DateSummary({ textAnswers }: { textAnswers: string[] }) {
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="count" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="count" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ChartContainer>
 

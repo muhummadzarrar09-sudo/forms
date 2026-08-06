@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -8,9 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 
 export function LoginPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('login');
@@ -42,8 +45,9 @@ export function LoginPage() {
       if (result?.error) {
         setError('Invalid email or password. Please try again.');
       } else {
-        // Login successful — force a full page reload to refresh the session
-        window.location.href = '/';
+        // Refresh the session-backed shell without a full-document navigation.
+        router.replace('/');
+        router.refresh();
       }
     } catch {
       setError('An error occurred. Please try again.');
@@ -97,7 +101,8 @@ export function LoginPage() {
         return;
       }
 
-      window.location.href = '/';
+      router.replace('/');
+      router.refresh();
     } catch {
       setError('An error occurred. Please try again.');
       setIsLoading(false);
@@ -153,12 +158,12 @@ export function LoginPage() {
         {/* Logo & Brand */}
         <div className="text-center mb-8">
           <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="inline-flex items-center justify-center size-14 rounded-2xl bg-primary text-primary-foreground mb-4"
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-4 inline-flex"
           >
-            <FileText className="size-7" />
+            <BrandMark className="size-14" />
           </motion.div>
           <h1 className="text-3xl font-bold tracking-tight">Forms</h1>
           <p className="text-muted-foreground mt-1">
@@ -166,7 +171,7 @@ export function LoginPage() {
           </p>
         </div>
 
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-border/50 shadow-[var(--shadow-2)]">
           <CardHeader className="pb-4">
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setError(''); }} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
@@ -219,13 +224,13 @@ export function LoginPage() {
                         onChange={(e) => setLoginPassword(e.target.value)}
                         required
                         autoComplete="current-password"
-                        className="pr-10"
+                        className="pr-12"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
+                        className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
@@ -314,13 +319,13 @@ export function LoginPage() {
                         required
                         minLength={12}
                         autoComplete="new-password"
-                        className="pr-10"
+                        className="pr-12"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        tabIndex={-1}
+                        className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
@@ -369,7 +374,7 @@ export function LoginPage() {
                     <Input id="reset-email" type="email" autoComplete="email" placeholder="you@example.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
                   </div>
                   {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-                  {resetNotice && <p role="status" className="text-sm text-emerald-700">{resetNotice}</p>}
+                  {resetNotice && <p role="status" className="text-sm text-success">{resetNotice}</p>}
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Sending reset link…' : 'Send reset link'}
                   </Button>

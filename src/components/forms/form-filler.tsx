@@ -14,6 +14,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeMeta, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { BrandMark } from '@/components/brand-mark';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 import { pipeAnswerText } from '@/lib/answer-piping';
@@ -409,12 +410,6 @@ export function FormFiller() {
     return 0;
   }, []);
 
-  // ── Total score ──
-
-  const totalScore = useMemo(() => {
-    return Object.values(state.scores).reduce((sum, s) => sum + s, 0);
-  }, [state.scores]);
-
   // ── Answer handler ──
 
   const setAnswer = useCallback((questionId: string, value: string) => {
@@ -539,7 +534,7 @@ export function FormFiller() {
             className="size-8 animate-spin"
             style={{ color: theme.textColor }}
           />
-          <p className={`text-sm opacity-50 ${ff}`} style={{ color: theme.textColor }}>
+          <p className={`text-sm ${ff}`} style={{ color: theme.textSecondaryColor }}>
             Loading form...
           </p>
         </div>
@@ -555,17 +550,17 @@ export function FormFiller() {
         style={{ backgroundColor: theme.backgroundColor }}
       >
         <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-20" style={{ color: theme.textColor }} />
+          <X className="size-16 mx-auto" style={{ color: theme.textTertiaryColor }} />
           <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
             Form not found
           </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
+          <p className={`text-base ${ff}`} style={{ color: theme.textSecondaryColor }}>
             {state.errorMessage || 'This form doesn\'t exist or has been removed.'}
           </p>
           {!shareMode && (
             <button
               onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               <ArrowLeft className="size-4" />
@@ -585,17 +580,17 @@ export function FormFiller() {
         style={{ backgroundColor: theme.backgroundColor }}
       >
         <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-20" style={{ color: theme.textColor }} />
+          <X className="size-16 mx-auto" style={{ color: theme.textTertiaryColor }} />
           <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
             This form is not accepting responses
           </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
+          <p className={`text-base ${ff}`} style={{ color: theme.textSecondaryColor }}>
             The form owner has not published this form yet.
           </p>
           {!shareMode && (
             <button
               onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               <ArrowLeft className="size-4" />
@@ -605,8 +600,8 @@ export function FormFiller() {
         </div>
         {shareMode && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
-              Powered by <span className="font-semibold">Forms</span>
+            <p className={`text-xs ${ff} flex items-center gap-1`} style={{ color: theme.textTertiaryColor }}>
+              Powered by <BrandMark className="size-4" title="Forms" /><span className="font-semibold">Forms</span>
             </p>
           </div>
         )}
@@ -622,17 +617,17 @@ export function FormFiller() {
         style={{ backgroundColor: theme.backgroundColor }}
       >
         <div className="text-center space-y-4 max-w-md px-6">
-          <X className="size-16 mx-auto opacity-30" style={{ color: '#ef4444' }} />
+          <X className="size-16 mx-auto" style={{ color: theme.errorColor }} />
           <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
             Something went wrong
           </h2>
-          <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
+          <p className={`text-base ${ff}`} style={{ color: theme.textSecondaryColor }}>
             {state.errorMessage}
           </p>
           {!shareMode ? (
             <button
               onClick={openDashboard}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               <ArrowLeft className="size-4" />
@@ -641,7 +636,7 @@ export function FormFiller() {
           ) : (
             <button
               onClick={() => setState((s) => ({ ...s, screen: 'welcome', direction: -1 }))}
-              className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-colors"
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
               <RotateCcw className="size-4" />
@@ -651,8 +646,8 @@ export function FormFiller() {
         </div>
         {shareMode && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-            <p className={`text-xs opacity-35 ${ff} flex items-center gap-1`} style={{ color: theme.textColor }}>
-              Powered by <span className="font-semibold">Forms</span>
+            <p className={`text-xs ${ff} flex items-center gap-1`} style={{ color: theme.textTertiaryColor }}>
+              Powered by <BrandMark className="size-4" title="Forms" /><span className="font-semibold">Forms</span>
             </p>
           </div>
         )}
@@ -673,26 +668,16 @@ export function FormFiller() {
       style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       {/* ── Confetti ── */}
-      {showConfetti && state.screen === 'ending' && <FillerConfetti />}
-      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} />}
+      {showConfetti && state.screen === 'ending' && <FillerConfetti colors={[theme.buttonColor, theme.textColor, theme.successColor]} />}
+      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} theme={theme} />}
 
-      {shareMode && state.draftSaveStatus !== 'idle' && (
-        <p
-          className="absolute right-4 top-4 z-30 rounded-full px-3 py-1 text-xs"
-          role={state.draftSaveStatus === 'error' ? 'alert' : 'status'}
-          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
-        >
-          {state.draftSaveStatus === 'saving' && 'Saving draft…'}
-          {state.draftSaveStatus === 'saved' && 'Draft saved'}
-          {state.draftSaveStatus === 'error' && 'Draft could not be saved — your answers remain on this screen.'}
-        </p>
-      )}
+
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
         <div
           className="absolute top-0 left-0 right-0 h-1.5 z-30"
-          style={{ backgroundColor: `${theme.textColor}10` }}
+          style={{ backgroundColor: theme.trackColor }}
           role="progressbar"
           aria-label="Form completion progress"
           aria-valuemin={0}
@@ -703,6 +688,7 @@ export function FormFiller() {
             className="h-full relative progress-bar-glow"
             style={{
               backgroundColor: theme.buttonColor,
+              color: theme.buttonColor,
             }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
@@ -713,8 +699,7 @@ export function FormFiller() {
               className="absolute right-0 top-1/2 -translate-y-1/2 size-3 rounded-full border-2"
               style={{
                 backgroundColor: theme.buttonColor,
-                borderColor: theme.backgroundColor,
-                boxShadow: `0 0 6px ${theme.buttonColor}66`,
+                borderColor: theme.backgroundColor
               }}
             />
           </motion.div>
@@ -725,8 +710,8 @@ export function FormFiller() {
       {!shareMode && (
         <button
           onClick={openDashboard}
-          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+          className="absolute top-4 right-4 z-30 size-11 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: theme.controlSurfaceColor, color: theme.textColor }}
           aria-label="Close form"
         >
           <X className="size-5" />
@@ -735,8 +720,8 @@ export function FormFiller() {
       {shareMode && state.screen !== 'ending' && (
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+          className="absolute top-4 right-4 z-30 size-11 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: theme.controlSurfaceColor, color: theme.textColor }}
           aria-label="Close form"
         >
           <X className="size-5" />
@@ -745,13 +730,13 @@ export function FormFiller() {
 
       {/* ── Preview mode banner for unpublished forms ── */}
       {!state.form.published && !shareMode && (
-        <div className="absolute top-0 left-0 right-0 z-40 bg-amber-500/90 text-white text-center py-1.5 text-xs font-medium backdrop-blur-sm">
-          Preview mode — This form is not published
+        <div className="absolute top-0 left-0 right-0 z-40 bg-info text-info-foreground py-2 text-center text-sm font-medium">
+          Preview only — responses are not being collected
         </div>
       )}
 
       {/* ── Main content area ── */}
-      <div className={`flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 pb-20 relative overflow-hidden ${!state.form.published && !shareMode ? 'pt-8' : ''}`}>
+      <div className={`filler-scroll-region flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col justify-center px-6 sm:px-8 md:px-16 lg:px-24 py-24 md:py-28 relative ${!state.form.published && !shareMode ? 'pt-28' : ''}`}>
         <AnimatePresence mode="wait" custom={state.direction}>
           {/* Welcome Screen */}
           {state.screen === 'welcome' && (
@@ -766,7 +751,7 @@ export function FormFiller() {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
-                <FillerWelcomeBranding form={state.form} />
+                <FillerWelcomeBranding form={state.form} theme={theme} />
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -783,14 +768,14 @@ export function FormFiller() {
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 0.6, y: 0 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1, ease: [0.23, 1, 0.32, 1] }}
                   className={`text-lg md:text-xl ${ff}`}
-                  style={{ color: theme.textColor }}
+                  style={{ color: theme.textSecondaryColor }}
                 >
                   {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
-                <FillerWelcomeMeta questionCount={questions.length} />
+                <FillerWelcomeMeta questionCount={questions.length} color={theme.textSecondaryColor} />
               </div>
             </motion.div>
           )}
@@ -871,7 +856,7 @@ export function FormFiller() {
                 <div
                   className="absolute inset-0 rounded-full"
                   style={{
-                    boxShadow: `0 0 40px 10px ${theme.buttonColor}66, 0 0 80px 20px ${theme.buttonColor}33`,
+                    boxShadow: `0 12px 28px ${theme.buttonColor}55`,
                   }}
                 />
                 <Check className="size-12 relative z-10" style={{ color: theme.buttonTextColor }} />
@@ -883,8 +868,8 @@ export function FormFiller() {
                 {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
-                className={`text-lg md:text-xl opacity-60 ${ff}`}
-                style={{ color: theme.textColor }}
+                className={`text-lg md:text-xl ${ff}`}
+                style={{ color: theme.textSecondaryColor }}
               >
                 {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
@@ -902,26 +887,11 @@ export function FormFiller() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
-                    style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `0 4px 14px ${theme.buttonColor}40` }}
+                    style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
                   >
                     Continue
                     <ArrowRight className="size-4" />
                   </a>
-                </motion.div>
-              )}
-
-              {/* Show score if scoring is enabled */}
-              {totalScore > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                  style={{ backgroundColor: `${theme.buttonColor}15`, color: theme.buttonColor }}
-                >
-                  <span className="text-sm font-medium">Your score:</span>
-                  <span className="text-xl font-bold">{totalScore}</span>
-                  <span className="text-sm opacity-60">points</span>
                 </motion.div>
               )}
 
@@ -931,16 +901,15 @@ export function FormFiller() {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 }}
-                  className={`text-sm opacity-40 mt-4 ${ff}`}
-                  style={{ color: theme.textColor }}
+                  className={`text-sm mt-4 ${ff}`}
+                  style={{ color: theme.textTertiaryColor }}
                 >
                   Preview — No data was saved
                 </motion.p>
               )}
 
-              {/* Submit another response button (share mode only) */}
-              {shareMode && (
-                <motion.div
+              {/* Keep the completion action visually identical in public and preview modes. */}
+              <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
@@ -948,21 +917,20 @@ export function FormFiller() {
                 >
                   <button
                     onClick={handleSubmitAnother}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
-                    style={{ borderColor: `${theme.textColor}20`, color: theme.textColor, backgroundColor: 'transparent' }}
+                    className="inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
+                    style={{ borderColor: theme.fieldBorderColor, color: theme.textColor, backgroundColor: theme.controlSurfaceColor }}
                   >
                     <RotateCcw className="size-4" />
-                    Submit another response
+                    {shareMode ? 'Submit another response' : 'Start another preview'}
                   </button>
                 </motion.div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {/* ── Bottom Bar ── */}
-      <div className="absolute bottom-0 left-0 right-0 px-8 md:px-16 lg:px-24 py-4 md:py-6 flex items-center justify-between z-20">
+      <div className="filler-bottom-bar absolute bottom-0 left-0 right-0 px-6 sm:px-8 md:px-16 lg:px-24 py-4 md:py-6 flex items-center justify-between z-20">
         {/* Back button + connection indicator */}
         <div className="flex items-center gap-4 min-w-[80px]">
           {state.form.allowBackNavigation &&
@@ -972,8 +940,8 @@ export function FormFiller() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
                 onClick={goBack}
-                className="flex items-center gap-2 text-sm font-medium opacity-50 hover:opacity-100 transition-all"
-                style={{ color: theme.textColor }}
+                className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-medium transition-all hover:opacity-80"
+                style={{ color: theme.textSecondaryColor }}
                 whileTap={{ scale: 0.97 }}
               >
                 <ArrowLeft className="size-4" />
@@ -983,8 +951,15 @@ export function FormFiller() {
           {/* Connection indicator (live dot) */}
           {state.screen === 'question' && (
             <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-green-500 live-dot-pulse" />
-              <span className="text-[10px] opacity-30" style={{ color: theme.textColor }}>Live</span>
+              <span
+                className="size-2 rounded-full"
+                style={{
+                  backgroundColor: state.draftSaveStatus === 'error' ? theme.errorColor : state.draftSaveStatus === 'saving' ? theme.accentTextColor : theme.successColor,
+                }}
+              />
+              <span className="text-xs" style={{ color: state.draftSaveStatus === 'error' ? theme.errorColor : theme.textTertiaryColor }}>
+                {state.draftSaveStatus === 'error' ? 'Draft save needs attention' : state.draftSaveStatus === 'saving' ? 'Saving draft…' : 'Saved locally'}
+              </span>
             </div>
           )}
         </div>
@@ -1012,7 +987,7 @@ export function FormFiller() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.3 }}
               onClick={goNext}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90"
+              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90"
               whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
@@ -1025,28 +1000,28 @@ export function FormFiller() {
 
       {/* ── "Powered by Forms" branding (share mode) ── */}
       {shareMode && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.35 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 1 }}
             className={`text-xs ${ff} flex items-center gap-1`}
-            style={{ color: theme.textColor }}
+            style={{ color: theme.textTertiaryColor }}
           >
-            Powered by <span className="font-semibold">Forms</span>
+            Powered by <BrandMark className="size-4" title="Forms" /><span className="font-semibold">Forms</span>
           </motion.p>
         </div>
       )}
 
       {/* ── Keyboard shortcut hints ── */}
       {state.screen === 'question' && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 1 }}
             className={`text-xs ${ff}`}
-            style={{ color: theme.textColor }}
+            style={{ color: theme.textTertiaryColor }}
           >
             press <strong>Enter ↵</strong> to continue · <strong>← Backspace</strong> to go back
           </motion.p>
@@ -1054,13 +1029,13 @@ export function FormFiller() {
       )}
 
       {state.screen === 'welcome' && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 1.5 }}
             className={`text-xs ${ff}`}
-            style={{ color: theme.textColor }}
+            style={{ color: theme.textTertiaryColor }}
           >
             press <strong>Enter ↵</strong>
           </motion.p>

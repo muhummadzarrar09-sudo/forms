@@ -6,6 +6,7 @@ import { serializeForm } from '@/lib/api-serialization';
 import { createFormSchema } from '@/lib/validations';
 import { generateSlug, ensureUniqueSlug } from '@/lib/slug';
 import { unauthorized, forbidden, validationError, badRequest, notFound, internalError } from '@/lib/api-errors';
+import { ensureAccessibleFormTheme } from '@/lib/form-theme';
 
 // GET /api/forms - List all forms for the authenticated user
 export async function GET() {
@@ -49,6 +50,13 @@ export async function POST(request: NextRequest) {
     if (!validation.success) return validationError(validation.error);
 
     const data = validation.data;
+    const accessiblePalette = ensureAccessibleFormTheme({
+      backgroundColor: data.backgroundColor ?? '#FFFFFF',
+      textColor: data.textColor ?? '#333333',
+      buttonColor: data.buttonColor ?? '#1A1A1A',
+      buttonTextColor: data.buttonTextColor ?? '#FFFFFF',
+      fontFamily: data.fontFamily ?? 'sans',
+    });
 
     // A workspace is part of a user's private namespace. Never attach a form
     // to a workspace merely because its opaque ID was supplied by the client.
@@ -85,10 +93,10 @@ export async function POST(request: NextRequest) {
         endingTitle: data.endingTitle ?? 'Thank you!',
         endingMessage: data.endingMessage ?? 'Your response has been recorded.',
         theme: data.theme ?? 'default',
-        backgroundColor: data.backgroundColor ?? '#FFFFFF',
-        textColor: data.textColor ?? '#333333',
-        buttonColor: data.buttonColor ?? '#1A1A1A',
-        buttonTextColor: data.buttonTextColor ?? '#FFFFFF',
+        backgroundColor: accessiblePalette.backgroundColor,
+        textColor: accessiblePalette.textColor,
+        buttonColor: accessiblePalette.buttonColor,
+        buttonTextColor: accessiblePalette.buttonTextColor,
         fontFamily: data.fontFamily ?? 'sans',
         progressbar: data.progressbar ?? true,
         showQuestionNumbers: data.showQuestionNumbers ?? true,

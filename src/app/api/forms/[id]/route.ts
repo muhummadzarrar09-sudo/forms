@@ -6,6 +6,7 @@ import { serializeForm, serializePublicForm } from '@/lib/api-serialization';
 import { updateFormSchema } from '@/lib/validations';
 import { generateSlug, ensureUniqueSlug } from '@/lib/slug';
 import { unauthorized, forbidden, validationError, badRequest, notFound, internalError } from '@/lib/api-errors';
+import { ensureAccessibleFormTheme } from '@/lib/form-theme';
 
 // GET /api/forms/[id]
 // Public for published forms (form filler), protected for drafts (owner only)
@@ -62,8 +63,19 @@ export async function PUT(
 
     const { id } = await params;
 
-    // Verify ownership
-    const existingForm = await db.form.findUnique({ where: { id }, select: { userId: true } });
+    // Verify ownership and retain the prior palette so partial updates cannot
+    // accidentally persist an inaccessible color combination.
+    const existingForm = await db.form.findUnique({
+      where: { id },
+      select: {
+        userId: true,
+        backgroundColor: true,
+        textColor: true,
+        buttonColor: true,
+        buttonTextColor: true,
+        fontFamily: true,
+      },
+    });
     if (!existingForm) return notFound('Form not found');
     if (existingForm.userId !== session.user.id) return forbidden();
 
@@ -78,6 +90,17 @@ export async function PUT(
     if (!validation.success) return validationError(validation.error);
 
     const data = validation.data;
+    const paletteWasUpdated = data.backgroundColor !== undefined || data.textColor !== undefined ||
+      data.buttonColor !== undefined || data.buttonTextColor !== undefined;
+    const accessiblePalette = paletteWasUpdated
+      ? ensureAccessibleFormTheme({
+          backgroundColor: data.backgroundColor ?? existingForm.backgroundColor,
+          textColor: data.textColor ?? existingForm.textColor,
+          buttonColor: data.buttonColor ?? existingForm.buttonColor,
+          buttonTextColor: data.buttonTextColor ?? existingForm.buttonTextColor,
+          fontFamily: data.fontFamily ?? existingForm.fontFamily,
+        })
+      : null;
 
     // Workspace IDs are not globally assignable: they must belong to the form owner.
     if (data.workspaceId) {
@@ -117,10 +140,10 @@ export async function PUT(
           ...(data.endingTitle !== undefined && { endingTitle: data.endingTitle }),
           ...(data.endingMessage !== undefined && { endingMessage: data.endingMessage }),
           ...(data.theme !== undefined && { theme: data.theme }),
-          ...(data.backgroundColor !== undefined && { backgroundColor: data.backgroundColor }),
-          ...(data.textColor !== undefined && { textColor: data.textColor }),
-          ...(data.buttonColor !== undefined && { buttonColor: data.buttonColor }),
-          ...(data.buttonTextColor !== undefined && { buttonTextColor: data.buttonTextColor }),
+          ...(accessiblePalette && { backgroundColor: accessiblePalette.backgroundColor }),
+          ...(accessiblePalette && { textColor: accessiblePalette.textColor }),
+          ...(accessiblePalette && { buttonColor: accessiblePalette.buttonColor }),
+          ...(accessiblePalette && { buttonTextColor: accessiblePalette.buttonTextColor }),
           ...(data.fontFamily !== undefined && { fontFamily: data.fontFamily }),
           ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
           ...(data.coverUrl !== undefined && { coverUrl: data.coverUrl }),

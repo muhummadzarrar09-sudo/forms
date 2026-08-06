@@ -16,7 +16,6 @@ export interface FormTemplate {
   title: string;
   description: string;
   icon: string;
-  color: string;
   questions: FormTemplateQuestion[];
 }
 
@@ -26,7 +25,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Customer Feedback Survey',
     description: 'Collect valuable feedback from your customers to improve your products and services.',
     icon: 'MessageSquare',
-    color: '#E94560',
     questions: [
       { type: 'rating', title: 'How would you rate your overall experience?', required: true, settings: { steps: 5 } },
       { type: 'opinion_scale', title: 'How likely are you to recommend us to a friend?', required: true, settings: { steps: 10, startAtOne: false } },
@@ -41,7 +39,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Event Registration',
     description: 'Register attendees for your event and collect all the information you need.',
     icon: 'Calendar',
-    color: '#3182CE',
     questions: [
       { type: 'short_text', title: 'What is your full name?', required: true, placeholder: 'John Doe' },
       { type: 'email', title: 'What is your email address?', required: true, placeholder: 'you@example.com' },
@@ -57,7 +54,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Employee Satisfaction',
     description: 'Measure employee happiness and engagement to build a better workplace.',
     icon: 'Users',
-    color: '#38A169',
     questions: [
       { type: 'opinion_scale', title: 'On a scale of 0-10, how satisfied are you with your job?', required: true, settings: { steps: 10, startAtOne: false } },
       { type: 'rating', title: 'How would you rate your work-life balance?', required: true, settings: { steps: 5 } },
@@ -74,7 +70,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Contact Form',
     description: 'A simple and effective way for people to get in touch with you.',
     icon: 'Mail',
-    color: '#ED8936',
     questions: [
       { type: 'short_text', title: 'What is your name?', required: true, placeholder: 'Your full name' },
       { type: 'email', title: 'What is your email address?', required: true, placeholder: 'you@example.com' },
@@ -87,7 +82,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Product Order Form',
     description: 'Collect product orders with all the details you need to fulfill them.',
     icon: 'ShoppingCart',
-    color: '#805AD5',
     questions: [
       { type: 'short_text', title: 'Full name', required: true, placeholder: 'John Doe' },
       { type: 'email', title: 'Email address', required: true, placeholder: 'you@example.com' },
@@ -104,7 +98,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Job Application',
     description: 'Streamline your hiring process with a structured application form.',
     icon: 'Briefcase',
-    color: '#D69E2E',
     questions: [
       { type: 'short_text', title: 'Full name', required: true, placeholder: 'Your full name' },
       { type: 'email', title: 'Email address', required: true, placeholder: 'you@example.com' },
@@ -124,7 +117,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Quiz / Knowledge Test',
     description: 'Create an engaging quiz to test knowledge with scored multiple choice questions.',
     icon: 'GraduationCap',
-    color: '#E53E3E',
     questions: [
       { type: 'statement', title: 'Welcome to the quiz!', description: 'Answer the following questions to test your knowledge. Good luck!' },
       { type: 'multiple_choice', title: 'What is the capital of France?', options: ['London', 'Berlin', 'Paris', 'Madrid'], required: true },
@@ -142,7 +134,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Newsletter Signup',
     description: 'Grow your subscriber list with a quick and easy signup form.',
     icon: 'Newspaper',
-    color: '#319795',
     questions: [
       { type: 'short_text', title: 'What is your name?', required: true, placeholder: 'Your first name' },
       { type: 'email', title: 'What is your email?', required: true, placeholder: 'you@example.com' },
@@ -156,7 +147,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Lead Qualification',
     description: 'Qualify inbound leads, identify intent, and route the right follow-up.',
     icon: 'Target',
-    color: '#7C3AED',
     questions: [
       { type: 'short_text', title: 'What is your name?', required: true, placeholder: 'Full name' },
       { type: 'email', title: 'What is your work email?', required: true, placeholder: 'you@company.com' },
@@ -172,7 +162,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     title: 'Client Project Intake',
     description: 'Collect the context needed to scope a strong client project.',
     icon: 'Briefcase',
-    color: '#0EA5E9',
     questions: [
       { type: 'short_text', title: 'Your name', required: true },
       { type: 'email', title: 'Best email address', required: true },
@@ -185,7 +174,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'booking-request', category: 'Leads', title: 'Booking Request', description: 'Capture appointment requests and preferred times.', icon: 'Calendar', color: '#0EA5E9',
+    id: 'booking-request', category: 'Leads', title: 'Booking Request', description: 'Capture appointment requests and preferred times.', icon: 'Calendar',
     questions: [
       { type: 'short_text', title: 'Your name', required: true }, { type: 'email', title: 'Your email', required: true },
       { type: 'multiple_choice', title: 'What would you like to book?', required: true, options: ['Discovery call', 'Consultation', 'Demo', 'Support session'] },
@@ -193,7 +182,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'nps-survey', category: 'Feedback', title: 'NPS Survey', description: 'Measure customer loyalty and uncover follow-up opportunities.', icon: 'BarChart3', color: '#10B981',
+    id: 'nps-survey', category: 'Feedback', title: 'NPS Survey', description: 'Measure customer loyalty and uncover follow-up opportunities.', icon: 'BarChart3',
     questions: [
       { type: 'opinion_scale', title: 'How likely are you to recommend us?', required: true, settings: { steps: 10, startAtOne: false } },
       { type: 'long_text', title: 'What is the main reason for your score?', required: true },
@@ -201,7 +190,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'job-application-hr', category: 'HR', title: 'Job Application', description: 'A structured application flow for collecting candidate information.', icon: 'Briefcase', color: '#F97316',
+    id: 'job-application-hr', category: 'HR', title: 'Job Application', description: 'A structured application flow for collecting candidate information.', icon: 'Briefcase',
     questions: [
       { type: 'short_text', title: 'Full name', required: true }, { type: 'email', title: 'Email address', required: true },
       { type: 'phone', title: 'Phone number', required: true }, { type: 'website', title: 'Portfolio or LinkedIn URL' },
@@ -209,7 +198,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'brand-discovery', category: 'Client intake', title: 'Brand Discovery', description: 'Understand a client’s audience, positioning, personality, and visual direction.', icon: 'Palette', color: '#A855F7',
+    id: 'brand-discovery', category: 'Client intake', title: 'Brand Discovery', description: 'Understand a client’s audience, positioning, personality, and visual direction.', icon: 'Palette',
     questions: [
       { type: 'short_text', title: 'Brand or business name', required: true }, { type: 'long_text', title: 'What do you offer?', required: true },
       { type: 'long_text', title: 'Who is your ideal customer?', required: true }, { type: 'multiple_choice', title: 'Which brand personality fits best?', required: true, options: ['Bold', 'Minimal', 'Warm', 'Premium', 'Playful'] },
@@ -302,17 +291,19 @@ export function getCompletionRate(total: number, completed: number): number {
 }
 
 // Theme presets
+// Every preset is contrast-tested for body text and normal-size CTA labels.
+// Button colors intentionally stay distinct from semantic success/warning/error tokens.
 export const THEME_PRESETS = [
   { name: 'default',   backgroundColor: '#FFFFFF', textColor: '#333333', buttonColor: '#1A1A1A', buttonTextColor: '#FFFFFF' },
-  { name: 'dark',      backgroundColor: '#1A1A2E', textColor: '#FFFFFF', buttonColor: '#E94560', buttonTextColor: '#FFFFFF' },
+  { name: 'dark',      backgroundColor: '#1A1A2E', textColor: '#FFFFFF', buttonColor: '#E11D48', buttonTextColor: '#FFFFFF' },
   { name: 'midnight',  backgroundColor: '#0F172A', textColor: '#CBD5E1', buttonColor: '#7C3AED', buttonTextColor: '#FFFFFF' },
-  { name: 'warm',      backgroundColor: '#FFF8F0', textColor: '#5D4037', buttonColor: '#FF6B35', buttonTextColor: '#FFFFFF' },
-  { name: 'cool',      backgroundColor: '#F0F4F8', textColor: '#2D3748', buttonColor: '#4299E1', buttonTextColor: '#FFFFFF' },
-  { name: 'nature',    backgroundColor: '#F0FFF4', textColor: '#22543D', buttonColor: '#38A169', buttonTextColor: '#FFFFFF' },
-  { name: 'purple',    backgroundColor: '#FAF5FF', textColor: '#44337A', buttonColor: '#805AD5', buttonTextColor: '#FFFFFF' },
-  { name: 'sunset',    backgroundColor: '#FFFAF0', textColor: '#7B341E', buttonColor: '#ED8936', buttonTextColor: '#FFFFFF' },
-  { name: 'ocean',     backgroundColor: '#EBF8FF', textColor: '#2A4365', buttonColor: '#3182CE', buttonTextColor: '#FFFFFF' },
-  { name: 'rose',      backgroundColor: '#FFF0F3', textColor: '#4A0010', buttonColor: '#E11D48', buttonTextColor: '#FFFFFF' },
+  { name: 'warm',      backgroundColor: '#FFF8F0', textColor: '#5D4037', buttonColor: '#C2410C', buttonTextColor: '#FFFFFF' },
+  { name: 'cool',      backgroundColor: '#F0F4F8', textColor: '#2D3748', buttonColor: '#2563EB', buttonTextColor: '#FFFFFF' },
+  { name: 'nature',    backgroundColor: '#F0FFF4', textColor: '#22543D', buttonColor: '#15803D', buttonTextColor: '#FFFFFF' },
+  { name: 'purple',    backgroundColor: '#FAF5FF', textColor: '#44337A', buttonColor: '#6D28D9', buttonTextColor: '#FFFFFF' },
+  { name: 'sunset',    backgroundColor: '#FFFAF0', textColor: '#7B341E', buttonColor: '#B45309', buttonTextColor: '#FFFFFF' },
+  { name: 'ocean',     backgroundColor: '#EBF8FF', textColor: '#2A4365', buttonColor: '#1D4ED8', buttonTextColor: '#FFFFFF' },
+  { name: 'rose',      backgroundColor: '#FFF0F3', textColor: '#4A0010', buttonColor: '#BE123C', buttonTextColor: '#FFFFFF' },
   { name: 'sand',      backgroundColor: '#FAF7F2', textColor: '#3D2B1F', buttonColor: '#A16207', buttonTextColor: '#FFFFFF' },
   { name: 'forest',    backgroundColor: '#052E16', textColor: '#DCFCE7', buttonColor: '#22C55E', buttonTextColor: '#052E16' },
   { name: 'charcoal',  backgroundColor: '#18181B', textColor: '#F4F4F5', buttonColor: '#FAFAFA', buttonTextColor: '#18181B' },

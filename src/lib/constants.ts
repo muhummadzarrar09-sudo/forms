@@ -39,21 +39,15 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
 
 // ── Question Type Category Color (for dots in builder) ──────────────────────
 
-export function getQuestionTypeColor(type: string): string {
-  const textTypes = ['short_text', 'long_text', 'email', 'phone', 'website'];
-  const choiceTypes = ['multiple_choice', 'dropdown', 'picture_choice', 'yes_no'];
-  const scaleTypes = ['rating', 'opinion_scale', 'number'];
-
-  if (textTypes.includes(type)) return 'bg-blue-500';
-  if (choiceTypes.includes(type)) return 'bg-emerald-500';
-  if (scaleTypes.includes(type)) return 'bg-amber-500';
-  return 'bg-gray-400';
+export function getQuestionTypeColor(_type: string): string {
+  // Question category is communicated by its named Lucide icon. A neutral dot
+  // avoids making arbitrary answer types look like success/warning states.
+  return 'bg-primary/70';
 }
 
 // ── Confetti Colors (from form-filler.tsx) ──────────────────────────────────
 
-export const CONFETTI_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
-export const STAR_COLORS = ['#FFD700', '#FFA500', '#FF6347', '#FFD700'];
+export const CONFETTI_COLORS = ['#1D4ED8', '#0F766E', '#6D28D9', '#B45309', '#BE123C'];
 
 // ── Logic Helpers (from design-panel.tsx) ───────────────────────────────────
 

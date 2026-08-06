@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { FillerConfetti, FillerHeaderLogo, FillerWelcomeBranding, FillerWelcomeMeta, useFillerKeyboardNavigation, useFillerTheme } from '@/components/forms/filler-shell';
+import { BrandMark } from '@/components/brand-mark';
 import { getCurrentQuestion, getFillableQuestions, fillerProgress, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
 import { submitFillerResponse } from '@/lib/filler-submission';
 import { pipeAnswerText } from '@/lib/answer-piping';
@@ -116,28 +117,32 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
   // sessionStorage (not a long-lived server credential) and never stores it in
   // the owner's response data until the respondent submits.
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(draftStorageKey);
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const draft = parsed as {
-          answers?: unknown; currentIndex?: unknown; responseId?: unknown; editToken?: unknown;
-        };
-        const answers = draft.answers && typeof draft.answers === 'object' && !Array.isArray(draft.answers)
-          ? Object.fromEntries(Object.entries(draft.answers).filter(([, value]) => typeof value === 'string')) as Record<string, string>
-          : {};
-        const currentIndex = typeof draft.currentIndex === 'number' && Number.isInteger(draft.currentIndex) && draft.currentIndex >= 0 ? draft.currentIndex : -1;
-        const responseId = typeof draft.responseId === 'string' ? draft.responseId : null;
-        const editToken = typeof draft.editToken === 'string' ? draft.editToken : null;
-        if (Object.keys(answers).length || (responseId && editToken)) {
-          setState((current) => ({ ...current, answers, currentIndex, partialResponseId: responseId, partialEditToken: editToken }));
-          setHasRestorableDraft(true);
+    // Defer restoration by a task so persistence cannot race hydration and the
+    // state update remains an external-storage callback rather than an effect
+    // body update.
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(draftStorageKey);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const draft = parsed as {
+            answers?: unknown; currentIndex?: unknown; responseId?: unknown; editToken?: unknown;
+          };
+          const answers = draft.answers && typeof draft.answers === 'object' && !Array.isArray(draft.answers)
+            ? Object.fromEntries(Object.entries(draft.answers).filter(([, value]) => typeof value === 'string')) as Record<string, string>
+            : {};
+          const currentIndex = typeof draft.currentIndex === 'number' && Number.isInteger(draft.currentIndex) && draft.currentIndex >= 0 ? draft.currentIndex : -1;
+          const responseId = typeof draft.responseId === 'string' ? draft.responseId : null;
+          const editToken = typeof draft.editToken === 'string' ? draft.editToken : null;
+          if (Object.keys(answers).length || (responseId && editToken)) {
+            setState((current) => ({ ...current, answers, currentIndex, partialResponseId: responseId, partialEditToken: editToken }));
+            setHasRestorableDraft(true);
+          }
         }
-      }
-    } catch { /* Browser storage may be unavailable. */ }
-    // Defer enabling persistence until the hydration state update above has
-    // committed, avoiding an initial empty render erasing a restored draft.
-    window.setTimeout(() => { restoredDraftRef.current = true; }, 0);
+      } catch { /* Browser storage may be unavailable. */ }
+      restoredDraftRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [draftStorageKey]);
 
   useEffect(() => {
@@ -374,14 +379,14 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       {/* ── Confetti ── */}
-      {showConfetti && state.screen === 'ending' && <FillerConfetti />}
-      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} />}
+      {showConfetti && state.screen === 'ending' && <FillerConfetti colors={[theme.buttonColor, theme.textColor, theme.successColor]} />}
+      {state.screen !== 'welcome' && <FillerHeaderLogo form={state.form} theme={theme} />}
 
       {/* ── Progress Bar ── */}
       {state.form.progressbar && (
         <div
           className="absolute top-0 left-0 right-0 h-1.5 z-30"
-          style={{ backgroundColor: `${theme.textColor}10` }}
+          style={{ backgroundColor: theme.trackColor }}
           role="progressbar"
           aria-label="Form completion progress"
           aria-valuemin={0}
@@ -392,6 +397,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
             className="h-full relative progress-bar-glow"
             style={{
               backgroundColor: theme.buttonColor,
+              color: theme.buttonColor,
             }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
@@ -401,8 +407,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="absolute right-0 top-1/2 -translate-y-1/2 size-3 rounded-full border-2"
               style={{
                 backgroundColor: theme.buttonColor,
-                borderColor: theme.backgroundColor,
-                boxShadow: `0 0 6px ${theme.buttonColor}66`,
+                borderColor: theme.backgroundColor
               }}
             />
           </motion.div>
@@ -413,8 +418,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       {state.screen !== 'ending' && (
         <button
           onClick={() => window.close()}
-          className="absolute top-4 right-4 z-30 size-10 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.textColor}10`, color: theme.textColor }}
+          className="absolute top-4 right-4 z-30 size-11 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: theme.controlSurfaceColor, color: theme.textColor }}
           aria-label="Close form"
         >
           <X className="size-5" />
@@ -422,7 +427,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       )}
 
       {/* ── Main content area ── */}
-      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 pb-20 relative overflow-hidden">
+      <div className="filler-scroll-region flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col justify-center px-6 sm:px-8 md:px-16 lg:px-24 py-24 md:py-28 relative">
         <AnimatePresence mode="wait" custom={state.direction}>
           {/* Welcome Screen */}
           {state.screen === 'welcome' && (
@@ -437,7 +442,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="max-w-2xl mx-auto w-full"
             >
               <div className="space-y-6">
-                <FillerWelcomeBranding form={state.form} />
+                <FillerWelcomeBranding form={state.form} theme={theme} />
                 <motion.h1
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -453,15 +458,15 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 0.6, y: 0 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1, ease: [0.23, 1, 0.32, 1] }}
                   className={`text-lg md:text-xl ${ff}`}
-                  style={{ color: theme.textColor }}
+                  style={{ color: theme.textSecondaryColor }}
                 >
                   {personalizedText(state.form.welcomeMessage || 'Thanks for taking the time to fill this out.')}
                 </motion.p>
-                <FillerWelcomeMeta questionCount={questions.length} />
-                <p className={`text-xs opacity-45 ${ff}`} style={{ color: theme.textColor }}>
+                <FillerWelcomeMeta questionCount={questions.length} color={theme.textSecondaryColor} />
+                <p className={`text-xs ${ff}`} style={{ color: theme.textTertiaryColor }}>
                   {hasRestorableDraft ? 'A saved draft is ready to resume in this browser.' : 'Your progress is saved in this browser until you submit.'}
                 </p>
               </div>
@@ -543,7 +548,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 <div
                   className="absolute inset-0 rounded-full"
                   style={{
-                    boxShadow: `0 0 40px 10px ${theme.buttonColor}66, 0 0 80px 20px ${theme.buttonColor}33`,
+                    boxShadow: `0 12px 28px ${theme.buttonColor}55`,
                   }}
                 />
                 <Check className="size-12 relative z-10" style={{ color: theme.buttonTextColor }} />
@@ -555,8 +560,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 {personalizedText(state.activeEnding?.title || state.form.endingTitle || 'Thank you!')}
               </h1>
               <p
-                className={`text-lg md:text-xl opacity-60 ${ff}`}
-                style={{ color: theme.textColor }}
+                className={`text-lg md:text-xl ${ff}`}
+                style={{ color: theme.textSecondaryColor }}
               >
                 {personalizedText(state.activeEnding?.message || state.form.endingMessage || 'Your response has been recorded.')}
               </p>
@@ -564,7 +569,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 <a
                   href={state.activeEnding.redirectUrl}
                   className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
-                  style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor, boxShadow: `0 4px 14px ${theme.buttonColor}40` }}
+                  style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
                 >
                   Continue
                   <ArrowRight className="size-4" />
@@ -580,8 +585,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               >
                 <button
                   onClick={handleSubmitAnother}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
-                  style={{ borderColor: `${theme.textColor}20`, color: theme.textColor, backgroundColor: 'transparent' }}
+                  className="inline-flex min-h-11 items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90 active:scale-95 border-2"
+                  style={{ borderColor: theme.fieldBorderColor, color: theme.textColor, backgroundColor: theme.controlSurfaceColor }}
                 >
                   <RotateCcw className="size-4" />
                   Submit another response
@@ -603,11 +608,11 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               className="max-w-2xl mx-auto w-full text-center"
             >
               <div className="flex flex-col items-center gap-4">
-                <X className="size-16 opacity-30" style={{ color: '#ef4444' }} />
+                <X className="size-16" style={{ color: theme.errorColor }} />
                 <h2 className={`text-2xl font-bold ${ff}`} style={{ color: theme.textColor }}>
                   Something went wrong
                 </h2>
-                <p className={`text-base opacity-60 ${ff}`} style={{ color: theme.textColor }}>
+                <p className={`text-base ${ff}`} style={{ color: theme.textSecondaryColor }}>
                   {state.errorMessage}
                 </p>
                 <button
@@ -625,7 +630,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       </div>
 
       {/* ── Bottom Bar ── */}
-      <div className="absolute bottom-0 left-0 right-0 px-8 md:px-16 lg:px-24 py-4 md:py-6 flex items-center justify-between z-20">
+      <div className="filler-bottom-bar absolute bottom-0 left-0 right-0 px-6 sm:px-8 md:px-16 lg:px-24 py-4 md:py-6 flex items-center justify-between z-20">
         <div className="flex items-center gap-4 min-w-[80px]">
           {state.form.allowBackNavigation &&
             (state.screen === 'question' || state.screen === 'ending') && (
@@ -634,8 +639,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
                 onClick={goBack}
-                className="flex items-center gap-2 text-sm font-medium opacity-50 hover:opacity-100 transition-all"
-                style={{ color: theme.textColor }}
+                className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-medium transition-all hover:opacity-80"
+                style={{ color: theme.textSecondaryColor }}
                 whileTap={{ scale: 0.97 }}
               >
                 <ArrowLeft className="size-4" />
@@ -644,8 +649,8 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
             )}
           {state.screen === 'question' && (
             <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-green-500 live-dot-pulse" />
-              <span className="text-[10px] opacity-30" style={{ color: theme.textColor }}>Live</span>
+              <span className="size-2 rounded-full" style={{ backgroundColor: theme.successColor }} />
+              <span className="text-xs" style={{ color: theme.textTertiaryColor }}>Saved locally</span>
             </div>
           )}
         </div>
@@ -672,7 +677,7 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.3 }}
               onClick={goNext}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90"
+              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all hover:opacity-90"
               whileTap={{ scale: 0.97 }}
               style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}
             >
@@ -684,27 +689,27 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       </div>
 
       {/* ── "Powered by Forms" branding ── */}
-      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20">
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
         <motion.p
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.35 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
           className={`text-xs ${ff} flex items-center gap-1`}
-          style={{ color: theme.textColor }}
+          style={{ color: theme.textTertiaryColor }}
         >
-          Powered by <span className="font-semibold">Forms</span>
+          Powered by <BrandMark className="size-4" title="Forms" /><span className="font-semibold">Forms</span>
         </motion.p>
       </div>
 
       {/* ── Keyboard shortcut hints ── */}
       {state.screen === 'question' && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 1 }}
-            className={`text-xs ${ff}`}
-            style={{ color: theme.textColor }}
+            className={`text-xs ${ff} hidden sm:block`}
+            style={{ color: theme.textTertiaryColor }}
           >
             press <strong>Enter ↵</strong> to continue · <strong>← Backspace</strong> to go back
           </motion.p>
@@ -712,13 +717,13 @@ export function SlugFormFiller({ form: initialForm }: { form: Form }) {
       )}
 
       {state.screen === 'welcome' && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 hidden sm:block">
           <motion.p
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 1.5 }}
-            className={`text-xs ${ff}`}
-            style={{ color: theme.textColor }}
+            className={`text-xs ${ff} hidden sm:block`}
+            style={{ color: theme.textTertiaryColor }}
           >
             press <strong>Enter ↵</strong>
           </motion.p>

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Form, FormTheme } from '@/types/form';
-import { CONFETTI_COLORS, STAR_COLORS } from '@/lib/constants';
+import { deriveFormTheme } from '@/lib/form-theme';
+import { CONFETTI_COLORS } from '@/lib/constants';
 
 export function useFillerKeyboardNavigation(onNext: () => void, onBack: () => void): void {
   useEffect(() => {
@@ -31,44 +32,37 @@ export function useFillerKeyboardNavigation(onNext: () => void, onBack: () => vo
 }
 
 export function useFillerTheme(form: Form | null): FormTheme {
-  return useMemo(() => form ? {
-    backgroundColor: form.backgroundColor,
-    textColor: form.textColor,
-    buttonColor: form.buttonColor,
-    buttonTextColor: form.buttonTextColor,
-    fontFamily: form.fontFamily,
-  } : {
-    backgroundColor: '#FFFFFF',
-    textColor: '#333333',
-    buttonColor: '#1A1A1A',
-    buttonTextColor: '#FFFFFF',
-    fontFamily: 'sans',
-  }, [form]);
+  return useMemo(() => deriveFormTheme(form), [form]);
 }
 
-export function FillerWelcomeMeta({ questionCount }: { questionCount: number }) {
+export function FillerWelcomeMeta({ questionCount, color }: { questionCount: number; color: string }) {
   if (questionCount === 0) return null;
   const minutes = Math.max(1, Math.ceil(questionCount / 8));
-  return <p className="text-sm opacity-55" aria-label={`${questionCount} questions, about ${minutes} minute${minutes === 1 ? '' : 's'}`}>
+  return <p className="text-sm" style={{ color }} aria-label={`${questionCount} questions, about ${minutes} minute${minutes === 1 ? '' : 's'}`}>
     {questionCount} question{questionCount === 1 ? '' : 's'} · about {minutes} min
   </p>;
 }
 
 /** Compact brand mark retained while respondents move beyond the welcome screen. */
-export function FillerHeaderLogo({ form }: { form: Form }) {
+export function FillerHeaderLogo({ form, theme }: { form: Form; theme: FormTheme }) {
   const [failed, setFailed] = useState(false);
   if (!form.logoUrl || failed) return null;
-  return <img
-    src={form.logoUrl}
-    alt={`${form.title} logo`}
-    className="absolute left-5 top-4 z-20 max-h-8 max-w-32 object-contain object-left"
-    onError={() => setFailed(true)}
-  />;
+  return <div
+    className="absolute left-4 top-4 z-20 rounded-lg px-2 py-1.5"
+    style={{ backgroundColor: theme.controlSurfaceColor }}
+  >
+    <img
+      src={form.logoUrl}
+      alt={`${form.title} logo`}
+      className="max-h-8 max-w-32 object-contain object-left"
+      onError={() => setFailed(true)}
+    />
+  </div>;
 }
 
 /** Shared public-form branding shown on the welcome screen. Failed remote image
  * loads disappear gracefully rather than leaving a broken image icon. */
-export function FillerWelcomeBranding({ form }: { form: Form }) {
+export function FillerWelcomeBranding({ form, theme }: { form: Form; theme: FormTheme }) {
   const [logoFailed, setLogoFailed] = useState(false);
   const [coverFailed, setCoverFailed] = useState(false);
   const logoUrl = form.logoUrl && !logoFailed ? form.logoUrl : null;
@@ -77,18 +71,24 @@ export function FillerWelcomeBranding({ form }: { form: Form }) {
 
   return <div className="space-y-4">
     {coverUrl && (
-      <div className="overflow-hidden rounded-2xl border border-black/10 shadow-sm">
-        <img src={coverUrl} alt="" className="h-32 w-full object-cover md:h-44" onError={() => setCoverFailed(true)} />
-      </div>
+      <figure
+        className="aspect-[3/1] overflow-hidden rounded-xl border shadow-[var(--shadow-1)]"
+        style={{ borderColor: theme.fieldBorderColor, backgroundColor: theme.controlSurfaceColor }}
+      >
+        <img src={coverUrl} alt="" className="size-full object-cover" onError={() => setCoverFailed(true)} />
+      </figure>
     )}
     {logoUrl && (
-      <img src={logoUrl} alt={`${form.title} logo`} className="max-h-14 max-w-48 object-contain object-left" onError={() => setLogoFailed(true)} />
+      <div className="w-fit max-w-52 rounded-lg px-3 py-2" style={{ backgroundColor: theme.controlSurfaceColor }}>
+        <img src={logoUrl} alt={`${form.title} logo`} className="max-h-12 max-w-44 object-contain object-left" onError={() => setLogoFailed(true)} />
+      </div>
     )}
   </div>;
 }
 
 /** Shared celebratory layer. It is mounted only after successful completion. */
-export function FillerConfetti() {
+export function FillerConfetti({ colors }: { colors?: string[] }) {
+  const palette = useMemo(() => colors?.filter(Boolean).length ? colors.filter(Boolean) : CONFETTI_COLORS, [colors]);
   const particles = useMemo(() => Array.from({ length: 35 }, (_, index) => {
     const isStar = index < 6;
     return {
@@ -96,14 +96,14 @@ export function FillerConfetti() {
       x: Math.random() * 100,
       delay: Math.random() * 0.3,
       duration: 2 + Math.random() * 2,
-      color: isStar ? STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)] : CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      color: isStar ? palette[Math.floor(Math.random() * palette.length)] : palette[Math.floor(Math.random() * palette.length)],
       size: isStar ? 8 + Math.random() * 8 : 4 + Math.random() * 6,
       rotation: Math.random() * 360,
       drift: (Math.random() - 0.5) * 40,
       isCircle: !isStar && Math.random() > 0.5,
       isStar,
     };
-  }), []);
+  }), [palette]);
 
   return (
     <div className="absolute inset-0 z-30 overflow-hidden pointer-events-none" aria-hidden="true">

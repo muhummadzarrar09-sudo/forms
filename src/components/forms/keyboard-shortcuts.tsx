@@ -18,7 +18,7 @@ interface KeyboardShortcutsProps {
 function Kbd({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <kbd
-      className={`inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded border border-border bg-muted text-[11px] font-mono font-medium text-muted-foreground shadow-sm ${className}`}
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-muted px-2 text-xs font-mono font-medium text-muted-foreground shadow-[var(--shadow-1)] ${className}`}
     >
       {children}
     </kbd>

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { FormQuestion, QuestionType, QuestionOption } from '@/types/form';
+import type { FormQuestion, QuestionOption, FormTheme } from '@/types/form';
 import {
   Check,
   ChevronDown,
@@ -10,7 +10,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   ArrowRight,
-
+  ImageIcon,
 } from 'lucide-react';
 
 interface QuestionInputProps {
@@ -18,13 +18,7 @@ interface QuestionInputProps {
   value: string;
   onChange: (value: string) => void;
   onAdvance: () => void;
-  theme: {
-    backgroundColor: string;
-    textColor: string;
-    buttonColor: string;
-    buttonTextColor: string;
-    fontFamily: string;
-  };
+  theme: FormTheme;
   isActive: boolean;
 }
 
@@ -221,23 +215,6 @@ export function QuestionInput({
   }
 }
 
-/* ─── Shared underline input styles ──────────────────────────────────── */
-
-const underlineInputStyle = (textColor: string): React.CSSProperties => ({
-  backgroundColor: 'transparent',
-  borderBottom: `2px solid ${textColor}33`,
-  color: textColor,
-  outline: 'none',
-  width: '100%',
-  fontSize: '1.25rem',
-  padding: '0.5rem 0',
-  transition: 'border-color 0.2s ease',
-});
-
-const underlineInputFocusStyle = (textColor: string): React.CSSProperties => ({
-  borderBottomColor: textColor,
-});
-
 /* ─── Short Text ─────────────────────────────────────────────────────── */
 
 function ShortTextInput({
@@ -277,10 +254,10 @@ function ShortTextInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || 'Type your answer here...'}
-        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
@@ -327,14 +304,14 @@ function LongTextInput({
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || 'Type your answer here...'}
         rows={4}
-        className={`${ff} bg-transparent outline-none w-full text-xl md:text-2xl pb-2 resize-none transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-xl md:text-2xl pb-2 resize-none transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
-      <p className="text-sm opacity-40 mt-2" style={{ color: theme.textColor }}>
+      <p className="mt-2 text-sm" style={{ color: theme.textTertiaryColor }}>
         Ctrl + Enter ↵
       </p>
     </div>
@@ -408,12 +385,12 @@ function MultipleChoiceInput({
               borderColor: isSelected
                 ? theme.buttonColor
                 : hoveredIdx === idx
-                ? `${theme.textColor}55`
-                : `${theme.textColor}22`,
+                ? theme.fieldHoverBorderColor
+                : theme.fieldBorderColor,
               backgroundColor: isSelected
-                ? `${theme.buttonColor}18`
+                ? theme.selectedSurfaceColor
                 : hoveredIdx === idx
-                ? `${theme.textColor}08`
+                ? theme.hoverSurfaceColor
                 : 'transparent',
               color: theme.textColor,
             }}
@@ -421,7 +398,7 @@ function MultipleChoiceInput({
             <span
               className="size-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors duration-150"
               style={{
-                borderColor: isSelected ? theme.buttonColor : `${theme.textColor}44`,
+                borderColor: isSelected ? theme.buttonColor : theme.fieldHoverBorderColor,
               }}
             >
               {isSelected && (
@@ -451,6 +428,18 @@ function MultipleChoiceInput({
 }
 
 /* ─── Picture Choice ─────────────────────────────────────────────────── */
+
+function PictureChoiceMedia({ imageUrl, alt, theme }: { imageUrl?: string; alt: string; theme: FormTheme }) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return <img src={imageUrl} alt={alt} className="size-full object-cover" onError={() => setFailed(true)} />;
+  }
+  return (
+    <div className="flex size-full items-center justify-center" style={{ backgroundColor: theme.controlSurfaceColor, color: theme.textTertiaryColor }}>
+      <ImageIcon className="size-10" aria-hidden="true" />
+    </div>
+  );
+}
 
 function PictureChoiceInput({
   question,
@@ -510,27 +499,14 @@ function PictureChoiceInput({
             onClick={() => handleSelect(option)}
             className="relative rounded-xl border-2 overflow-hidden transition-all duration-150 aspect-square"
             style={{
-              borderColor: isSelected ? theme.buttonColor : `${theme.textColor}22`,
+              borderColor: isSelected ? theme.buttonColor : theme.fieldBorderColor,
             }}
           >
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={option.label}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div
-                className="w-full h-full flex items-center justify-center text-4xl opacity-20"
-                style={{ backgroundColor: `${theme.textColor}08`, color: theme.textColor }}
-              >
-                🖼️
-              </div>
-            )}
+            <PictureChoiceMedia imageUrl={imageUrl} alt={option.label} theme={theme} />
             <div
               className="absolute bottom-0 inset-x-0 px-3 py-2 text-sm font-medium text-center truncate"
               style={{
-                backgroundColor: `${theme.backgroundColor}dd`,
+                backgroundColor: theme.backgroundColor,
                 color: theme.textColor,
               }}
             >
@@ -608,9 +584,9 @@ function DropdownInput({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full text-left px-4 py-3.5 rounded-lg border-2 transition-all duration-150 ${ff} text-lg flex items-center justify-between`}
         style={{
-          borderColor: isOpen ? theme.buttonColor : `${theme.textColor}22`,
-          color: displayValue ? theme.textColor : `${theme.textColor}55`,
-          backgroundColor: isOpen ? `${theme.buttonColor}08` : 'transparent',
+          borderColor: isOpen ? theme.buttonColor : theme.fieldBorderColor,
+          color: displayValue ? theme.textColor : theme.placeholderColor,
+          backgroundColor: isOpen ? theme.selectedSurfaceColor : 'transparent',
         }}
       >
         <span>{displayValue || question.placeholder || 'Select an option...'}</span>
@@ -618,7 +594,7 @@ function DropdownInput({
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronDown className="size-5 opacity-50" style={{ color: theme.textColor }} />
+          <ChevronDown className="size-5" style={{ color: theme.textSecondaryColor }} />
         </motion.span>
       </button>
 
@@ -631,7 +607,7 @@ function DropdownInput({
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 right-0 mt-1 rounded-lg border-2 overflow-hidden z-50 max-h-80 overflow-y-auto"
             style={{
-              borderColor: `${theme.textColor}22`,
+              borderColor: theme.fieldBorderColor,
               backgroundColor: theme.backgroundColor,
             }}
           >
@@ -643,7 +619,7 @@ function DropdownInput({
                 onMouseLeave={() => setHoveredIdx(null)}
                 className={`w-full text-left px-4 py-3 text-lg transition-colors duration-100 ${ff}`}
                 style={{
-                  backgroundColor: hoveredIdx === idx ? `${theme.buttonColor}15` : 'transparent',
+                  backgroundColor: hoveredIdx === idx ? theme.selectedSurfaceColor : 'transparent',
                   color: theme.textColor,
                 }}
               >
@@ -696,9 +672,9 @@ function YesNoInput({
         onMouseLeave={() => setHovered(null)}
         className={`flex-1 py-5 rounded-xl border-2 transition-all duration-150 flex flex-col items-center gap-2 ${ff} text-xl font-semibold`}
         style={{
-          borderColor: value === 'Yes' ? theme.buttonColor : hovered === 'yes' ? `${theme.buttonColor}55` : `${theme.textColor}22`,
-          backgroundColor: value === 'Yes' ? `${theme.buttonColor}18` : hovered === 'yes' ? `${theme.buttonColor}08` : 'transparent',
-          color: value === 'Yes' ? theme.buttonColor : theme.textColor,
+          borderColor: value === 'Yes' ? theme.buttonColor : hovered === 'yes' ? theme.fieldHoverBorderColor : theme.fieldBorderColor,
+          backgroundColor: value === 'Yes' ? theme.selectedSurfaceColor : hovered === 'yes' ? theme.hoverSurfaceColor : 'transparent',
+          color: value === 'Yes' ? theme.accentTextColor : theme.textColor,
         }}
       >
         <ThumbsUp className="size-8" />
@@ -712,9 +688,9 @@ function YesNoInput({
         onMouseLeave={() => setHovered(null)}
         className={`flex-1 py-5 rounded-xl border-2 transition-all duration-150 flex flex-col items-center gap-2 ${ff} text-xl font-semibold`}
         style={{
-          borderColor: value === 'No' ? theme.buttonColor : hovered === 'no' ? `${theme.buttonColor}55` : `${theme.textColor}22`,
-          backgroundColor: value === 'No' ? `${theme.buttonColor}18` : hovered === 'no' ? `${theme.buttonColor}08` : 'transparent',
-          color: value === 'No' ? theme.buttonColor : theme.textColor,
+          borderColor: value === 'No' ? theme.buttonColor : hovered === 'no' ? theme.fieldHoverBorderColor : theme.fieldBorderColor,
+          backgroundColor: value === 'No' ? theme.selectedSurfaceColor : hovered === 'no' ? theme.hoverSurfaceColor : 'transparent',
+          color: value === 'No' ? theme.accentTextColor : theme.textColor,
         }}
       >
         <ThumbsDown className="size-8" />
@@ -775,10 +751,10 @@ function EmailInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || 'name@example.com'}
-        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${error ? '#ef4444' : focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${error ? theme.errorColor : focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
@@ -788,7 +764,7 @@ function EmailInput({
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            className="text-red-500 text-sm mt-2"
+            className="text-sm mt-2" style={{ color: theme.errorColor }}
           >
             {error}
           </motion.p>
@@ -837,10 +813,10 @@ function PhoneInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || '+1 (555) 000-0000'}
-        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
@@ -898,25 +874,25 @@ function NumberInput({
         placeholder={question.placeholder || 'Type a number...'}
         min={min}
         max={max}
-        className={`${ff} bg-transparent outline-none flex-1 text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+        className={`${ff} bg-transparent outline-none flex-1 text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
       <div className="flex flex-col gap-1 pb-2">
         <button
           onClick={() => handleStep(1)}
-          className="size-8 rounded flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.buttonColor}20`, color: theme.buttonColor }}
+          className="size-11 rounded-lg flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: theme.controlSurfaceColor, color: theme.accentTextColor }}
         >
           <span className="text-lg font-bold">+</span>
         </button>
         <button
           onClick={() => handleStep(-1)}
-          className="size-8 rounded flex items-center justify-center transition-colors hover:opacity-80"
-          style={{ backgroundColor: `${theme.buttonColor}20`, color: theme.buttonColor }}
+          className="size-11 rounded-lg flex items-center justify-center transition-colors hover:opacity-80"
+          style={{ backgroundColor: theme.controlSurfaceColor, color: theme.accentTextColor }}
         >
           <span className="text-lg font-bold">−</span>
         </button>
@@ -964,10 +940,10 @@ function WebsiteInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || 'https://example.com'}
-        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
@@ -1014,10 +990,10 @@ function DateInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={question.placeholder || 'Select a date...'}
-        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-30`}
+        className={`${ff} bg-transparent outline-none w-full text-2xl md:text-3xl pb-2 transition-colors duration-200 placeholder:opacity-100`}
         style={{
           color: theme.textColor,
-          borderBottom: `2px solid ${focused ? theme.textColor : `${theme.textColor}33`}`,
+          borderBottom: `2px solid ${focused ? theme.fieldHoverBorderColor : theme.fieldBorderColor}`,
           transition: 'border-color 0.2s ease',
         }}
       />
@@ -1064,8 +1040,8 @@ function RatingInput({
         return (
           <motion.button
             key={star}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             onMouseEnter={() => setHoveredStar(star)}
             onMouseLeave={() => setHoveredStar(null)}
             onClick={() => handleSelect(star)}
@@ -1074,7 +1050,7 @@ function RatingInput({
             <Star
               className="size-12 md:size-14 transition-colors duration-150"
               style={{
-                color: filled ? theme.buttonColor : `${theme.textColor}25`,
+                color: filled ? theme.buttonColor : theme.fieldBorderColor,
                 fill: filled ? theme.buttonColor : 'transparent',
               }}
             />
@@ -1130,8 +1106,8 @@ function OpinionScaleInput({
           return (
             <motion.button
               key={num}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onMouseEnter={() => setHoveredNum(num)}
               onMouseLeave={() => setHoveredNum(null)}
               onClick={() => handleSelect(num)}
@@ -1140,12 +1116,12 @@ function OpinionScaleInput({
                 borderColor: isSelected
                   ? theme.buttonColor
                   : isHovered
-                  ? `${theme.buttonColor}55`
-                  : `${theme.textColor}22`,
+                  ? theme.fieldHoverBorderColor
+                  : theme.fieldBorderColor,
                 backgroundColor: isSelected
                   ? theme.buttonColor
                   : isHovered
-                  ? `${theme.buttonColor}12`
+                  ? theme.selectedSurfaceColor
                   : 'transparent',
                 color: isSelected ? theme.buttonTextColor : theme.textColor,
               }}
@@ -1155,7 +1131,7 @@ function OpinionScaleInput({
           );
         })}
       </div>
-      <div className="flex justify-between mt-2 text-sm opacity-50" style={{ color: theme.textColor }}>
+      <div className="mt-2 flex justify-between text-sm" style={{ color: theme.textSecondaryColor }}>
         <span>{startNum === 0 ? 'Not at all likely' : '1'}</span>
         <span>{startNum + steps === 10 ? 'Extremely likely' : String(startNum + steps)}</span>
       </div>
@@ -1186,12 +1162,12 @@ function LegalInput({
     <div className="w-full space-y-6">
       <button
         onClick={handleToggle}
-        className={`flex items-center gap-3 text-left ${ff}`}
+        className={`flex min-h-11 items-center gap-3 rounded-lg px-2 text-left transition-colors hover:opacity-80 ${ff}`}
       >
         <span
           className="size-7 rounded border-2 flex items-center justify-center shrink-0 transition-all duration-150"
           style={{
-            borderColor: accepted ? theme.buttonColor : `${theme.textColor}44`,
+            borderColor: accepted ? theme.buttonColor : theme.fieldHoverBorderColor,
             backgroundColor: accepted ? theme.buttonColor : 'transparent',
           }}
         >

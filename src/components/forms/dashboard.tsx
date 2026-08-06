@@ -80,6 +80,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FormCard } from '@/components/forms/form-card';
+import { BrandMark } from '@/components/brand-mark';
 import { KeyboardShortcuts } from '@/components/forms/keyboard-shortcuts';
 import { NotificationBell } from '@/components/forms/notification-bell';
 import { FORM_TEMPLATES, type FormTemplate } from '@/lib/form-helpers';
@@ -163,6 +164,20 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FileText,
 };
 
+const TEMPLATE_ACCENTS: Record<string, string> = {
+  Leads: '#1D4ED8',
+  'Client intake': '#0F766E',
+  Feedback: '#6D28D9',
+  Events: '#B45309',
+  HR: '#BE123C',
+  Commerce: '#1D4ED8',
+  Assessments: '#6D28D9',
+};
+
+function templateAccent(template: FormTemplate): string {
+  return TEMPLATE_ACCENTS[template.category || ''] || '#1D4ED8';
+}
+
 // Activity type icons and labels
 function getActivityInfo(form: Form): { type: string; label: string; Icon: LucideIcon } {
   if (form.published) {
@@ -234,7 +249,7 @@ export function Dashboard() {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [showCreateWorkspaceDialog, setShowCreateWorkspaceDialog] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [newWorkspaceColor, setNewWorkspaceColor] = useState('#6366f1');
+  const [newWorkspaceColor, setNewWorkspaceColor] = useState('#2563EB');
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [workspaceMenuId, setWorkspaceMenuId] = useState<string | null>(null);
   const [newFormWorkspaceId, setNewFormWorkspaceId] = useState<string | null>(null);
@@ -426,7 +441,7 @@ export function Dashboard() {
         addWorkspace(workspace);
         setShowCreateWorkspaceDialog(false);
         setNewWorkspaceName('');
-        setNewWorkspaceColor('#6366f1');
+        setNewWorkspaceColor('#2563EB');
         toast({ title: 'Workspace created', description: `"${workspace.name}" is ready.` });
       } else {
         toast({ title: 'Error', description: 'Failed to create workspace.', variant: 'destructive' });
@@ -896,11 +911,9 @@ export function Dashboard() {
         } ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Logo / Brand */}
-        <div className={`flex items-center h-14 border-b shrink-0 ${sidebarExpanded ? 'px-4' : 'px-0 justify-center'}`}>
+        <div className={`flex items-center h-16 border-b shrink-0 ${sidebarExpanded ? 'px-4' : 'px-0 justify-center'}`}>
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <FileText className="size-4 text-primary-foreground" />
-            </div>
+            <BrandMark className="size-8" />
             {sidebarExpanded && (
               <motion.span
                 initial={{ opacity: 0 }}
@@ -914,7 +927,7 @@ export function Dashboard() {
           {/* Collapse toggle (desktop) */}
           <button
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
-            className={`ml-auto size-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors hidden lg:flex ${!sidebarExpanded ? 'lg:hidden' : ''}`}
+            className={`ml-auto size-11 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors hidden lg:flex ${!sidebarExpanded ? 'lg:hidden' : ''}`}
           >
             <ChevronLeft className={`size-4 transition-transform ${!sidebarExpanded ? 'rotate-180' : ''}`} />
           </button>
@@ -924,7 +937,7 @@ export function Dashboard() {
         {!sidebarExpanded && (
           <button
             onClick={() => setSidebarExpanded(true)}
-            className="hidden lg:flex items-center justify-center h-10 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="hidden lg:flex size-11 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <ChevronLeft className="size-4 rotate-180" />
           </button>
@@ -940,7 +953,7 @@ export function Dashboard() {
                 setMobileSidebarOpen(false);
               }}
               className={`w-full flex items-center gap-3 rounded-lg text-sm font-medium transition-all relative ${
-                sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+                sidebarExpanded ? 'min-h-11 px-3 py-2' : 'min-h-11 px-0 py-2 justify-center'
               } ${
                 activeNav === key
                   ? 'bg-primary/10 text-primary'
@@ -965,15 +978,15 @@ export function Dashboard() {
         <div className="flex-1 border-t pt-2 pb-1 px-2 min-h-0 overflow-y-auto">
           <div className={`flex items-center justify-between mb-1 ${sidebarExpanded ? 'px-1' : 'justify-center'}`}>
             {sidebarExpanded && (
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Workspaces</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Workspaces</span>
             )}
             <button
               onClick={() => {
                 setNewWorkspaceName('');
-                setNewWorkspaceColor('#6366f1');
+                setNewWorkspaceColor('#2563EB');
                 setShowCreateWorkspaceDialog(true);
               }}
-              className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="size-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="Create workspace"
             >
               <Plus className="size-3.5" />
@@ -983,7 +996,7 @@ export function Dashboard() {
           <button
             onClick={() => setActiveWorkspaceId(null)}
             className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
-              sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+              sidebarExpanded ? 'min-h-11 px-3 py-2' : 'min-h-11 px-0 py-2 justify-center'
             } ${
               !activeWorkspaceId
                 ? 'bg-primary/10 text-primary font-medium'
@@ -994,7 +1007,7 @@ export function Dashboard() {
             {sidebarExpanded && (
               <>
                 <span className="flex-1 text-left truncate">All Forms</span>
-                <span className="text-[10px] text-muted-foreground">{forms.filter(f => !f.archived).length}</span>
+                <span className="text-xs text-muted-foreground">{forms.filter(f => !f.archived).length}</span>
               </>
             )}
           </button>
@@ -1004,7 +1017,7 @@ export function Dashboard() {
               <button
                 onClick={() => setActiveWorkspaceId(activeWorkspaceId === ws.id ? null : ws.id)}
                 className={`w-full flex items-center gap-2.5 rounded-lg text-sm transition-all ${
-                  sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+                  sidebarExpanded ? 'min-h-11 px-3 py-2 pr-12' : 'min-h-11 px-0 py-2 justify-center'
                 } ${
                   activeWorkspaceId === ws.id
                     ? 'bg-primary/10 text-primary font-medium'
@@ -1020,16 +1033,16 @@ export function Dashboard() {
                 {sidebarExpanded && (
                   <>
                     <span className="flex-1 text-left truncate">{ws.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{getWorkspaceFormCount(ws.id)}</span>
+                    <span className="text-xs text-muted-foreground">{getWorkspaceFormCount(ws.id)}</span>
                   </>
                 )}
               </button>
               {/* Workspace actions (hover) */}
               {sidebarExpanded && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                   <button
                     onClick={(e) => { e.stopPropagation(); setWorkspaceMenuId(workspaceMenuId === ws.id ? null : ws.id); }}
-                    className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
+                    className="size-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
                   >
                     <MoreHorizontal className="size-3.5" />
                   </button>
@@ -1037,10 +1050,10 @@ export function Dashboard() {
               )}
               {/* Workspace context menu */}
               {workspaceMenuId === ws.id && sidebarExpanded && (
-                <div className="absolute left-0 right-0 top-full z-10 bg-popover border rounded-lg shadow-md py-1 mx-1">
+                <div className="absolute left-0 right-0 top-full z-10 bg-popover border rounded-lg shadow-[var(--shadow-2)] py-1 mx-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDeleteWorkspace(ws.id); setWorkspaceMenuId(null); }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     <Trash2 className="size-3" />
                     Delete Workspace
@@ -1059,7 +1072,7 @@ export function Dashboard() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center gap-3 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all ${
-                    sidebarExpanded ? 'px-3 py-2 w-full' : 'p-2 justify-center'
+                    sidebarExpanded ? 'min-h-11 px-3 py-2 w-full' : 'size-11 justify-center'
                   }`}
                 >
                   <Sun className="size-[18px] shrink-0 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -1086,7 +1099,7 @@ export function Dashboard() {
 
           {/* User avatar placeholder */}
           <div className={`flex items-center gap-3 rounded-lg ${
-            sidebarExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+            sidebarExpanded ? 'min-h-11 px-3 py-2' : 'min-h-11 px-0 py-2 justify-center'
           }`}>
             <div className="size-8 rounded-full bg-gradient-to-br from-primary/60 to-primary/30 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary-foreground">{avatarInitial}</span>
@@ -1094,7 +1107,7 @@ export function Dashboard() {
             {sidebarExpanded && (
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{displayName}</p>
-                <p className="text-[10px] text-muted-foreground truncate">Personal workspace</p>
+                <p className="text-xs text-muted-foreground truncate">Personal workspace</p>
               </div>
             )}
           </div>
@@ -1106,12 +1119,12 @@ export function Dashboard() {
         {/* Top bar with mobile menu + actions */}
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
           <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-14">
+            <div className="flex items-center justify-between h-16">
               {/* Mobile menu button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden size-8"
+                className="lg:hidden size-11"
                 onClick={() => setMobileSidebarOpen(true)}
               >
                 <Menu className="size-5" />
@@ -1119,9 +1132,7 @@ export function Dashboard() {
 
               {/* Mobile logo */}
               <div className="flex items-center gap-2.5 lg:hidden">
-                <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
-                  <FileText className="size-3.5 text-primary-foreground" />
-                </div>
+                <BrandMark className="size-8" />
                 <span className="text-base font-bold tracking-tight">Forms</span>
               </div>
 
@@ -1140,7 +1151,7 @@ export function Dashboard() {
                     setShowImportDialog(true);
                   }}
                   size="sm"
-                  className="gap-1.5 h-8"
+                  className="min-h-11 gap-1.5"
                 >
                   <Upload className="size-3.5" />
                   <span className="hidden sm:inline">Import</span>
@@ -1149,7 +1160,7 @@ export function Dashboard() {
                 <Button
                   onClick={handleOpenNewFormDialog}
                   size="sm"
-                  className="gap-1.5 h-8"
+                  className="min-h-11 gap-1.5"
                 >
                   <Plus className="size-3.5" />
                   <span className="hidden sm:inline">New Form</span>
@@ -1160,7 +1171,7 @@ export function Dashboard() {
         </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 dashboard-grid-bg">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeNav === 'templates' ? (
           <DashboardTemplates onSelectTemplate={handleStartFromTemplate} />
         ) : activeNav === 'themes' ? (
@@ -1186,34 +1197,33 @@ export function Dashboard() {
               </div>
             </div>
 
-            {/* Quick stats with gradient cards */}
-            <div className="grid grid-cols-3 gap-3 mt-5">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 }}
-                className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/10 p-4"
+                className="rounded-xl border bg-card p-4 shadow-[var(--shadow-1)]"
               >
-                <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Total Forms</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{animatedTotalForms}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total forms</p>
+                <p className="mt-1 text-3xl font-bold tabular-nums">{animatedTotalForms}</p>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/10 p-4"
+                className="rounded-xl border border-success/20 bg-success/10 p-4"
               >
-                <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">Published</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{animatedPublishedForms}</p>
+                <p className="text-sm font-medium text-success">Published</p>
+                <p className="mt-1 text-3xl font-bold tabular-nums">{animatedPublishedForms}</p>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/10 p-4"
+                className="rounded-xl border border-info/20 bg-info/10 p-4"
               >
-                <p className="text-sm text-rose-700 dark:text-rose-400 font-medium">Responses</p>
-                <p className="text-3xl font-bold tabular-nums mt-1">{animatedTotalResponses}</p>
+                <p className="text-sm font-medium text-info">Responses</p>
+                <p className="mt-1 text-3xl font-bold tabular-nums">{animatedTotalResponses}</p>
               </motion.div>
             </div>
 
@@ -1288,7 +1298,7 @@ export function Dashboard() {
               <button
                 key={key}
                 onClick={() => setActiveFilter(key)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                className={`inline-flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   activeFilter === key
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -1296,7 +1306,7 @@ export function Dashboard() {
               >
                 {Icon && <Icon className="size-3.5" />}
                 {label}
-                <span className={`text-[10px] px-1.5 py-0 rounded-full ${
+                <span className={`px-1.5 text-xs rounded-full ${
                   activeFilter === key
                     ? 'bg-primary-foreground/20 text-primary-foreground'
                     : 'bg-muted text-muted-foreground'
@@ -1318,7 +1328,7 @@ export function Dashboard() {
               placeholder="Search forms... (/)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9"
+              className="pl-9"
             />
           </div>
 
@@ -1327,7 +1337,7 @@ export function Dashboard() {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <SortAsc className="size-3.5" />
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                <SelectTrigger size="sm" className="h-7 gap-1 border-none bg-transparent px-1 py-0 text-xs text-muted-foreground shadow-none hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
+                <SelectTrigger size="sm" className="min-h-10 gap-1 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1347,7 +1357,7 @@ export function Dashboard() {
               <Button
                 variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                 size="icon"
-                className="size-7"
+                className="size-11"
                 onClick={() => setViewMode('grid')}
                 aria-label="Grid view"
               >
@@ -1356,7 +1366,7 @@ export function Dashboard() {
               <Button
                 variant={viewMode === 'list' ? 'secondary' : 'ghost'}
                 size="icon"
-                className="size-7"
+                className="size-11"
                 onClick={() => setViewMode('list')}
                 aria-label="List view"
               >
@@ -1399,20 +1409,8 @@ export function Dashboard() {
             transition={{ duration: 0.4 }}
             className="flex flex-col items-center justify-center py-20 px-4"
           >
-            {/* Animated CSS-only illustration */}
-            <div className="relative mb-8">
-              {/* Outer pulsing ring */}
-              <div className="absolute -inset-8 rounded-full bg-primary/5 animate-pulse" />
-              {/* Rotating dashed ring */}
-              <div className="absolute -inset-4 rounded-full border-2 border-dashed border-primary/20 animate-[spin_20s_linear_infinite]" />
-              {/* Floating dots */}
-              <div className="absolute -top-2 left-1/2 -translate-x-1/2 size-2 rounded-full bg-primary/40 animate-[bounce_2s_ease-in-out_infinite]" />
-              <div className="absolute top-1/2 -right-2 -translate-y-1/2 size-1.5 rounded-full bg-primary/30 animate-[bounce_2s_ease-in-out_infinite_0.5s]" />
-              <div className="absolute -bottom-1 left-1/3 size-1.5 rounded-full bg-primary/25 animate-[bounce_2s_ease-in-out_infinite_1s]" />
-              {/* Main icon */}
-              <div className="relative size-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shadow-lg shadow-primary/10">
-                <Sparkles className="size-10 text-primary/70" />
-              </div>
+            <div className="mb-8 rounded-2xl border bg-primary/5 p-6 shadow-[var(--shadow-1)]">
+              <Sparkles className="size-10 text-primary" />
             </div>
 
             <h2 className="text-2xl font-bold text-center mb-2">
@@ -1572,7 +1570,7 @@ export function Dashboard() {
               <p className="text-sm text-destructive">{importError}</p>
             )}
             {importWarnings.length > 0 && (
-              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+              <div className="rounded-lg border border-warning/25 bg-warning/10 p-3 text-xs text-muted-foreground">
                 <p className="mb-1 font-semibold text-foreground">Import notes</p>
                 <ul className="list-disc space-y-1 pl-4">
                   {importWarnings.map((warning) => <li key={warning}>{warning}</li>)}
@@ -1699,11 +1697,11 @@ export function Dashboard() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Color</label>
               <div className="flex items-center gap-2">
-                {['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'].map((color) => (
+                {['#2563EB', '#6D28D9', '#0F766E', '#B45309', '#BE123C'].map((color) => (
                   <button
                     key={color}
                     onClick={() => setNewWorkspaceColor(color)}
-                    className={`size-7 rounded-full transition-all ${
+                    className={`size-11 rounded-full transition-all ${
                       newWorkspaceColor === color ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-110'
                     }`}
                     style={{ backgroundColor: color }}
@@ -1769,7 +1767,6 @@ export function Dashboard() {
                       title: 'Start from Scratch',
                       description: 'Create a blank form and add your own questions.',
                       icon: 'FileText',
-                      color: '#6B7280',
                       questions: [],
                     }}
                     isSelected={selectedTemplateId === null}
@@ -1804,13 +1801,14 @@ export function Dashboard() {
                       const template = FORM_TEMPLATES.find((t) => t.id === selectedTemplateId);
                       if (!template) return null;
                       const IconComp = ICON_MAP[template.icon] || FileText;
+                      const accent = templateAccent(template);
                       return (
                         <>
                           <div
                             className="size-8 rounded-md flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${template.color}20` }}
+                            style={{ backgroundColor: `${accent}20` }}
                           >
-                            <IconComp className="size-4" style={{ color: template.color }} />
+                            <IconComp className="size-4" style={{ color: accent }} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{template.title}</p>
@@ -1941,6 +1939,7 @@ function TemplateCard({
   isBlank?: boolean;
 }) {
   const IconComp = ICON_MAP[template.icon] || FileText;
+  const accent = isBlank ? '#64748B' : templateAccent(template);
 
   return (
     <motion.button
@@ -1949,26 +1948,26 @@ function TemplateCard({
       whileTap={{ scale: 0.98 }}
       className={`relative flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
         isSelected
-          ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
-          : 'border-border hover:border-border/80 hover:shadow-sm'
+          ? 'border-primary bg-primary/5 shadow-[var(--shadow-1)] ring-1 ring-primary/20'
+          : 'border-border hover:border-border/80 hover:shadow-[var(--shadow-1)]'
       }`}
     >
       {/* Color accent bar */}
       <div
         className="w-1 self-stretch rounded-full shrink-0"
-        style={{ backgroundColor: isBlank ? '#6B7280' : template.color }}
+        style={{ backgroundColor: accent }}
       />
 
       {/* Icon */}
       <div
         className="size-9 rounded-lg flex items-center justify-center shrink-0"
         style={{
-          backgroundColor: isBlank ? 'hsl(var(--muted))' : `${template.color}15`,
+          backgroundColor: isBlank ? 'var(--muted)' : `${accent}18`,
         }}
       >
         <IconComp
           className="size-4"
-          style={{ color: isBlank ? 'hsl(var(--muted-foreground))' : template.color }}
+          style={{ color: isBlank ? 'var(--muted-foreground)' : accent }}
         />
       </div>
 
@@ -1979,7 +1978,7 @@ function TemplateCard({
           {template.description}
         </p>
         {!isBlank && template.questions.length > 0 && (
-          <p className="text-[10px] text-muted-foreground/60 mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             {template.questions.length} questions
           </p>
         )}
@@ -2006,14 +2005,15 @@ function DashboardTemplates({ onSelectTemplate }: { onSelectTemplate: (templateI
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {FORM_TEMPLATES.map((template) => {
           const Icon = ICON_MAP[template.icon] || FileText;
+          const accent = templateAccent(template);
           return (
             <button
               key={template.id}
               onClick={() => onSelectTemplate(template.id)}
-              className="group rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+              className="group rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[var(--shadow-2)]"
             >
               <div className="mb-5 flex items-start justify-between">
-                <div className="flex size-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${template.color}18`, color: template.color }}>
+                <div className="flex size-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${accent}18`, color: accent }}>
                   <Icon className="size-5" />
                 </div>
                 <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
@@ -2047,7 +2047,7 @@ function DashboardAppearance({ theme, onThemeChange }: { theme?: string; onTheme
           <button
             key={value}
             onClick={() => onThemeChange(value)}
-            className={`rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg ${theme === value ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'bg-card hover:border-primary/40'}`}
+            className={`rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-2)] ${theme === value ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'bg-card hover:border-primary/40'}`}
           >
             <Icon className="mb-8 size-6 text-primary" />
             <h2 className="font-semibold">{title}</h2>
@@ -2069,12 +2069,12 @@ function DashboardResources({ onOpenShortcuts }: { onOpenShortcuts: () => void }
         <p className="text-muted-foreground">Useful shortcuts and project documentation without sending you through a dead navigation item.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <button onClick={onOpenShortcuts} className="rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+        <button onClick={onOpenShortcuts} className="rounded-2xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[var(--shadow-2)]">
           <Keyboard className="mb-6 size-6 text-primary" />
           <h2 className="font-semibold">Keyboard shortcuts</h2>
           <p className="mt-1 text-sm text-muted-foreground">Navigate faster across dashboard and builder workflows.</p>
         </button>
-        <a href="https://github.com/muhummadzarrar09-sudo/forms" target="_blank" rel="noreferrer" className="rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
+        <a href="https://github.com/muhummadzarrar09-sudo/forms" target="_blank" rel="noreferrer" className="rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[var(--shadow-2)]">
           <BookOpen className="mb-6 size-6 text-primary" />
           <h2 className="font-semibold">Project documentation</h2>
           <p className="mt-1 text-sm text-muted-foreground">Read deployment, testing, and developer notes.</p>

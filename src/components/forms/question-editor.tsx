@@ -53,7 +53,7 @@ export function QuestionEditor({
   const [optionText, setOptionText] = useState('');
   const [hoveredRating, setHoveredRating] = useState(0);
   const [selectedScale, setSelectedScale] = useState<number | null>(null);
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
   const [copiedQuestionId, setCopiedQuestionId] = useState(false);
   const [copiedPipeId, setCopiedPipeId] = useState<string | null>(null);
   const pipingSources = useMemo(
@@ -124,7 +124,7 @@ export function QuestionEditor({
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => setShowPreview(!showPreview)}
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             {showPreview ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
             {showPreview ? 'Hide Preview' : 'Show Preview'}
@@ -141,14 +141,14 @@ export function QuestionEditor({
               className="overflow-hidden"
             >
               <div
-                className="relative rounded-xl border shadow-sm overflow-hidden max-h-[320px]"
-                style={{ borderColor: `${formTextColor}15` }}
+                className="relative rounded-xl border shadow-[var(--shadow-1)] overflow-hidden max-h-[320px]"
+                style={{ borderColor: formTextColor }}
               >
                 {/* Preview badge */}
                 <div className="absolute top-2 right-2 z-10">
                   <Badge
-                    variant="secondary"
-                    className="text-[10px] px-1.5 py-0 h-5 bg-black/40 text-white backdrop-blur-sm border-0"
+                    variant="outline"
+                    className="h-6 border bg-card px-2 text-xs text-card-foreground shadow-[var(--shadow-1)]"
                   >
                     Preview
                   </Badge>
@@ -160,7 +160,7 @@ export function QuestionEditor({
                 >
                   {/* Question number */}
                   <span
-                    className="text-xs font-medium opacity-50"
+                    className="text-xs font-medium"
                     style={{ color: formTextColor }}
                   >
                     {questionIndex + 1} of {totalQuestions}
@@ -173,14 +173,14 @@ export function QuestionEditor({
                   >
                     {question.title || 'Untitled question'}
                     {question.required && question.type !== 'statement' && question.type !== 'ending' && (
-                      <span className="text-red-400 ml-1">*</span>
+                      <span className="ml-1" style={{ color: formTextColor }}>*</span>
                     )}
                   </h3>
 
                   {/* Description */}
                   {question.description && question.type !== 'yes_no' && question.type !== 'rating' && question.type !== 'opinion_scale' && (
                     <p
-                      className={`text-sm opacity-60 mt-1 ${fontFamilyClass}`}
+                      className={`text-sm mt-1 ${fontFamilyClass}`}
                       style={{ color: formTextColor }}
                     >
                       {question.description}
@@ -222,13 +222,13 @@ export function QuestionEditor({
               {/* Question number + Required indicator row */}
               <div className="flex items-center justify-between">
                 <span
-                  className="text-xs font-medium opacity-50"
+                  className="text-xs font-medium"
                   style={{ color: formTextColor }}
                 >
                   {questionIndex + 1} of {totalQuestions}
                 </span>
                 {question.required && question.type !== 'statement' && question.type !== 'ending' && (
-                  <span className="text-xs font-medium opacity-50 uppercase tracking-wider">
+                  <span className="text-xs font-medium uppercase tracking-wider">
                     Required
                   </span>
                 )}
@@ -294,21 +294,21 @@ export function QuestionEditor({
                       ) : (
                         <p
                           onClick={() => setIsEditingDescription(true)}
-                          className={`text-lg opacity-70 cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
+                          className={`text-lg cursor-text hover:opacity-90 transition-opacity ${fontFamilyClass}`}
                           style={{ color: formTextColor }}
                         >
                           {question.description || (
-                            <span className="italic opacity-50">Add a description...</span>
+                            <span className="italic">Add a description...</span>
                           )}
                         </p>
                       )}
                     </div>
                   )}
-                <div className="flex flex-wrap items-center gap-2 text-xs opacity-55" style={{ color: formTextColor }}>
+                <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: formTextColor }}>
                   <span>Personalize text with <code>{'{{answer:questionId}}'}</code> using a prior question ID.</span>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 hover:opacity-100"
+                    className="inline-flex min-h-10 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted"
                     title="Copy this question ID for answer piping"
                     onClick={async () => {
                       try {
@@ -323,13 +323,13 @@ export function QuestionEditor({
                   </button>
                 </div>
                 {pipingSources.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs opacity-60" style={{ color: formTextColor }}>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs" style={{ color: formTextColor }}>
                     <span>Insert prior answer:</span>
                     {pipingSources.map((source) => (
                       <button
                         key={source.id}
                         type="button"
-                        className="max-w-40 truncate rounded border px-1.5 py-0.5 text-left hover:opacity-100"
+                        className="max-w-40 truncate rounded-md border px-2 py-1 text-left text-xs hover:bg-muted"
                         title={`Copy {{answer:${source.id}}}`}
                         onClick={async () => {
                           try {
@@ -389,7 +389,7 @@ export function QuestionEditor({
                     <CheckCircle2 className="size-4" />
                   </Button>
                   <span
-                    className="text-xs opacity-40"
+                    className="text-xs"
                     style={{ color: formTextColor }}
                   >
                     press <strong>Enter ↵</strong>
@@ -453,8 +453,8 @@ function MiniQuestionPreview({
     };
     return (
       <div
-        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+        className={`text-sm border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
       >
         {question.placeholder || placeholders[type] || 'Type your answer...'}
       </div>
@@ -465,8 +465,8 @@ function MiniQuestionPreview({
   if (type === 'long_text') {
     return (
       <div
-        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+        className={`text-sm border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
       >
         {question.placeholder || 'Type your answer here...'}
       </div>
@@ -483,11 +483,11 @@ function MiniQuestionPreview({
           <div
             key={option.id}
             className="flex items-center gap-2 px-3 py-1.5 rounded-md border"
-            style={{ borderColor: `${formTextColor}18`, backgroundColor: `${formTextColor}05` }}
+            style={{ borderColor: formTextColor, backgroundColor: 'transparent' }}
           >
             <div
               className="size-3.5 rounded-full border shrink-0"
-              style={{ borderColor: `${formTextColor}40` }}
+              style={{ borderColor: formTextColor }}
             />
             <span className={`text-xs truncate ${fontFamilyClass}`} style={{ color: formTextColor }}>
               {option.label}
@@ -495,7 +495,7 @@ function MiniQuestionPreview({
           </div>
         ))}
         {question.options.length > maxOptions && (
-          <span className="text-xs opacity-40 ml-1" style={{ color: formTextColor }}>
+          <span className="text-xs ml-1" style={{ color: formTextColor }}>
             +{question.options.length - maxOptions} more
           </span>
         )}
@@ -508,12 +508,12 @@ function MiniQuestionPreview({
     return (
       <div
         className="flex items-center justify-between px-3 py-1.5 rounded-md border"
-        style={{ borderColor: `${formTextColor}18`, backgroundColor: `${formTextColor}05` }}
+        style={{ borderColor: formTextColor, backgroundColor: 'transparent' }}
       >
-        <span className={`text-xs opacity-40 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+        <span className={`text-xs ${fontFamilyClass}`} style={{ color: formTextColor }}>
           Select an option...
         </span>
-        <ChevronDown className="size-3.5 opacity-40" style={{ color: formTextColor }} />
+        <ChevronDown className="size-3.5" style={{ color: formTextColor }} />
       </div>
     );
   }
@@ -524,7 +524,7 @@ function MiniQuestionPreview({
       <div className="flex gap-2">
         <div
           className="flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5"
-          style={{ borderColor: `${formTextColor}20` }}
+          style={{ borderColor: formTextColor }}
         >
           <ThumbsUp className="size-3.5" style={{ color: formTextColor }} />
           <span className={`text-xs font-semibold ${fontFamilyClass}`} style={{ color: formTextColor }}>
@@ -533,7 +533,7 @@ function MiniQuestionPreview({
         </div>
         <div
           className="flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5"
-          style={{ borderColor: `${formTextColor}20` }}
+          style={{ borderColor: formTextColor }}
         >
           <ThumbsUp className="size-3.5 rotate-180" style={{ color: formTextColor }} />
           <span className={`text-xs font-semibold ${fontFamilyClass}`} style={{ color: formTextColor }}>
@@ -553,7 +553,7 @@ function MiniQuestionPreview({
           <Star
             key={step}
             className="size-5"
-            style={{ color: `${formTextColor}25`, fill: 'transparent' }}
+            style={{ color: formTextColor, fill: 'transparent' }}
           />
         ))}
       </div>
@@ -572,7 +572,7 @@ function MiniQuestionPreview({
           <div
             key={val}
             className="size-7 rounded border flex items-center justify-center text-xs font-semibold"
-            style={{ borderColor: `${formTextColor}20`, color: formTextColor }}
+            style={{ borderColor: formTextColor, color: formTextColor }}
           >
             {val}
           </div>
@@ -585,8 +585,8 @@ function MiniQuestionPreview({
   if (type === 'number') {
     return (
       <div
-        className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+        className={`text-sm border-b pb-1 ${fontFamilyClass}`}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
       >
         {question.placeholder || 'Type a number...'}
       </div>
@@ -598,10 +598,10 @@ function MiniQuestionPreview({
     return (
       <div
         className="flex items-center gap-2 border-b pb-1"
-        style={{ borderBottomColor: `${formTextColor}30` }}
+        style={{ borderBottomColor: formTextColor }}
       >
-        <Calendar className="size-4 opacity-40" style={{ color: formTextColor }} />
-        <span className={`text-sm opacity-40 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+        <Calendar className="size-4" style={{ color: formTextColor }} />
+        <span className={`text-sm ${fontFamilyClass}`} style={{ color: formTextColor }}>
           Select a date...
         </span>
       </div>
@@ -614,7 +614,7 @@ function MiniQuestionPreview({
       <div className="flex items-center gap-2">
         <div
           className="size-4 rounded border flex items-center justify-center"
-          style={{ borderColor: `${formTextColor}40` }}
+          style={{ borderColor: formTextColor }}
         >
           <CheckCircle2 className="size-2.5" style={{ color: formButtonColor }} />
         </div>
@@ -641,7 +641,7 @@ function MiniQuestionPreview({
   // Ending
   if (type === 'ending') {
     return (
-      <p className={`text-xs opacity-50 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+      <p className={`text-xs ${fontFamilyClass}`} style={{ color: formTextColor }}>
         {question.description || 'Your response has been recorded.'}
       </p>
     );
@@ -650,8 +650,8 @@ function MiniQuestionPreview({
   // Fallback
   return (
     <div
-      className={`text-sm opacity-40 border-b pb-1 ${fontFamilyClass}`}
-      style={{ color: formTextColor, borderBottomColor: `${formTextColor}30` }}
+      className={`text-sm border-b pb-1 ${fontFamilyClass}`}
+      style={{ color: formTextColor, borderBottomColor: formTextColor }}
     >
       {question.placeholder || 'Your answer...'}
     </div>
@@ -705,7 +705,7 @@ function QuestionTypePreview({
       <Input
         placeholder={question.placeholder || 'Type your answer here...'}
         className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -717,7 +717,7 @@ function QuestionTypePreview({
       <Textarea
         placeholder={question.placeholder || 'Type your answer here...'}
         className={`text-lg border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current resize-none min-h-[80px] ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -734,7 +734,7 @@ function QuestionTypePreview({
           >
             <div
               className="size-6 rounded-full border-2 flex items-center justify-center shrink-0"
-              style={{ borderColor: `${formTextColor}60` }}
+              style={{ borderColor: formTextColor }}
             >
               <div className="size-2.5 rounded-full" style={{ backgroundColor: formButtonColor }} />
             </div>
@@ -759,7 +759,7 @@ function QuestionTypePreview({
                   }
                 }}
                 className={`text-lg bg-transparent border-b-2 outline-none flex-1 ${fontFamilyClass}`}
-                style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+                style={{ color: formTextColor, borderBottomColor: formTextColor }}
               />
             ) : (
               <span
@@ -775,7 +775,7 @@ function QuestionTypePreview({
             )}
             <button
               onClick={() => handleRemoveOption(option.id)}
-              className="opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity shrink-0"
+              className="flex size-10 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
             >
               <X className="size-4" style={{ color: formTextColor }} />
             </button>
@@ -783,11 +783,11 @@ function QuestionTypePreview({
         ))}
         <button
           onClick={handleAddOption}
-          className="flex items-center gap-3 mt-2 opacity-50 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 mt-2 transition-opacity hover:opacity-80"
         >
           <div
             className="size-6 rounded-full border-2 border-dashed flex items-center justify-center shrink-0"
-            style={{ borderColor: `${formTextColor}40` }}
+            style={{ borderColor: formTextColor }}
           >
             <Plus className="size-3" style={{ color: formTextColor }} />
           </div>
@@ -810,12 +810,12 @@ function QuestionTypePreview({
           >
             <div
               className="w-28 h-28 rounded-xl border-2 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105"
-              style={{ borderColor: `${formTextColor}30`, backgroundColor: `${formTextColor}08` }}
+              style={{ borderColor: formTextColor, backgroundColor: 'transparent' }}
             >
               {option.image ? (
                 <img src={option.image} alt={option.label} className="w-full h-full object-cover rounded-lg" />
               ) : (
-                <ImageIcon className="size-6 opacity-30" style={{ color: formTextColor }} />
+                <ImageIcon className="size-6" style={{ color: formTextColor }} />
               )}
               {editingOptionId === option.id ? (
                 <input
@@ -849,7 +849,7 @@ function QuestionTypePreview({
             </div>
             <button
               onClick={() => handleRemoveOption(option.id)}
-              className="absolute -top-2 -right-2 size-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute -right-2 -top-2 flex size-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-100 transition-opacity hover:bg-destructive/90"
             >
               <X className="size-3" />
             </button>
@@ -857,8 +857,8 @@ function QuestionTypePreview({
         ))}
         <button
           onClick={handleAddOption}
-          className="w-28 h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 opacity-40 hover:opacity-60 transition-opacity"
-          style={{ borderColor: `${formTextColor}30` }}
+          className="size-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-80"
+          style={{ borderColor: formTextColor }}
         >
           <Plus className="size-6" style={{ color: formTextColor }} />
           <span className="text-xs" style={{ color: formTextColor }}>Add</span>
@@ -873,12 +873,12 @@ function QuestionTypePreview({
       <div className="space-y-2">
         <div
           className="flex items-center justify-between border-b-2 pb-2 cursor-pointer"
-          style={{ borderBottomColor: `${formTextColor}40` }}
+          style={{ borderBottomColor: formTextColor }}
         >
-          <span className={`text-lg opacity-50 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+          <span className={`text-lg ${fontFamilyClass}`} style={{ color: formTextColor }}>
             Select an option...
           </span>
-          <ChevronDown className="size-5 opacity-50" style={{ color: formTextColor }} />
+          <ChevronDown className="size-5" style={{ color: formTextColor }} />
         </div>
         <div className="space-y-1 ml-4">
           {question.options.map((option) => (
@@ -913,7 +913,7 @@ function QuestionTypePreview({
               )}
               <button
                 onClick={() => handleRemoveOption(option.id)}
-                className="opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity shrink-0"
+                className="flex size-10 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
               >
                 <X className="size-3" style={{ color: formTextColor }} />
               </button>
@@ -921,7 +921,7 @@ function QuestionTypePreview({
           ))}
           <button
             onClick={handleAddOption}
-            className="flex items-center gap-1 opacity-50 hover:opacity-80 transition-opacity text-sm mt-1"
+            className="flex items-center gap-1 transition-opacity hover:opacity-80 text-sm mt-1"
           >
             <Plus className="size-3" style={{ color: formTextColor }} />
             <span style={{ color: formTextColor }}>Add option</span>
@@ -936,11 +936,11 @@ function QuestionTypePreview({
     return (
       <div className="flex gap-4">
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           className="flex-1 py-4 rounded-xl border-2 text-lg font-semibold flex items-center justify-center gap-2 transition-colors"
           style={{
-            borderColor: `${formTextColor}30`,
+            borderColor: formTextColor,
             color: formTextColor,
           }}
         >
@@ -948,11 +948,11 @@ function QuestionTypePreview({
           Yes
         </motion.button>
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           className="flex-1 py-4 rounded-xl border-2 text-lg font-semibold flex items-center justify-center gap-2 transition-colors"
           style={{
-            borderColor: `${formTextColor}30`,
+            borderColor: formTextColor,
             color: formTextColor,
           }}
         >
@@ -970,7 +970,7 @@ function QuestionTypePreview({
         placeholder={question.placeholder || 'name@example.com'}
         type="email"
         className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -983,7 +983,7 @@ function QuestionTypePreview({
         placeholder={question.placeholder || '+1 (555) 000-0000'}
         type="tel"
         className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -996,7 +996,7 @@ function QuestionTypePreview({
         placeholder={question.placeholder || 'Type a number...'}
         type="number"
         className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -1009,7 +1009,7 @@ function QuestionTypePreview({
         placeholder={question.placeholder || 'https://example.com'}
         type="url"
         className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-        style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+        style={{ color: formTextColor, borderBottomColor: formTextColor }}
         readOnly
       />
     );
@@ -1020,10 +1020,10 @@ function QuestionTypePreview({
     return (
       <div
         className="flex items-center gap-3 border-b-2 pb-2"
-        style={{ borderBottomColor: `${formTextColor}40` }}
+        style={{ borderBottomColor: formTextColor }}
       >
-        <Calendar className="size-5 opacity-50" style={{ color: formTextColor }} />
-        <span className={`text-lg opacity-50 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+        <Calendar className="size-5" style={{ color: formTextColor }} />
+        <span className={`text-lg ${fontFamilyClass}`} style={{ color: formTextColor }}>
           Select a date...
         </span>
       </div>
@@ -1038,8 +1038,8 @@ function QuestionTypePreview({
         {Array.from({ length: steps }, (_, i) => i + 1).map((step) => (
           <motion.button
             key={step}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             onMouseEnter={() => setHoveredRating(step)}
             onMouseLeave={() => setHoveredRating(0)}
             onClick={() => setSelectedScale(step)}
@@ -1051,7 +1051,7 @@ function QuestionTypePreview({
                 color:
                   hoveredRating >= step || (selectedScale !== null && selectedScale >= step)
                     ? formButtonColor
-                    : `${formTextColor}30`,
+                    : formTextColor,
                 fill:
                   hoveredRating >= step || (selectedScale !== null && selectedScale >= step)
                     ? formButtonColor
@@ -1077,14 +1077,14 @@ function QuestionTypePreview({
           {Array.from({ length: end - start + 1 }, (_, i) => start + i).map((val) => (
             <motion.button
               key={val}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => setSelectedScale(val)}
               className={`w-10 h-10 rounded-lg border-2 text-sm font-semibold flex items-center justify-center transition-all ${
                 selectedScale === val ? 'scale-110' : ''
               }`}
               style={{
-                borderColor: selectedScale === val ? formButtonColor : `${formTextColor}30`,
+                borderColor: selectedScale === val ? formButtonColor : formTextColor,
                 backgroundColor: selectedScale === val ? formButtonColor : 'transparent',
                 color: selectedScale === val ? formButtonTextColor : formTextColor,
               }}
@@ -1093,7 +1093,7 @@ function QuestionTypePreview({
             </motion.button>
           ))}
         </div>
-        <div className="flex justify-between text-xs opacity-50" style={{ color: formTextColor }}>
+        <div className="flex justify-between text-xs" style={{ color: formTextColor }}>
           <span>{startAtOne ? '1 - Unlikely' : '0 - Unlikely'}</span>
           <span>{end} - Likely</span>
         </div>
@@ -1107,7 +1107,7 @@ function QuestionTypePreview({
       <label className="flex items-center gap-3 cursor-pointer">
         <div
           className="size-6 rounded border-2 flex items-center justify-center"
-          style={{ borderColor: `${formTextColor}60` }}
+          style={{ borderColor: formTextColor }}
         >
           <CheckCircle2
             className="size-4"
@@ -1130,7 +1130,7 @@ function QuestionTypePreview({
   if (type === 'ending') {
     return (
       <div className="text-center space-y-2">
-        <p className={`text-lg opacity-60 ${fontFamilyClass}`} style={{ color: formTextColor }}>
+        <p className={`text-lg ${fontFamilyClass}`} style={{ color: formTextColor }}>
           {question.description || 'Your response has been recorded.'}
         </p>
       </div>
@@ -1142,7 +1142,7 @@ function QuestionTypePreview({
     <Input
       placeholder={question.placeholder || 'Your answer...'}
       className={`text-lg h-12 border-0 border-b-2 rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-current ${fontFamilyClass}`}
-      style={{ color: formTextColor, borderBottomColor: `${formTextColor}40` }}
+      style={{ color: formTextColor, borderBottomColor: formTextColor }}
       readOnly
     />
   );
