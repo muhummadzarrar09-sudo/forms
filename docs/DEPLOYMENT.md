@@ -1,6 +1,8 @@
-# Fresh Supabase + Vercel Deployment Runbook
+# Historical Prisma deployment runbook — do not use for the Supabase Auth cutover
 
-This runbook assumes a **new, empty Supabase PostgreSQL project**. It is not a migration procedure for an existing client database.
+> **Superseded for the current existing-data migration.** Do **not** run the Prisma commands below against a real project. Follow `../supabase/README.md` and `planning/supabase-auth-postgres-cutover.md` instead. This file is retained only as historical context until the Supabase deployment runbook replaces it.
+
+This historical runbook assumes a **new, empty Supabase PostgreSQL project**. It is not a migration procedure for an existing client database.
 
 ## 0. Supabase connection string — MUST fix before deploy (avoids logs)
 

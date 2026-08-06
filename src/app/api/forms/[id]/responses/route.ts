@@ -13,7 +13,7 @@ import { enforcePublicRateLimit, publicClientId } from '@/lib/public-rate-limit'
 import { sendNewResponseNotification } from '@/lib/email';
 import { queueGoogleSheetSync } from '@/lib/google-sheets-sync';
 import { resolveCalculatedVariables } from '@/lib/calculation-engine';
-const boundedMetadataSchema = z.record(z.unknown()).refine(
+const boundedMetadataSchema = z.record(z.string(), z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Metadata must not exceed 20KB'
 );

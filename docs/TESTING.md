@@ -1,5 +1,7 @@
 # Test Environment & Release Evidence
 
+> **Cutover notice:** the Prisma/Docker setup below is historical until the Supabase Auth + SQL Editor migration is complete. Do not run its `db push` instructions against an existing Supabase project. Follow `supabase/README.md` for the current data-migration gate.
+
 ## Safety rule
 
 **Never run integration commands against the client Supabase/PostgreSQL database.** The local/CI integration database is disposable and runs only through `docker-compose.test.yml`.

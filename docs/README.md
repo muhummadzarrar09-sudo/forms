@@ -1,16 +1,19 @@
-# Project Documentation
+# Project documentation
 
 ## Delivery and audit record
 
-- `audits/handoff-audit.md` — pre-handoff security, data, functional, and deployment audit.
-- `audits/ui-ux-audit.md` — Typeform-like UX direction and validation matrix.
-- `batches/` — execution reports for each remediation batch.
-- `planning/revival-plan.md` — phased release plan and non-negotiable gates.
-- `TESTING.md` — isolated test database setup, required test matrix, and release gates.
-- `DEPLOYMENT.md` — fresh Supabase/Vercel deployment and post-deploy smoke-test runbook.
-- `history/worklog.md — historical worklog retained for context; it is not a release acceptance record.
-- `archive/` — retired documentation from removed/dead directories.
-- `agent-context/` — prior agent task context retained as historical implementation context.
+- `audits/handoff-audit.md` — historical pre-handoff security/data audit.
+- `audits/forensic-backend-database-audit-2026-08-06.md` — current backend/database finding inventory.
+- `audits/forensic-visual-ui-audit-2026-08-06.md` — visual-system audit.
+- `audits/visual-remediation-2026-08-06.md` — visual remediation record.
+- `planning/supabase-auth-postgres-cutover.md` — required staged migration from Prisma/NextAuth to Supabase Auth + RLS.
+- `../supabase/README.md` — exact SQL Editor/auth-provisioning order for an existing project with real data.
+- `TESTING.md` — release test matrix.
+- `DEPLOYMENT.md` — historical deployment runbook; do not use its Prisma commands during the Supabase cutover.
+
+## Supabase cutover status
+
+This repository is in a **staged existing-data cutover**. Do not run Prisma commands or the legacy `.zscripts` deployment scripts. Start with the read-only preflight SQL in `supabase/sql/0000_preflight_existing_prisma_database.sql`, then follow `supabase/README.md`.
 
 ## Application route map
 
@@ -21,21 +24,19 @@
 | `/?view=responses&form=:id` | authenticated creator | Response viewer. |
 | `/?view=preview&form=:id` | authenticated creator | In-app draft/preview filler. |
 | `/f/:slug` | public respondent | Published form filler. |
-| `/api/*` | API clients | Application APIs; see the route source and audit. |
-
-Legacy `/?form=:id` remains supported as a public share-mode route during transition. New public share links should use `/f/:slug`.
+| `/api/*` | API clients | Application APIs. |
 
 ## Source layout
 
 ```text
 src/
-  app/            App Router pages, API endpoints, metadata/sitemap
+  app/            App Router pages and API routes
   components/     UI and feature components
-  lib/            shared domain, security, serialization, and logic utilities
+  lib/            shared domain, security, auth, and data-access utilities
   store/          client app state
   types/          shared TypeScript contracts
-tests/            pure/domain tests (Bun)
-prisma/           schema and reviewed migrations
-docs/             delivery, audit, planning, and historical documentation
-public/           intentionally shipped static assets only
+supabase/sql/     reviewed SQL Editor scripts, ordered by filename
+scripts/          one-time/server-only operational helpers
+tests/            pure/domain tests
+docs/             audit, migration, release, and planning records
 ```
