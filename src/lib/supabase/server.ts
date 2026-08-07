@@ -1,6 +1,6 @@
 import 'server-only';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 function publicSupabaseConfig() {
@@ -43,8 +43,17 @@ export type SupabaseAuthUser = {
   name: string;
 };
 
+export type SupabaseLegacyUser = SupabaseAuthUser & {
+  // Existing application ownership remains CUID-based during the transition.
+  // This bridge is populated by the reviewed SQL/Auth cutover, not from any
+  // client-provided ID.
+  legacyUserId: string;
+};
+
 export async function requireSupabaseUser(): Promise<SupabaseAuthUser | null> {
   const supabase = await getSupabaseServerClient();
+  // getUser validates the access token with Supabase Auth; do not trust a
+  // decoded browser cookie/session value for authorization.
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user?.email) return null;
   return {
@@ -54,7 +63,39 @@ export async function requireSupabaseUser(): Promise<SupabaseAuthUser | null> {
   };
 }
 
-let adminClient: ReturnType<typeof createClient> | undefined;
+/**
+ * Resolves a verified Supabase Auth identity to the existing CUID owner row.
+ * Every protected legacy-table operation must use this instead of accepting a
+ * userId from a request. It deliberately uses the service-role client only
+ * after requireSupabaseUser() has independently authenticated the caller.
+ */
+export async function requireSupabaseLegacyUser(): Promise<SupabaseLegacyUser | null> {
+  const authUser = await requireSupabaseUser();
+  if (!authUser) return null;
+
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from('User')
+    .select('id,name,authUserId')
+    .eq('authUserId', authUser.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to resolve the authenticated application user: ${error.message}`);
+  }
+  if (!data || data.authUserId !== authUser.id) return null;
+
+  return {
+    ...authUser,
+    legacyUserId: data.id,
+    name: typeof data.name === 'string' && data.name.trim() ? data.name : authUser.name,
+  };
+}
+
+// Schema-generated types are introduced after the SQL cutover is applied. Until
+// then, keep this trusted server client explicitly untyped rather than letting
+// the SDK infer `never` for every quoted legacy table.
+let adminClient: SupabaseClient<any> | undefined;
 
 /**
  * Server-only data client. SUPABASE_SERVICE_ROLE_KEY must never be exposed to
@@ -66,7 +107,7 @@ export function getSupabaseAdminClient() {
     const { url } = publicSupabaseConfig();
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY must be configured on the server');
-    adminClient = createClient(url, serviceRoleKey, {
+    adminClient = createClient<any>(url, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     });
   }

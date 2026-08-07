@@ -17,7 +17,7 @@ async function resetDatabase() {
 async function addOwnerSession(page: Page, user: { id: string; email: string }) {
   const value = await encode({
     secret: process.env.NEXTAUTH_SECRET!,
-    token: { sub: user.id, id: user.id, email: user.email },
+    token: { sub: user.id, id: user.id, email: user.email, sessionVersion: 0 },
     maxAge: 60 * 60,
   });
   await page.context().addCookies([{ name: 'next-auth.session-token', value, url: 'http://127.0.0.1:3001' }]);

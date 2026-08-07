@@ -49,13 +49,13 @@ export async function GET(
     // Supabase's shared pool that Realtime also uses (your MigrationsFailedToRun logs).
     const totalResponses = await db.response.count({ where: { formId: id } });
     const completedResponses = await db.response.count({ where: { formId: id, completedAt: { not: null } } });
-    const durations = await db.$queryRawUnsafe<DurationRow[]>(
+    const durations = await db.$queryRawUnsafe(
       `SELECT AVG(EXTRACT(EPOCH FROM ("completedAt" - "startedAt"))) AS "averageSeconds"
        FROM "Response"
        WHERE "formId" = $1 AND "completedAt" IS NOT NULL`,
       id
-    );
-    const choiceRows = await db.$queryRawUnsafe<ChoiceRow[]>(
+    ) as DurationRow[];
+    const choiceRows = await db.$queryRawUnsafe(
       `SELECT a."questionId", trim(selected.value) AS value, COUNT(*)::bigint AS count
        FROM "Answer" a
        INNER JOIN "Question" q ON q.id = a."questionId"
@@ -65,8 +65,8 @@ export async function GET(
          AND trim(selected.value) <> ''
        GROUP BY a."questionId", trim(selected.value)`,
       id
-    );
-    const numericRows = await db.$queryRawUnsafe<NumericRow[]>(
+    ) as ChoiceRow[];
+    const numericRows = await db.$queryRawUnsafe(
       `SELECT a."questionId",
          COUNT(*)::bigint AS count,
          AVG(a.value::double precision) AS average,
@@ -79,7 +79,7 @@ export async function GET(
          AND a.value ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
        GROUP BY a."questionId"`,
       id
-    );
+    ) as NumericRow[];
     const textAnswers = await db.answer.findMany({
       where: { question: { formId: id, type: { in: textTypes } }, value: { not: '' } },
       select: { questionId: true, value: true },

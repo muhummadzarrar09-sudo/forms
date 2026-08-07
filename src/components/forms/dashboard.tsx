@@ -69,7 +69,7 @@ import {
   Newspaper,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useSession } from 'next-auth/react';
+import { useSupabaseAuth } from '@/components/auth-provider';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -220,8 +220,8 @@ export function Dashboard() {
   } = useFormStore();
 
   const { theme, setTheme } = useTheme();
-  const { data: session } = useSession();
-  const displayName = session?.user?.name?.trim() || session?.user?.email?.split('@')[0] || 'Account';
+  const { user } = useSupabaseAuth();
+  const displayName = (typeof user?.user_metadata?.name === 'string' && user.user_metadata.name.trim()) || user?.email?.split('@')[0] || 'Account';
   const avatarInitial = displayName.charAt(0).toUpperCase();
   const mounted = useSyncExternalStore(
     () => () => undefined,

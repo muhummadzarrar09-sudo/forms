@@ -15,7 +15,11 @@ function publicSupabaseConfig() {
 export function getSupabaseBrowserClient() {
   if (!browserClient) {
     const { url, anonKey } = publicSupabaseConfig();
-    browserClient = createBrowserClient(url, anonKey);
+    browserClient = createBrowserClient(url, anonKey, {
+      // Recovery links arrive at the server callback as a one-time PKCE code;
+      // the callback exchanges it for HttpOnly cookies before redirecting.
+      auth: { flowType: 'pkce' },
+    });
   }
   return browserClient;
 }

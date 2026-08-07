@@ -222,15 +222,94 @@ export function serializeForm(form: RawForm) {
  * Public respondent payload. Keep the runtime shape convenient for existing
  * filler components while removing owner/workspace-only data.
  */
+function serializePublicQuestion(question: RawQuestion) {
+  const serialized = serializeQuestion(question);
+  const settings = serialized.settings || {};
+
+  // Keep only presentation/input constraints required by the respondent UI.
+  // Never send routing, visibility, scoring, answer-key, or owner-contact
+  // configuration to an unauthenticated browser.
+  const publicSettings: QuestionSettings = {
+    ...(typeof settings.steps === 'number' && { steps: settings.steps }),
+    ...(typeof settings.startAtOne === 'boolean' && { startAtOne: settings.startAtOne }),
+    ...(typeof settings.min === 'number' && { min: settings.min }),
+    ...(typeof settings.max === 'number' && { max: settings.max }),
+    ...(typeof settings.allowMultiple === 'boolean' && { allowMultiple: settings.allowMultiple }),
+    ...(typeof settings.randomize === 'boolean' && { randomize: settings.randomize }),
+    ...(typeof settings.requiredText === 'string' && { requiredText: settings.requiredText }),
+  };
+
+  return {
+    id: serialized.id,
+    formId: serialized.formId,
+    type: serialized.type,
+    title: serialized.title,
+    description: serialized.description,
+    required: serialized.required,
+    order: serialized.order,
+    options: serialized.options,
+    imageUrls: serialized.imageUrls,
+    settings: publicSettings,
+    // Conditional/routing rules are evaluated in the trusted submission path
+    // during the redesigned flow; exposing them leaks hidden branching.
+    logic: [],
+    placeholder: serialized.placeholder,
+    createdAt: serialized.createdAt,
+    updatedAt: serialized.updatedAt,
+  };
+}
+
 export function serializePublicForm(form: RawForm) {
   return {
-    ...serializeForm(form),
-    userId: '',
-    workspaceId: null,
-    workspace: null,
+    id: form.id,
+    title: form.title,
+    description: form.description,
+    slug: form.slug,
+    published: form.published,
+    welcomeTitle: form.welcomeTitle,
+    welcomeMessage: form.welcomeMessage,
+    endingTitle: form.endingTitle,
+    endingMessage: form.endingMessage,
+    theme: form.theme,
+    backgroundColor: form.backgroundColor,
+    textColor: form.textColor,
+    buttonColor: form.buttonColor,
+    buttonTextColor: form.buttonTextColor,
+    fontFamily: form.fontFamily,
+    logoUrl: form.logoUrl,
+    coverUrl: form.coverUrl,
+    progressbar: form.progressbar,
+    showQuestionNumbers: form.showQuestionNumbers,
+    allowBackNavigation: form.allowBackNavigation,
+    // Deliberately inert placeholders keep the client-facing Form shape stable
+    // without disclosing owner-only configuration or response limits.
     favorite: false,
     archived: false,
     tags: [],
+    hiddenFields: [],
+    calculatedVariables: [],
+    maxResponses: 0,
+    closeDate: null,
+    metaTitle: '',
+    metaDescription: '',
+    userId: '',
+    workspaceId: null,
+    workspace: null,
+    createdAt: form.createdAt instanceof Date ? form.createdAt.toISOString() : form.createdAt,
+    updatedAt: form.updatedAt instanceof Date ? form.updatedAt.toISOString() : form.updatedAt,
+    questions: form.questions.map(serializePublicQuestion),
+    endings: (form.endings || []).map((ending) => ({
+      id: ending.id,
+      formId: ending.formId,
+      title: ending.title,
+      message: ending.message,
+      redirectUrl: ending.redirectUrl,
+      // Scores are server-owned and must never be advertised in a public DTO.
+      showScore: false,
+      order: ending.order,
+      createdAt: ending.createdAt instanceof Date ? ending.createdAt.toISOString() : ending.createdAt,
+      updatedAt: ending.updatedAt instanceof Date ? ending.updatedAt.toISOString() : ending.updatedAt,
+    })),
   };
 }
 

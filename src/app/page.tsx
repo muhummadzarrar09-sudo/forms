@@ -2,7 +2,7 @@
 
 import { useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSupabaseAuth } from '@/components/auth-provider';
 import { useFormStore } from '@/store/form-store';
 import { Dashboard } from '@/components/forms/dashboard';
 import { FormBuilder } from '@/components/forms/form-builder';
@@ -18,7 +18,7 @@ function HomeContent() {
   const setSelectedFormId = useFormStore((s) => s.setSelectedFormId);
   const setShareMode = useFormStore((s) => s.setShareMode);
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { user, status } = useSupabaseAuth();
 
   // Keep the visible view synchronized with the URL. Store navigation writes a
   // history entry; browser Back/Forward changes this URL and restores the
@@ -87,7 +87,7 @@ function HomeContent() {
     );
   }
 
-  if (!session) {
+  if (!user) {
     return <LoginPage />;
   }
 
