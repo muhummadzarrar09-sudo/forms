@@ -74,7 +74,8 @@ SELECT
 FROM pg_constraint c
 JOIN pg_namespace n ON n.oid = c.connamespace
 WHERE n.nspname = 'public'
-ORDER BY table_name::text, c.conname;
+-- Output aliases cannot be cast in ORDER BY on PostgreSQL; use output positions.
+ORDER BY 1, 2;
 
 -- 4. Existing indexes, including any index that exists in production but is
 -- absent from Prisma schema/migrations.

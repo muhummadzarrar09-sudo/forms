@@ -7,7 +7,9 @@ This project is moving from Prisma + custom NextAuth credential records to **Sup
 1. **Back up first.** In Supabase, confirm PITR/backups and take an export/snapshot. Do not continue without a tested recovery plan.
 2. Run `sql/0000_preflight_existing_prisma_database.sql` in Supabase SQL Editor. Keep its output private; it can include schema and row counts.
 3. Compare the preflight output with the expected legacy quoted tables. Resolve drift, duplicate orders, invalid statuses/types, and any unknown constraints before proceeding.
-4. Run `sql/0001_prepare_existing_prisma_cutover.sql`. It is additive: it creates the auth bridge ledger, auth UUID column, missing indexes, timestamp triggers, and **NOT VALID** checks. It does **not** create auth users, enable RLS, or remove old password data.
+
+   **Project-specific hold:** the current production preflight found only the seven older tables `"User"`, `"Workspace"`, `"Form"`, `"Question"`, `"FormEnding"`, `"Response"`, and `"Answer"`; it does not contain the legacy token, Google, or rate-limit tables assumed by `0001`/`0002`. Run `sql/0000a_preflight_existing_minimal_schema.sql` next and wait for a tailored additive migration. **Do not run `0001` or `0002` against that schema.**
+4. Only once the reviewed preflight matches the assumptions of the relevant migration, run that migration. `sql/0001_prepare_existing_prisma_cutover.sql` is an additive script for the fuller quoted schema: it creates the auth bridge ledger, auth UUID column, missing indexes, timestamp triggers, and **NOT VALID** checks. It does **not** create auth users, enable RLS, or remove old password data.
 5. Configure Supabase Auth email delivery and add the exact recovery redirect URL to Supabase Auth's allowed redirect list.
 6. In a trusted local/CI shell, set only server-side values:
    - `SUPABASE_URL` (or `NEXT_PUBLIC_SUPABASE_URL`)
