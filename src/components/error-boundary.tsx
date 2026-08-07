@@ -3,6 +3,7 @@
 import React from 'react';
 import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BrandMark } from '@/components/brand-mark';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -36,8 +37,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   handleGoToDashboard = () => {
     // Reset state and navigate to dashboard
     this.setState({ hasError: false, error: null });
-    // Use window.location for a hard reset to clear any corrupted state
-    window.location.href = '/';
+    // Preserve the hard reset (which clears corrupted client state) without
+    // assigning a relative URL directly to window.location.
+    window.history.replaceState(null, '', '/');
+    window.location.reload();
   };
 
   handleTryAgain = () => {
@@ -54,9 +57,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">
           <div className="max-w-md w-full text-center space-y-6">
-            {/* Error Icon */}
-            <div className="flex justify-center">
-              <div className="size-16 rounded-full bg-destructive/10 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <BrandMark className="size-10" />
+              <div className="flex size-16 items-center justify-center rounded-full bg-destructive/10">
                 <AlertTriangle className="size-8 text-destructive" />
               </div>
             </div>

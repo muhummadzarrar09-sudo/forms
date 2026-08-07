@@ -94,6 +94,19 @@ export interface FormTheme {
   buttonColor: string;
   buttonTextColor: string;
   fontFamily: string;
+  /** Opaque, contrast-tested roles derived from the four persisted colors. */
+  textSecondaryColor: string;
+  textTertiaryColor: string;
+  placeholderColor: string;
+  fieldBorderColor: string;
+  fieldHoverBorderColor: string;
+  controlSurfaceColor: string;
+  selectedSurfaceColor: string;
+  hoverSurfaceColor: string;
+  trackColor: string;
+  accentTextColor: string;
+  errorColor: string;
+  successColor: string;
 }
 
 export interface Workspace {

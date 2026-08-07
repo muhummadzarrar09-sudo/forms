@@ -24,7 +24,6 @@ import {
   Copy,
   Check,
   ExternalLink,
-  AlertTriangle,
   Users,
   Globe,
   Lock,
@@ -137,21 +136,18 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+              className="flex items-start gap-3 rounded-lg border bg-muted/50 p-3"
             >
-              <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <Lock className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                  This form is in draft mode
-                </p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                  Publish your form to start accepting responses.
+                <p className="text-sm font-medium">This form is a draft</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Publish it when you are ready to accept responses.
                 </p>
               </div>
               <Button
                 size="sm"
-                variant="outline"
-                className="h-7 text-xs border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900"
+                className="min-h-10 text-xs"
                 onClick={handleTogglePublished}
               >
                 Publish
@@ -163,18 +159,18 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800"
+              className="flex items-center gap-3 p-3 rounded-lg bg-success/10 border border-success/25"
             >
-              <Globe className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <Globe className="size-5 text-success shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                <p className="text-sm font-medium text-success">
                   Form is live
                 </p>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                <p className="text-xs text-success mt-0.5">
                   This form is accepting responses.
                 </p>
               </div>
-              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">
+              <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90 text-xs">
                 <Users className="size-3 mr-1" />
                 {responseCount} {responseCount === 1 ? 'response' : 'responses'}
               </Badge>
@@ -212,7 +208,7 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
                     {form.published ? (
-                      <Globe className="size-3.5 text-emerald-500" />
+                      <Globe className="size-3.5 text-success" />
                     ) : (
                       <Lock className="size-3.5 text-muted-foreground" />
                     )}
@@ -233,7 +229,7 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
                         exit={{ scale: 0, opacity: 0 }}
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                       >
-                        <Check className="size-4 text-emerald-500" />
+                        <Check className="size-4 text-success" />
                       </motion.div>
                     ) : (
                       <motion.div
@@ -290,7 +286,7 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute top-2 right-2 h-7 gap-1.5 text-xs"
+                  className="absolute right-2 top-2 min-h-10 gap-1.5 text-xs"
                   onClick={handleCopyEmbed}
                 >
                   <AnimatePresence mode="wait">
@@ -303,7 +299,7 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                         className="flex items-center gap-1.5"
                       >
-                        <Check className="size-3 text-emerald-500" />
+                        <Check className="size-3 text-success" />
                         Copied!
                       </motion.div>
                     ) : (
@@ -352,11 +348,11 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
               {/* Accept Responses Toggle */}
               <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card">
                 <div className="flex items-start gap-3">
-                  <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${form.published ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${form.published ? 'bg-success/10' : 'bg-muted'}`}>
                     {form.published ? (
-                      <Globe className="size-4 text-emerald-600 dark:text-emerald-400" />
+                      <Globe className="size-4 text-success" />
                     ) : (
-                      <Lock className="size-4 text-amber-600 dark:text-amber-400" />
+                      <Lock className="size-4 text-muted-foreground" />
                     )}
                   </div>
                   <div>
@@ -387,7 +383,7 @@ export function ShareDialog({ open, onOpenChange, form, onPublish }: ShareDialog
                   <div className="mt-1.5">
                     <Badge
                       variant={form.published ? 'default' : 'secondary'}
-                      className={form.published ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
+                      className={form.published ? 'bg-success text-success-foreground hover:bg-success/90' : ''}
                     >
                       {form.published ? 'Published' : 'Draft'}
                     </Badge>

@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
 import type { Form, FormEnding } from '@/types/form';
 import { Button } from '@/components/ui/button';
 import { FillerQuestionScreen } from '@/components/forms/filler-question-screen';
 import { fillerProgress, getCurrentQuestion, getFillableQuestions, nextFillerStep, requiredAnswerIsSatisfied } from '@/lib/filler-navigation';
+import { deriveFormTheme } from '@/lib/form-theme';
 
 interface BuilderFormPreviewProps {
   form: Form;
@@ -27,13 +28,7 @@ export function BuilderFormPreview({ form }: BuilderFormPreviewProps) {
 
   const question = getCurrentQuestion(questions, index);
   const progress = fillerProgress(screen, index, questions.length);
-  const theme = {
-    backgroundColor: form.backgroundColor,
-    textColor: form.textColor,
-    buttonColor: form.buttonColor,
-    buttonTextColor: form.buttonTextColor,
-    fontFamily: form.fontFamily,
-  };
+  const theme = deriveFormTheme(form);
 
   const reset = () => {
     setScreen('welcome');
@@ -82,18 +77,18 @@ export function BuilderFormPreview({ form }: BuilderFormPreviewProps) {
       aria-label="Embedded form preview"
     >
       {form.progressbar && (
-        <div className="absolute inset-x-0 top-0 z-10 h-1" style={{ backgroundColor: `${theme.textColor}18` }}>
+        <div className="absolute inset-x-0 top-0 z-10 h-1" style={{ backgroundColor: theme.trackColor }}>
           <div className="h-full transition-[width] duration-300" style={{ width: `${progress}%`, backgroundColor: theme.buttonColor }} />
         </div>
       )}
 
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
         {screen === 'question' && form.allowBackNavigation && (
-          <Button variant="outline" size="sm" onClick={goBack} className="gap-1 bg-background/10" style={{ color: theme.textColor, borderColor: `${theme.textColor}33` }}>
+          <Button variant="outline" size="sm" onClick={goBack} className="gap-1" style={{ color: theme.textColor, borderColor: theme.fieldBorderColor, backgroundColor: theme.controlSurfaceColor }}>
             <ArrowLeft className="size-3.5" /> Back
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={reset} className="gap-1 bg-background/10" style={{ color: theme.textColor, borderColor: `${theme.textColor}33` }}>
+        <Button variant="outline" size="sm" onClick={reset} className="gap-1" style={{ color: theme.textColor, borderColor: theme.fieldBorderColor, backgroundColor: theme.controlSurfaceColor }}>
           <RotateCcw className="size-3.5" /> Reset
         </Button>
       </div>
@@ -101,15 +96,15 @@ export function BuilderFormPreview({ form }: BuilderFormPreviewProps) {
       <div className="mx-auto flex h-full w-full max-w-3xl items-center px-6 py-16 md:px-12">
         {screen === 'welcome' && (
           <div className="max-w-2xl space-y-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-50">Live draft preview</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.textSecondaryColor }}>Live draft preview</p>
             <h1 className={`text-4xl font-bold leading-tight md:text-6xl ${theme.fontFamily === 'serif' ? 'font-serif' : theme.fontFamily === 'mono' ? 'font-mono' : 'font-sans'}`}>
               {form.welcomeTitle || form.title}
             </h1>
-            {form.welcomeMessage && <p className="max-w-xl text-lg opacity-70">{form.welcomeMessage}</p>}
+            {form.welcomeMessage && <p className="max-w-xl text-lg" style={{ color: theme.textSecondaryColor }}>{form.welcomeMessage}</p>}
             <Button size="lg" className="mt-4 gap-2 rounded-full px-7" onClick={advance} style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}>
               Start preview
             </Button>
-            <p className="text-xs opacity-45">Answers stay local and are never submitted.</p>
+            <p className="text-xs" style={{ color: theme.textTertiaryColor }}>Answers stay local and are never submitted.</p>
           </div>
         )}
 
@@ -130,10 +125,10 @@ export function BuilderFormPreview({ form }: BuilderFormPreviewProps) {
 
         {screen === 'ending' && (
           <div className="max-w-2xl space-y-5 text-center">
-            <div className="mx-auto flex size-20 items-center justify-center rounded-full text-3xl" style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}>✓</div>
+            <div className="mx-auto flex size-20 items-center justify-center rounded-full" style={{ backgroundColor: theme.buttonColor, color: theme.buttonTextColor }}><Check className="size-9" aria-hidden="true" /></div>
             <h1 className="text-4xl font-bold md:text-5xl">{endingTitle}</h1>
-            <p className="text-lg opacity-70">{endingMessage}</p>
-            <Button variant="outline" onClick={reset} style={{ color: theme.textColor, borderColor: `${theme.textColor}44` }}>Preview again</Button>
+            <p className="text-lg" style={{ color: theme.textSecondaryColor }}>{endingMessage}</p>
+            <Button variant="outline" onClick={reset} style={{ color: theme.textColor, borderColor: theme.fieldHoverBorderColor, backgroundColor: theme.controlSurfaceColor }}>Preview again</Button>
           </div>
         )}
       </div>

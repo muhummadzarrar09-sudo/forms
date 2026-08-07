@@ -22,7 +22,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import {
   ArrowLeft,
   Download,
@@ -50,7 +49,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay } from 'date-fns';
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Line, LineChart } from 'recharts';
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import {
   AlertDialog,
@@ -62,20 +61,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const responseChartConfig = {
   responses: {
     label: 'Responses',
-    color: 'hsl(var(--primary))',
+    color: 'var(--info)',
   },
 } satisfies ChartConfig;
 
-const lineChartConfig = {
-  responses: {
-    label: 'Responses',
-    color: 'hsl(var(--primary))',
-  },
-} satisfies ChartConfig;
+const RESPONSE_STATUS_STYLES: Record<FormResponse['status'], string> = {
+  new: 'border-info/30 bg-info/10 text-info',
+  reviewing: 'border-warning/30 bg-warning/10 text-warning',
+  qualified: 'border-success/30 bg-success/10 text-success',
+  follow_up: 'border-warning/30 bg-warning/10 text-warning',
+  closed: 'border-border bg-muted text-muted-foreground',
+};
 
 // ─── Animated counter hook ────────────────────────────────────────────────────
 
@@ -518,11 +525,8 @@ export function ResponsesViewer() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center space-y-4"
           >
-            <div className="relative inline-block">
-              <div className="absolute -inset-4 rounded-full bg-primary/5 animate-pulse" />
-              <div className="relative size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto">
-                <Inbox className="size-10 text-primary/60" />
-              </div>
+            <div className="mx-auto flex size-20 items-center justify-center rounded-2xl border bg-primary/5 shadow-[var(--shadow-1)]">
+              <Inbox className="size-10 text-primary" />
             </div>
             <h2 className="text-2xl font-bold">No responses yet</h2>
             <p className="text-muted-foreground max-w-md">
@@ -577,54 +581,52 @@ export function ResponsesViewer() {
               </Button>
               {/* Colored accent dot + form title */}
               <div
-                className="size-3 rounded-full shrink-0"
-                style={{ backgroundColor: currentForm?.backgroundColor || 'hsl(var(--primary))' }}
+                className="size-3 rounded-full shrink-0 border"
+                style={{ backgroundColor: currentForm?.buttonColor || 'var(--info)', borderColor: 'var(--border)' }}
               />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold truncate">{currentForm?.title || 'Form'}</h1>
-                <p className="text-[10px] text-muted-foreground">Response Analytics</p>
+                <p className="text-xs text-muted-foreground">Response Analytics</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => openFiller(selectedFormId!)}
-                className="gap-1.5 hidden sm:flex"
+                className="hidden min-h-11 gap-1.5 sm:flex"
               >
                 <ExternalLink className="size-3.5" />
                 Preview
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-11 gap-1.5">
+                    <Download className="size-3.5" />
+                    <span className="hidden sm:inline">Export</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <Download className="size-4" /> Export CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportJSON}>
+                    <Download className="size-4" /> Export JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => toast({ title: 'Coming soon', description: 'PDF export will be available in a future update.' })}>
+                    <FileDown className="size-4" /> Export PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
-                size="sm"
-                onClick={handleExportCSV}
-                className="gap-1.5"
-              >
-                <Download className="size-3.5" />
-                <span className="hidden sm:inline">Export CSV</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportJSON} className="gap-1.5">
-                <Download className="size-3.5" />
-                <span className="hidden sm:inline">JSON</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => toast({ title: 'Coming soon', description: 'PDF export will be available in a future update.' })}
-                className="gap-1.5"
-              >
-                <FileDown className="size-3.5" />
-                <span className="hidden sm:inline">PDF</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => setShowClearAllDialog(true)}
-                className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                className="text-destructive hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                aria-label="Clear all responses"
               >
-                <Trash2 className="size-3.5" />
-                <span className="hidden sm:inline">Clear all</span>
+                <Trash2 className="size-4" />
               </Button>
             </div>
           </div>
@@ -637,7 +639,7 @@ export function ResponsesViewer() {
         {/* Stats cards with completion rate as circular indicator */}
         <div className={`grid grid-cols-1 ${hasScoring ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <Card className="overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
+            <Card className="overflow-hidden border bg-card">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -647,7 +649,7 @@ export function ResponsesViewer() {
                       {summary?.statusCounts?.new ?? 0} new · {summary?.statusCounts?.qualified ?? 0} qualified
                     </p>
                   </div>
-                  <div className="size-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10">
                     <Users className="size-5 text-primary" />
                   </div>
                 </div>
@@ -656,7 +658,7 @@ export function ResponsesViewer() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-            <Card className="overflow-hidden bg-gradient-to-br from-emerald-500/5 to-transparent">
+            <Card className="overflow-hidden border border-success/20 bg-success/10">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -676,7 +678,7 @@ export function ResponsesViewer() {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="4"
-                        className="text-emerald-500/10"
+                        className="text-success/10"
                       />
                       <circle
                         cx="28"
@@ -687,12 +689,12 @@ export function ResponsesViewer() {
                         strokeWidth="4"
                         strokeLinecap="round"
                         strokeDasharray={`${(completionRate / 100) * 138.23} 138.23`}
-                        className="text-emerald-500"
+                        className="text-success"
                         style={{ transition: 'stroke-dasharray 0.8s ease-out' }}
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <CheckCircle2 className="size-4 text-emerald-600" />
+                      <CheckCircle2 className="size-4 text-success" />
                     </div>
                   </div>
                 </div>
@@ -701,15 +703,15 @@ export function ResponsesViewer() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-            <Card className="overflow-hidden bg-gradient-to-br from-amber-500/5 to-transparent">
+            <Card className="overflow-hidden border bg-card">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Avg. Time</p>
                     <p className="text-3xl font-bold tabular-nums">{formatDuration(animatedAverageTime)}</p>
                   </div>
-                  <div className="size-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                    <Clock className="size-5 text-amber-600" />
+                  <div className="flex size-11 items-center justify-center rounded-xl bg-muted">
+                    <Clock className="size-5 text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -719,7 +721,7 @@ export function ResponsesViewer() {
           {/* Avg Score card - only shown when scoring is enabled */}
           {hasScoring && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
-              <Card className="overflow-hidden bg-gradient-to-br from-violet-500/5 to-transparent">
+              <Card className="overflow-hidden border border-info/20 bg-info/10">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
@@ -729,8 +731,8 @@ export function ResponsesViewer() {
                         <span className="text-lg text-muted-foreground">pts</span>
                       </div>
                     </div>
-                    <div className="size-11 rounded-xl bg-violet-500/10 flex items-center justify-center">
-                      <BarChart3 className="size-5 text-violet-600" />
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-info/10">
+                      <BarChart3 className="size-5 text-info" />
                     </div>
                   </div>
                 </CardContent>
@@ -746,7 +748,7 @@ export function ResponsesViewer() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.15 }}
           >
-            <Card className="rounded-xl shadow-sm">
+            <Card className="rounded-xl shadow-[var(--shadow-1)]">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="size-4 text-muted-foreground" />
@@ -758,8 +760,8 @@ export function ResponsesViewer() {
                   <BarChart data={responseTrendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="barGradientFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.6} />
+                        <stop offset="0%" stopColor="var(--info)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="var(--info)" stopOpacity={0.6} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -795,58 +797,6 @@ export function ResponsesViewer() {
           </motion.div>
         )}
 
-        {/* Responses Line Chart */}
-        {responseTrendData.length > 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <Card className="rounded-xl shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <TrendingUp className="size-4 text-muted-foreground" />
-                  Daily Response Trend
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <ChartContainer config={lineChartConfig} className="h-[180px] w-full">
-                  <LineChart data={responseTrendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      tickMargin={4}
-                      interval={Math.max(0, Math.floor(responseTrendData.length / 8) - 1)}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      allowDecimals={false}
-                      tickMargin={4}
-                    />
-                    <ChartTooltip
-                      content={<ChartTooltipContent />}
-                      labelFormatter={(label) => label}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="responses"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: 'hsl(var(--primary))' }}
-                      activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
-                    />
-                  </LineChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
         {/* Drop-off Analysis */}
         {dropOffData.length > 0 && (
           <motion.div
@@ -854,7 +804,7 @@ export function ResponsesViewer() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.25 }}
           >
-            <Card className="rounded-xl shadow-sm">
+            <Card className="rounded-xl shadow-[var(--shadow-1)]">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingDown className="size-4 text-muted-foreground" />
@@ -872,7 +822,7 @@ export function ResponsesViewer() {
                     .map((d) => (
                       <div key={d.questionId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="size-5 rounded text-[10px] font-bold flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+                          <span className="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-xs font-bold text-muted-foreground">
                             {d.questionIndex}
                           </span>
                           <span className="text-sm truncate">{d.questionTitle}</span>
@@ -882,18 +832,18 @@ export function ResponsesViewer() {
                             <div className="flex items-center gap-1">
                               <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
-                                  className="h-full rounded-full bg-amber-500"
+                                  className="h-full rounded-full bg-info"
                                   style={{ width: `${d.answerRate}%` }}
                                 />
                               </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+                            <p className="text-xs text-muted-foreground text-right mt-0.5">
                               {d.answerRate}% answer rate
                             </p>
                           </div>
                           <Badge
                             variant={d.dropFromPrev > 20 ? 'destructive' : 'outline'}
-                            className="text-[10px] shrink-0 gap-1"
+                            className="min-h-7 shrink-0 gap-1 text-xs"
                           >
                             {d.dropFromPrev > 20 && <AlertTriangle className="size-2.5" />}
                             -{d.dropFromPrev}%
@@ -904,7 +854,7 @@ export function ResponsesViewer() {
                   {dropOffData.filter((d) => d.dropFromPrev > 0).length === 0 && (
                     <div className="py-4 text-center">
                       <p className="text-sm text-muted-foreground">No significant drop-off detected</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Great job! Your form has a smooth flow.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Great job! Your form has a smooth flow.</p>
                     </div>
                   )}
                 </div>
@@ -931,12 +881,12 @@ export function ResponsesViewer() {
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex items-center gap-2 flex-1 w-full sm:w-auto sm:justify-end">
+            <div className="flex w-full flex-1 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               {/* Partial response filter */}
               <Button
                 variant={showPartial ? 'outline' : 'default'}
                 size="sm"
-                className="h-8 text-xs gap-1.5 shrink-0"
+                className="min-h-11 text-xs gap-1.5 shrink-0"
                 onClick={() => setShowPartial(!showPartial)}
               >
                 <Filter className="size-3.5" />
@@ -944,7 +894,7 @@ export function ResponsesViewer() {
               </Button>
 
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                <SelectTrigger className="h-8 w-28 text-xs shrink-0"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="min-h-11 w-32 text-xs shrink-0"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="new">New</SelectItem>
@@ -962,14 +912,14 @@ export function ResponsesViewer() {
                   placeholder="Search responses..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 text-sm"
+                  className="pl-8 text-sm"
                 />
               </div>
 
               {/* Date range filter */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs shrink-0">
+                  <Button variant="outline" size="sm" className="min-h-11 gap-1.5 text-xs shrink-0">
                     <CalendarIcon className="size-3.5" />
                     <span className="hidden sm:inline">
                       {dateFrom || dateTo
@@ -979,41 +929,38 @@ export function ResponsesViewer() {
                     <span className="sm:hidden">Filter</span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <div className="p-3 space-y-3">
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">From</p>
-                      <Calendar
-                        mode="single"
-                        selected={dateFrom}
-                        onSelect={setDateFrom}
-                        initialFocus
-                      />
+                <PopoverContent className="w-[min(22rem,calc(100vw-2rem))]" align="end">
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1.5 text-xs font-medium text-muted-foreground">
+                        From
+                        <Input
+                          type="date"
+                          value={dateFrom ? dateFilterParam(dateFrom) : ''}
+                          onChange={(event) => setDateFrom(event.target.value ? startOfDay(new Date(`${event.target.value}T00:00:00`)) : undefined)}
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs font-medium text-muted-foreground">
+                        To
+                        <Input
+                          type="date"
+                          value={dateTo ? dateFilterParam(dateTo) : ''}
+                          onChange={(event) => setDateTo(event.target.value ? startOfDay(new Date(`${event.target.value}T00:00:00`)) : undefined)}
+                        />
+                      </label>
                     </div>
-                    <Separator />
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">To</p>
-                      <Calendar
-                        mode="single"
-                        selected={dateTo}
-                        onSelect={setDateTo}
-                        initialFocus
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setDateFrom(undefined);
-                          setDateTo(undefined);
-                        }}
-                      >
-                        <FilterX className="size-3 mr-1" />
-                        Clear
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 w-full"
+                      onClick={() => {
+                        setDateFrom(undefined);
+                        setDateTo(undefined);
+                      }}
+                    >
+                      <FilterX className="size-3.5" />
+                      Clear dates
+                    </Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1140,7 +1087,7 @@ export function ResponsesViewer() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleClearAllResponses}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isClearingAll}
             >
               {isClearingAll ? 'Deleting...' : 'Delete all'}
@@ -1215,7 +1162,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="overflow-hidden relative transition-all duration-200 hover:shadow-md">
+      <Card className="overflow-hidden relative transition-all duration-200 hover:shadow-[var(--shadow-2)]">
         {/* Left color accent border */}
         <div
           className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary/40 rounded-r-full"
@@ -1234,22 +1181,22 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                 Response #{response.number}
               </p>
               {response.timeTaken !== null && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
-                  <Clock className="size-2.5" />
+                <Badge variant="outline" className="min-h-7 gap-1 px-2 text-xs">
+                  <Clock className="size-3" />
                   {formatDuration(response.timeTaken)}
                 </Badge>
               )}
               {response.isPartial && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950">
+                <Badge variant="outline" className="min-h-7 gap-1 border-warning/30 bg-warning/10 px-2 text-xs text-warning">
                   Partial
                 </Badge>
               )}
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
+              <Badge variant="outline" className={`min-h-7 px-2 text-xs capitalize ${RESPONSE_STATUS_STYLES[status]}`}>
                 {status.replace('_', ' ')}
               </Badge>
               {response.score > 0 && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-violet-600 border-violet-200 bg-violet-50">
-                  <BarChart3 className="size-2.5" />
+                <Badge variant="outline" className="min-h-7 gap-1 border-primary/20 bg-primary/10 px-2 text-xs text-primary">
+                  <BarChart3 className="size-3" />
                   {response.score} pts
                 </Badge>
               )}
@@ -1289,7 +1236,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                       try { await saveWorkspaceFields({ status: next }); }
                       catch { setStatus(previous); toast({ title: 'Could not update status', variant: 'destructive' }); }
                     }}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={`min-h-11 ${RESPONSE_STATUS_STYLES[status]}`}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="new">New</SelectItem>
                         <SelectItem value="reviewing">Reviewing</SelectItem>
@@ -1319,7 +1266,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                           {answer.questionTitle}
                         </p>
                         {answer.score > 0 && (
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 text-violet-600 border-violet-200 bg-violet-50">
+                          <Badge variant="outline" className="min-h-7 gap-0.5 border-primary/20 bg-primary/10 px-2 text-xs text-primary">
                             +{answer.score}
                           </Badge>
                         )}
@@ -1328,7 +1275,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                         {answer.value ? (
                           <p className="text-sm font-medium">{answer.value}</p>
                         ) : (
-                          <p className="text-sm text-muted-foreground/60 italic">No answer</p>
+                          <p className="text-sm text-muted-foreground italic">No answer</p>
                         )}
                       </div>
                       {index < response.answers.length - 1 && (
@@ -1343,7 +1290,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="min-h-10 px-3 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowDeleteDialog(true);
@@ -1372,7 +1319,7 @@ function ResponseCard({ response, isExpanded, onToggle, questions, formId, onDel
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
-                className="bg-destructive text-white hover:bg-destructive/90"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Delete
               </AlertDialogAction>
@@ -1428,7 +1375,7 @@ function FunnelTab({ questions, responses }: { questions: FormQuestion[]; respon
         <CardContent className="py-12 text-center">
           <TrendingDown className="size-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-muted-foreground">No funnel data available</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Funnel data will appear once you have responses.</p>
+          <p className="text-xs text-muted-foreground mt-1">Funnel data will appear once you have responses.</p>
         </CardContent>
       </Card>
     );
@@ -1453,20 +1400,24 @@ function FunnelTab({ questions, responses }: { questions: FormQuestion[]; respon
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {funnelData.map((d) => {
               const widthPercent = maxCount > 0 ? (d.answerCount / maxCount) * 100 : 0;
-              const colorClass =
-                d.completionRate >= 80 ? 'bg-emerald-500' :
-                d.completionRate >= 50 ? 'bg-amber-500' :
-                'bg-red-500';
+              const fillClass =
+                d.completionRate >= 80 ? 'bg-success' :
+                d.completionRate >= 50 ? 'bg-warning' :
+                'bg-destructive';
+              const foregroundClass =
+                d.completionRate >= 80 ? 'text-success-foreground' :
+                d.completionRate >= 50 ? 'text-warning-foreground' :
+                'text-destructive-foreground';
               const textColor =
-                d.completionRate >= 80 ? 'text-emerald-700' :
-                d.completionRate >= 50 ? 'text-amber-700' :
-                'text-red-700';
+                d.completionRate >= 80 ? 'text-success' :
+                d.completionRate >= 50 ? 'text-warning' :
+                'text-destructive';
 
               return (
                 <div key={d.questionId} className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="size-5 rounded text-[10px] font-bold flex items-center justify-center bg-muted text-muted-foreground shrink-0">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-xs font-bold text-muted-foreground">
                         {d.questionIndex}
                       </span>
                       <span className="text-sm truncate">{d.questionTitle}</span>
@@ -1478,7 +1429,7 @@ function FunnelTab({ questions, responses }: { questions: FormQuestion[]; respon
                       {d.dropFromPrev > 0 && (
                         <Badge
                           variant={d.dropFromPrev > 20 ? 'destructive' : 'outline'}
-                          className="text-[10px] shrink-0 gap-0.5"
+                          className="min-h-7 shrink-0 gap-0.5 text-xs"
                         >
                           {d.dropFromPrev > 20 && <AlertTriangle className="size-2.5" />}
                           -{d.dropFromPrev}%
@@ -1492,11 +1443,13 @@ function FunnelTab({ questions, responses }: { questions: FormQuestion[]; respon
                       initial={{ width: 0 }}
                       animate={{ width: `${widthPercent}%` }}
                       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: d.questionIndex * 0.05 }}
-                      className={`h-full rounded-md ${colorClass} flex items-center justify-end pr-2`}
+                      className={`flex h-full items-center justify-end rounded-md pr-2 ${fillClass}`}
                     >
-                      <span className="text-[10px] font-bold text-white drop-shadow-sm">
-                        {d.completionRate}%
-                      </span>
+                      {widthPercent >= 36 && (
+                        <span className={`text-xs font-bold ${foregroundClass}`}>
+                          {d.completionRate}%
+                        </span>
+                      )}
                     </motion.div>
                   </div>
                 </div>
@@ -1510,23 +1463,23 @@ function FunnelTab({ questions, responses }: { questions: FormQuestion[]; respon
       <div className="grid grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4 text-center">
-            <Trophy className="size-5 text-emerald-600 mx-auto mb-1" />
+            <Trophy className="size-5 text-success mx-auto mb-1" />
             <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate >= 80).length}</p>
-            <p className="text-[10px] text-muted-foreground">High completion</p>
+            <p className="text-xs text-muted-foreground">High completion</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <AlertTriangle className="size-5 text-amber-600 mx-auto mb-1" />
+            <AlertTriangle className="mx-auto mb-1 size-5 text-warning" />
             <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate >= 50 && d.completionRate < 80).length}</p>
-            <p className="text-[10px] text-muted-foreground">Moderate</p>
+            <p className="text-xs text-muted-foreground">Moderate</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <TrendingDown className="size-5 text-red-600 mx-auto mb-1" />
+            <TrendingDown className="mx-auto mb-1 size-5 text-destructive" />
             <p className="text-lg font-bold">{funnelData.filter((d) => d.completionRate < 50).length}</p>
-            <p className="text-[10px] text-muted-foreground">High drop-off</p>
+            <p className="text-xs text-muted-foreground">High drop-off</p>
           </CardContent>
         </Card>
       </div>

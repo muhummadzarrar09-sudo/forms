@@ -27,6 +27,7 @@ import {
 } from '@/lib/form-helpers';
 import { QuestionEditor } from '@/components/forms/question-editor';
 import { BuilderFormPreview } from '@/components/forms/builder-form-preview';
+import { deriveFormTheme } from '@/lib/form-theme';
 import { QuestionTypePicker } from '@/components/forms/question-type-picker';
 import { DesignPanel } from '@/components/forms/design-panel';
 import { ShareDialog } from '@/components/forms/share-dialog';
@@ -172,6 +173,7 @@ export function FormBuilder() {
   const [workspaceMode, setWorkspaceMode] = useState<'editor' | 'preview'>('editor');
   const [formTitle, setFormTitle] = useState('');
   const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<'idle' | 'saved' | 'error'>('idle');
 
   // Fetch form on mount
   useEffect(() => {
@@ -209,6 +211,7 @@ export function FormBuilder() {
   const saveFormSettings = useCallback(
     async (updates: Record<string, unknown>) => {
       if (!currentForm) return;
+      setSaveFeedback('idle');
       try {
         const res = await fetch(`/api/forms/${currentForm.id}`, {
           method: 'PUT',
@@ -218,9 +221,12 @@ export function FormBuilder() {
         if (res.ok) {
           const saved = await res.json();
           setCurrentForm(saved);
+          setSaveFeedback('saved');
+        } else {
+          setSaveFeedback('error');
         }
       } catch {
-        // Silent fail for auto-save
+        setSaveFeedback('error');
       }
     },
     [currentForm, setCurrentForm]
@@ -264,11 +270,14 @@ export function FormBuilder() {
             questions: saved,
           });
         }
+        setSaveFeedback('saved');
       } else {
         lastSavedHashRef.current = ''; // Reset on failure to allow retry
+        setSaveFeedback('error');
       }
     } catch {
       lastSavedHashRef.current = ''; // Reset on failure to allow retry
+      setSaveFeedback('error');
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
@@ -284,6 +293,7 @@ export function FormBuilder() {
     questionsChangeCount.current++;
     // Skip the first trigger (initial load)
     if (questionsChangeCount.current <= 1) return;
+    setSaveFeedback('idle');
     debouncedSaveQuestions();
   }, [currentForm?.questions, debouncedSaveQuestions, isLoading]);
 
@@ -557,15 +567,17 @@ export function FormBuilder() {
 
   if (!currentForm) return null;
 
+  const editorTheme = deriveFormTheme(currentForm);
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* ── Top Bar ── */}
-      <header className="h-12 border-b bg-background/95 backdrop-blur-sm flex items-center px-3 gap-1.5 shrink-0 z-20">
+      <header className="h-16 border-b bg-background/95 backdrop-blur-sm flex items-center px-3 gap-1.5 shrink-0 z-20">
         {/* Back */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={openDashboard} aria-label="Back to dashboard">
+              <Button variant="ghost" size="icon" className="size-11" onClick={openDashboard} aria-label="Back to dashboard">
                 <ArrowLeft className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -577,7 +589,7 @@ export function FormBuilder() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 md:hidden"
+          className="size-11 md:hidden"
           onClick={() => setShowLeftPanel(!showLeftPanel)}
           aria-label={showLeftPanel ? 'Close question list' : 'Open question list'}
         >
@@ -624,11 +636,12 @@ export function FormBuilder() {
                   : `"${currentForm.title}" is no longer a favorite.`,
               });
             }}
-            className={`shrink-0 transition-all ${
+            className={`hidden size-11 shrink-0 items-center justify-center rounded-full transition-all sm:flex ${
               currentForm.favorite
-                ? 'text-red-500 hover:text-red-600'
-                : 'text-muted-foreground/40 hover:text-red-400'
+                ? 'text-rose-600 hover:bg-rose-500/10'
+                : 'text-muted-foreground hover:bg-muted'
             }`}
+            aria-label={currentForm.favorite ? 'Remove from favorites' : 'Add to favorites'}
             title={currentForm.favorite ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Heart className={`size-4 ${currentForm.favorite ? 'fill-current' : ''}`} />
@@ -641,7 +654,7 @@ export function FormBuilder() {
             type="button"
             size="sm"
             variant={workspaceMode === 'editor' ? 'secondary' : 'ghost'}
-            className="h-7 gap-1.5 px-2.5 text-xs"
+            className="min-h-10 gap-1.5 px-2.5 text-xs"
             role="tab"
             aria-selected={workspaceMode === 'editor'}
             onClick={() => setWorkspaceMode('editor')}
@@ -652,7 +665,7 @@ export function FormBuilder() {
             type="button"
             size="sm"
             variant={workspaceMode === 'preview' ? 'secondary' : 'ghost'}
-            className="h-7 gap-1.5 px-2.5 text-xs"
+            className="min-h-10 gap-1.5 px-2.5 text-xs"
             role="tab"
             aria-selected={workspaceMode === 'preview'}
             onClick={() => setWorkspaceMode('preview')}
@@ -661,16 +674,17 @@ export function FormBuilder() {
           </Button>
         </div>
 
-        {/* Saving indicator - pulsing dot */}
-        {isSaving && (
-          <span className="flex items-center gap-1.5">
-            <span className="relative flex size-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex rounded-full size-2 bg-primary" />
-            </span>
-            <span className="text-xs text-muted-foreground">Saving</span>
-          </span>
-        )}
+        <span className="hidden items-center gap-1.5 text-xs sm:flex" aria-live="polite">
+          {isSaving ? (
+            <><span className="size-3 animate-spin rounded-full border-2 border-primary/30 border-t-primary" /><span className="text-muted-foreground">Saving…</span></>
+          ) : saveFeedback === 'error' ? (
+            <><span className="size-2 rounded-full bg-destructive" /><span className="text-destructive">Save failed</span></>
+          ) : saveFeedback === 'saved' ? (
+            <><Check className="size-3.5 text-success" /><span className="text-success">Saved</span></>
+          ) : (
+            <span className="text-muted-foreground">Draft</span>
+          )}
+        </span>
 
         <Separator orientation="vertical" className="h-5" />
 
@@ -683,7 +697,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`size-8 lg:hidden ${workspaceMode === 'preview' ? 'invisible pointer-events-none' : ''}`}
+                  className={`hidden size-11 sm:inline-flex lg:hidden ${workspaceMode === 'preview' ? 'invisible pointer-events-none' : ''}`}
                   onClick={() => setShowRightPanel(!showRightPanel)}
                   aria-label={showRightPanel ? 'Close settings panel' : 'Open settings panel'}
                 >
@@ -698,7 +712,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 sm:hidden"
+                  className="size-11 sm:hidden"
                   onClick={() => setWorkspaceMode((mode) => mode === 'editor' ? 'preview' : 'editor')}
                   aria-label={workspaceMode === 'editor' ? 'Switch to embedded preview' : 'Switch to editor'}
                 >
@@ -713,7 +727,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 text-xs hidden sm:flex"
+                  className="min-h-11 gap-1.5 text-xs hidden sm:flex"
                   onClick={() => setShowShareDialog(true)}
                 >
                   <Share2 className="size-3.5" />
@@ -728,7 +742,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 text-xs hidden sm:flex"
+                  className="min-h-11 gap-1.5 text-xs hidden sm:flex"
                   onClick={() => openFiller(currentForm.id)}
                 >
                   <Eye className="size-3.5" />
@@ -747,7 +761,7 @@ export function FormBuilder() {
           >
             <Button
               size="sm"
-              className={`h-8 gap-1.5 text-xs transition-colors duration-300 ${currentForm.published ? 'bg-green-600 hover:bg-green-700' : ''}`}
+              className={`min-h-11 min-w-11 gap-1.5 text-xs transition-colors duration-300 ${currentForm.published ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
               onClick={handlePublish}
             >
               {currentForm.published ? (
@@ -770,7 +784,7 @@ export function FormBuilder() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="hidden size-11 sm:inline-flex"
                   onClick={() => setShowKeyboardShortcuts(true)}
                 >
                   <Keyboard className="size-4" />
@@ -782,7 +796,7 @@ export function FormBuilder() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
+              <Button variant="ghost" size="icon" className="size-11">
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -841,7 +855,7 @@ export function FormBuilder() {
         {/* ── Left Panel: Question List ── */}
         <div className={`w-64 border-r bg-muted/30 flex flex-col shrink-0 z-40 transition-transform duration-200 ${
           workspaceMode === 'preview' ? 'hidden' : showLeftPanel ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } fixed md:relative h-[calc(100vh-3rem)] md:h-auto`}>
+        } fixed md:relative h-[calc(100vh-4rem)] md:h-auto`}>
           {/* Welcome Screen item */}
           <div className="px-3 pt-3 pb-0.5">
             <button
@@ -850,7 +864,7 @@ export function FormBuilder() {
                 setShowEndingScreen(false);
                 setShowLeftPanel(false);
               }}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
+              className={`w-full flex min-h-11 items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
                 !selectedQuestionId && !showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
@@ -905,7 +919,7 @@ export function FormBuilder() {
             >
               <Button
                 variant="outline"
-                className="w-full gap-1.5 text-xs h-8 border-dashed hover:border-primary/50 hover:bg-primary/5 group/btn"
+                className="min-h-11 w-full gap-1.5 text-xs border-dashed hover:border-primary/50 hover:bg-primary/5 group/btn"
                 onClick={() => setShowTypePicker(true)}
               >
                 <Plus className="size-3.5 transition-colors group-hover/btn:text-primary" />
@@ -922,7 +936,7 @@ export function FormBuilder() {
                 setShowEndingScreen(true);
                 setShowLeftPanel(false);
               }}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
+              className={`w-full flex min-h-11 items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-sm transition-all ${
                 showEndingScreen
                   ? 'bg-primary/10 text-primary font-medium'
                   : 'text-muted-foreground hover:bg-accent/50'
@@ -939,7 +953,7 @@ export function FormBuilder() {
         </div>
 
         {/* ── Center Panel: Question Editor / Preview ── */}
-        <div className={`flex-1 overflow-hidden min-w-0 ${workspaceMode === 'preview' ? '' : 'bg-muted/20 builder-dot-grid'}`}>
+        <div className={`flex-1 overflow-hidden min-w-0 ${workspaceMode === 'preview' ? '' : 'bg-muted/20'}`}>
           {workspaceMode === 'preview' ? (
             <BuilderFormPreview form={currentForm} />
           ) : selectedQuestion ? (
@@ -948,11 +962,11 @@ export function FormBuilder() {
               question={selectedQuestion}
               questionIndex={sortedQuestions.findIndex((q) => q.id === selectedQuestion.id)}
               totalQuestions={sortedQuestions.length}
-              formBackgroundColor={currentForm.backgroundColor}
-              formTextColor={currentForm.textColor}
-              formButtonColor={currentForm.buttonColor}
-              formButtonTextColor={currentForm.buttonTextColor}
-              formFontFamily={currentForm.fontFamily}
+              formBackgroundColor={editorTheme.backgroundColor}
+              formTextColor={editorTheme.textColor}
+              formButtonColor={editorTheme.buttonColor}
+              formButtonTextColor={editorTheme.buttonTextColor}
+              formFontFamily={editorTheme.fontFamily}
             />
           ) : showEndingScreen ? (
             /* Ending Screen editor */
@@ -976,11 +990,11 @@ export function FormBuilder() {
                 onClick={() => setShowRightPanel(false)}
               />
               <motion.div
-                initial={{ x: 280, opacity: 0 }}
+                initial={{ x: 320, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 280, opacity: 0 }}
+                exit={{ x: 320, opacity: 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="fixed right-0 top-12 bottom-0 w-[280px] z-40 lg:relative lg:top-auto lg:bottom-auto lg:shrink-0 border-l bg-background"
+                className="fixed right-0 top-16 bottom-0 w-[320px] z-40 lg:relative lg:top-auto lg:bottom-auto lg:shrink-0 border-l bg-background"
               >
                 <DesignPanel
                   selectedQuestion={selectedQuestion}
@@ -1021,7 +1035,7 @@ export function FormBuilder() {
               Take me to the question
             </AlertDialogAction>
             <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
               onClick={async () => {
                 if (!currentForm) return;
                 updateForm(currentForm.id, { published: true });
@@ -1091,7 +1105,7 @@ function SortableQuestionItem({
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all relative hover:translate-x-0.5 ${
+        className={`group flex min-h-11 items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all relative hover:translate-x-0.5 ${
           isSelected
             ? 'bg-primary/10 text-primary'
             : 'hover:bg-accent/50 text-foreground'
@@ -1104,7 +1118,7 @@ function SortableQuestionItem({
         )}
         {/* Drag handle */}
         <button
-          className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity shrink-0 cursor-grab active:cursor-grabbing"
+          className="flex size-10 shrink-0 cursor-grab items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing"
           {...attributes}
           {...listeners}
         >
@@ -1130,11 +1144,11 @@ function SortableQuestionItem({
         <span className="flex-1 text-sm truncate">{question.title}</span>
 
         {/* Actions on hover */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
+        <div className="flex shrink-0 items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="size-5 rounded flex items-center justify-center hover:bg-accent"
+                className="flex size-10 items-center justify-center rounded-md hover:bg-accent"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="size-3" />
@@ -1168,6 +1182,7 @@ function SortableQuestionItem({
 
 function WelcomeScreenPreview({ form }: { form: Form }) {
   const { updateForm } = useFormStore();
+  const theme = deriveFormTheme(form);
   const fontFamilyClass =
     form.fontFamily === 'serif'
       ? 'font-serif'
@@ -1215,13 +1230,13 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
   return (
     <div
       className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative overflow-hidden"
-      style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
+      style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       {/* Animated gradient background */}
       <div
-        className="absolute inset-0 animated-gradient-bg opacity-30"
+        className="absolute inset-0 opacity-100"
         style={{
-          background: `linear-gradient(135deg, ${form.buttonColor}33, ${form.backgroundColor}, ${form.buttonColor}22)`,
+          background: `linear-gradient(135deg, ${theme.selectedSurfaceColor}, ${theme.backgroundColor}, ${theme.controlSurfaceColor})`,
           backgroundSize: '200% 200%',
         }}
       />
@@ -1245,18 +1260,18 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
             }}
             autoFocus
             className={`text-4xl md:text-5xl font-bold leading-tight bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
-            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            style={{ color: theme.textColor, borderColor: theme.fieldBorderColor }}
             rows={2}
           />
         ) : (
           <h1
             onClick={() => setEditingField('title')}
-            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
-            style={{ color: form.textColor }}
+            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:opacity-85 ${fontFamilyClass}`}
+            style={{ color: theme.textColor }}
             title="Click to edit"
           >
             {welcomeTitle || 'Welcome!'}
-            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2 align-middle">✏️</span>
+
           </h1>
         )}
 
@@ -1267,19 +1282,19 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
             onChange={(e) => setLocalMessage(e.target.value)}
             onBlur={handleMessageBlur}
             autoFocus
-            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full opacity-70 ${fontFamilyClass}`}
-            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
+            style={{ color: theme.textColor, borderColor: theme.fieldBorderColor }}
             rows={3}
           />
         ) : (
           <p
             onClick={() => setEditingField('message')}
-            className={`text-lg opacity-70 cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
-            style={{ color: form.textColor }}
+            className={`text-lg cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:opacity-85 ${fontFamilyClass}`}
+            style={{ color: theme.textColor }}
             title="Click to edit"
           >
             {welcomeMessage || 'Thanks for taking the time to fill this out.'}
-            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2">✏️</span>
+
           </p>
         )}
 
@@ -1299,15 +1314,15 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
               }}
               autoFocus
               className="text-base font-medium bg-transparent border-b-2 border-dashed outline-none text-center"
-              style={{ color: form.buttonTextColor, borderColor: `${form.buttonTextColor}40` }}
+              style={{ color: theme.buttonTextColor, borderColor: theme.fieldBorderColor }}
             />
           ) : (
             <Button
               size="lg"
               className="gap-2 rounded-full px-10 h-12 text-base font-medium cursor-pointer"
               style={{
-                backgroundColor: form.buttonColor,
-                color: form.buttonTextColor,
+                backgroundColor: theme.buttonColor,
+                color: theme.buttonTextColor,
               }}
               onClick={() => setEditingField('button')}
             >
@@ -1325,15 +1340,15 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
         transition={{ delay: 0.8 }}
         className="absolute bottom-4 left-1/2 -translate-x-1/2"
       >
-        <p className="text-xs opacity-40" style={{ color: form.textColor }}>
+        <p className="text-xs" style={{ color: theme.textTertiaryColor }}>
           Click any element to edit
         </p>
       </motion.div>
 
       {/* Progress indicator */}
       {form.progressbar && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/5">
-          <div className="h-full w-0" style={{ backgroundColor: form.buttonColor }} />
+        <div className="absolute bottom-0 left-0 right-0 h-1" style={{ backgroundColor: theme.trackColor }}>
+          <div className="h-full w-0" style={{ backgroundColor: theme.buttonColor }} />
         </div>
       )}
     </div>
@@ -1344,6 +1359,7 @@ function WelcomeScreenPreview({ form }: { form: Form }) {
 
 function EndingScreenEditor({ form }: { form: Form }) {
   const { updateForm } = useFormStore();
+  const theme = deriveFormTheme(form);
   const fontFamilyClass =
     form.fontFamily === 'serif'
       ? 'font-serif'
@@ -1389,7 +1405,7 @@ function EndingScreenEditor({ form }: { form: Form }) {
   return (
     <div
       className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-full relative"
-      style={{ backgroundColor: form.backgroundColor, color: form.textColor }}
+      style={{ backgroundColor: theme.backgroundColor, color: theme.textColor }}
     >
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -1403,9 +1419,9 @@ function EndingScreenEditor({ form }: { form: Form }) {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 15 }}
           className="mx-auto size-24 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: form.buttonColor }}
+          style={{ backgroundColor: theme.buttonColor }}
         >
-          <Check className="size-12" style={{ color: form.buttonTextColor }} />
+          <Check className="size-12" style={{ color: theme.buttonTextColor }} />
         </motion.div>
 
         {/* Editable Title */}
@@ -1422,18 +1438,18 @@ function EndingScreenEditor({ form }: { form: Form }) {
             }}
             autoFocus
             className={`text-4xl md:text-5xl font-bold leading-tight bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
-            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            style={{ color: theme.textColor, borderColor: theme.fieldBorderColor }}
             rows={2}
           />
         ) : (
           <h1
             onClick={() => setEditingField('title')}
-            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
-            style={{ color: form.textColor }}
+            className={`text-4xl md:text-5xl font-bold leading-tight cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:opacity-85 ${fontFamilyClass}`}
+            style={{ color: theme.textColor }}
             title="Click to edit"
           >
             {endingTitle || 'Thank you!'}
-            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2 align-middle">✏️</span>
+
           </h1>
         )}
 
@@ -1444,32 +1460,32 @@ function EndingScreenEditor({ form }: { form: Form }) {
             onChange={(e) => setLocalMessage(e.target.value)}
             onBlur={handleMessageBlur}
             autoFocus
-            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full opacity-60 ${fontFamilyClass}`}
-            style={{ color: form.textColor, borderColor: `${form.textColor}40` }}
+            className={`text-lg bg-transparent border-b-2 border-dashed outline-none resize-none text-center w-full ${fontFamilyClass}`}
+            style={{ color: theme.textColor, borderColor: theme.fieldBorderColor }}
             rows={3}
           />
         ) : (
           <p
             onClick={() => setEditingField('message')}
-            className={`text-lg md:text-xl opacity-60 cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:bg-black/5 ${fontFamilyClass}`}
-            style={{ color: form.textColor }}
+            className={`text-lg md:text-xl cursor-pointer rounded-lg px-2 -mx-2 transition-all hover:opacity-85 ${fontFamilyClass}`}
+            style={{ color: theme.textColor }}
             title="Click to edit"
           >
             {endingMessage || 'Your response has been recorded.'}
-            <span className="text-sm font-normal opacity-0 hover:opacity-50 ml-2">✏️</span>
+
           </p>
         )}
 
         {/* Progress at 100% if showQuestionNumbers is on */}
         {form.showQuestionNumbers && form.progressbar && (
           <div className="w-full max-w-xs mx-auto">
-            <div className="h-1 rounded-full bg-black/10 overflow-hidden">
+            <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: theme.trackColor }}>
               <div
                 className="h-full w-full rounded-full"
-                style={{ backgroundColor: form.buttonColor }}
+                style={{ backgroundColor: theme.buttonColor }}
               />
             </div>
-            <p className="text-xs opacity-40 mt-1" style={{ color: form.textColor }}>
+            <p className="mt-1 text-xs" style={{ color: theme.textTertiaryColor }}>
               100% complete
             </p>
           </div>
@@ -1483,17 +1499,17 @@ function EndingScreenEditor({ form }: { form: Form }) {
         transition={{ delay: 0.8 }}
         className="absolute bottom-4 left-1/2 -translate-x-1/2"
       >
-        <p className="text-xs opacity-40" style={{ color: form.textColor }}>
+        <p className="text-xs" style={{ color: theme.textTertiaryColor }}>
           Click any element to edit
         </p>
       </motion.div>
 
       {/* Progress bar at 100% */}
       {form.progressbar && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/5">
+        <div className="absolute bottom-0 left-0 right-0 h-1" style={{ backgroundColor: theme.trackColor }}>
           <div
             className="h-full w-full"
-            style={{ backgroundColor: form.buttonColor }}
+            style={{ backgroundColor: theme.buttonColor }}
           />
         </div>
       )}
@@ -1512,12 +1528,8 @@ function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
         transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
         className="text-center space-y-6 max-w-md"
       >
-        {/* Illustration using lucide icons */}
-        <div className="relative inline-block">
-          <div className="absolute -inset-4 rounded-full bg-primary/5 animate-pulse" />
-          <div className="relative size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto">
-            <Plus className="size-10 text-primary/60" />
-          </div>
+        <div className="mx-auto flex size-20 items-center justify-center rounded-2xl border bg-primary/5 shadow-[var(--shadow-1)]">
+          <Plus className="size-10 text-primary" />
         </div>
 
         <div className="space-y-2">
@@ -1528,18 +1540,7 @@ function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
           </p>
         </div>
 
-        {/* Bouncing arrow pointing to Add Question button */}
-        <motion.div
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="text-muted-foreground/50"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
-            <path d="M12 5v14" />
-            <path d="m19 12-7 7-7-7" />
-          </svg>
-          <p className="text-xs mt-1">Click below to get started</p>
-        </motion.div>
+        <p className="text-xs text-muted-foreground">Choose a type to begin building the flow.</p>
 
         <motion.div
           whileHover={{ scale: 1.02 }}
@@ -1556,7 +1557,7 @@ function EmptyQuestionsState({ onAddQuestion }: { onAddQuestion: () => void }) {
           </Button>
         </motion.div>
 
-        <p className="text-xs text-muted-foreground/50">
+        <p className="text-xs text-muted-foreground">
           or press the &ldquo;Add question&rdquo; button in the left panel
         </p>
       </motion.div>

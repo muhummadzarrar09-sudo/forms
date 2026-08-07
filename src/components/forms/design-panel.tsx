@@ -8,6 +8,7 @@ import { QUESTION_TYPES, THEME_PRESETS } from '@/lib/form-helpers';
 import { LOGIC_UNSUPPORTED_TYPES, isChoiceQuestion, getDefaultField, getDefaultOperator, getConditionFields, getAvailableOperators, getChoiceOptions } from '@/lib/constants';
 import { BrandingUrlEditor } from '@/components/forms/branding-url-editor';
 import { contrastRatio } from '@/lib/color-contrast';
+import { ensureAccessibleFormTheme, validateFormTheme } from '@/lib/form-theme';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
@@ -99,7 +100,8 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
                   value="question"
                   className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                 >
-                  <Settings2 className="size-4" />
+                  <Settings2 className="size-3.5" />
+                  <span className="text-xs">Question</span>
                 </TabsTrigger>
               </TooltipTrigger>
               <TooltipContent>Question</TooltipContent>
@@ -110,7 +112,8 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
                   value="logic"
                   className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                 >
-                  <GitBranch className="size-4" />
+                  <GitBranch className="size-3.5" />
+                  <span className="text-xs">Logic</span>
                 </TabsTrigger>
               </TooltipTrigger>
               <TooltipContent>Logic</TooltipContent>
@@ -121,7 +124,8 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
                   value="design"
                   className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                 >
-                  <Palette className="size-4" />
+                  <Palette className="size-3.5" />
+                  <span className="text-xs">Design</span>
                 </TabsTrigger>
               </TooltipTrigger>
               <TooltipContent>Design</TooltipContent>
@@ -132,7 +136,8 @@ export function DesignPanel({ selectedQuestion, onQuestionTypeChange }: DesignPa
                   value="settings"
                   className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                 >
-                  <Cog className="size-4" />
+                  <Cog className="size-3.5" />
+                  <span className="text-xs">Form</span>
                 </TabsTrigger>
               </TooltipTrigger>
               <TooltipContent>Settings</TooltipContent>
@@ -401,7 +406,7 @@ function LogicRuleEditor({
         </span>
         <button
           onClick={onRemove}
-          className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+          className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
         >
           <X className="size-3.5" />
         </button>
@@ -528,7 +533,7 @@ function LogicRuleEditor({
                     ) : <Input value={condition.value} onChange={(event) => setCondition(indexInRule, { ...condition, value: event.target.value })} placeholder="Value..." className="col-span-2 h-8 text-xs" />
                   )}
                 </div>
-                <Button type="button" variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => removeCondition(indexInRule)} aria-label="Remove condition">
+                <Button type="button" variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive" onClick={() => removeCondition(indexInRule)} aria-label="Remove condition">
                   <X className="size-3.5" />
                 </Button>
               </div>
@@ -536,7 +541,7 @@ function LogicRuleEditor({
           })}
         </div>
       )}
-      <Button type="button" variant="ghost" size="sm" className="h-7 w-full text-xs text-muted-foreground" onClick={addCondition}>
+      <Button type="button" variant="ghost" size="sm" className="min-h-11 w-full text-xs text-muted-foreground" onClick={addCondition}>
         <Plus className="mr-1 size-3" /> Add condition
       </Button>
 
@@ -955,7 +960,7 @@ function QuestionSettingsTab({
                         );
                         updateQuestion(question.id, { options: newOptions });
                       }}
-                      className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                      className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <X className="size-3" />
                     </button>
@@ -977,7 +982,7 @@ function QuestionSettingsTab({
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Scoring
                 </Label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Assign points to answers for quizzes
                 </p>
               </div>
@@ -1079,7 +1084,7 @@ function QuestionSettingsTab({
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Points per unit</Label>
-                      <p className="text-[10px] text-muted-foreground/60">
+                      <p className="text-xs text-muted-foreground">
                         Score = value × points (e.g., 4 stars × 5 pts = 20)
                       </p>
                       <Input
@@ -1098,7 +1103,7 @@ function QuestionSettingsTab({
                     <Separator />
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Correct answer (optional)</Label>
-                      <p className="text-[10px] text-muted-foreground/60">
+                      <p className="text-xs text-muted-foreground">
                         If set, points are only awarded for the exact correct answer
                       </p>
                       <Input
@@ -1121,7 +1126,7 @@ function QuestionSettingsTab({
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Points per unit</Label>
-                      <p className="text-[10px] text-muted-foreground/60">
+                      <p className="text-xs text-muted-foreground">
                         Score = answer value × points
                       </p>
                       <Input
@@ -1140,7 +1145,7 @@ function QuestionSettingsTab({
                     <Separator />
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Correct answer (optional)</Label>
-                      <p className="text-[10px] text-muted-foreground/60">
+                      <p className="text-xs text-muted-foreground">
                         If set, full points are only awarded for the exact correct answer
                       </p>
                       <Input
@@ -1412,14 +1417,14 @@ function EndingEditor({ ending, formId }: { ending: FormEnding; formId: string }
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="size-6 rounded flex items-center justify-center hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             title="Save"
           >
             <Save className="size-3" />
           </button>
           <button
             onClick={handleDelete}
-            className="size-6 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
             title="Delete"
           >
             <Trash2 className="size-3" />
@@ -1430,7 +1435,7 @@ function EndingEditor({ ending, formId }: { ending: FormEnding; formId: string }
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Ending title"
-        className="h-7 text-xs"
+        className="min-h-11 text-xs"
         onBlur={handleSave}
       />
       <Textarea
@@ -1445,7 +1450,7 @@ function EndingEditor({ ending, formId }: { ending: FormEnding; formId: string }
         value={redirectUrl}
         onChange={(e) => setRedirectUrl(e.target.value)}
         placeholder="Redirect URL (optional)"
-        className="h-7 text-xs"
+        className="min-h-11 text-xs"
         onBlur={handleSave}
       />
     </div>
@@ -1457,6 +1462,7 @@ function EndingEditor({ ending, formId }: { ending: FormEnding; formId: string }
 function DesignTabContent() {
   const currentForm = useFormStore((s) => s.currentForm);
   const updateForm = useFormStore((s) => s.updateForm);
+  const [paletteMessage, setPaletteMessage] = useState('');
 
   if (!currentForm) return null;
 
@@ -1465,6 +1471,7 @@ function DesignTabContent() {
   const localText = currentForm.textColor;
   const localBtn = currentForm.buttonColor;
   const localBtnText = currentForm.buttonTextColor;
+  const paletteValidation = validateFormTheme(currentForm);
   const textContrast = contrastRatio(localText, localBg);
   const buttonContrast = contrastRatio(localBtnText, localBtn);
 
@@ -1493,18 +1500,26 @@ function DesignTabContent() {
     saveDesign(updates);
   };
 
-  const handleColorChange = (field: string, value: string) => {
-    if (!/^#[0-9A-Fa-f]{0,6}$/.test(value) && value !== '') return;
-    const updates: Record<string, string> = {};
-    if (field === 'bg') updates.backgroundColor = value;
-    if (field === 'text') updates.textColor = value;
-    if (field === 'btn') updates.buttonColor = value;
-    if (field === 'btnText') updates.buttonTextColor = value;
-    // Only save when it's a complete hex
-    if (value.length === 7 && /^#[0-9A-Fa-f]{6}$/.test(value)) {
-      updateForm(currentForm.id, updates);
-      saveDesign(updates);
-    }
+  const handleColorChange = (field: 'bg' | 'text' | 'btn' | 'btnText', value: string) => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return;
+
+    const candidate = {
+      backgroundColor: field === 'bg' ? value : currentForm.backgroundColor,
+      textColor: field === 'text' ? value : currentForm.textColor,
+      buttonColor: field === 'btn' ? value : currentForm.buttonColor,
+      buttonTextColor: field === 'btnText' ? value : currentForm.buttonTextColor,
+      fontFamily: currentForm.fontFamily,
+    };
+    const accessible = ensureAccessibleFormTheme(candidate);
+    const autoAdjusted = accessible.textColor !== candidate.textColor ||
+      accessible.buttonColor !== candidate.buttonColor ||
+      accessible.buttonTextColor !== candidate.buttonTextColor;
+
+    updateForm(currentForm.id, { ...accessible, theme: 'custom' });
+    saveDesign({ ...accessible, theme: 'custom' });
+    setPaletteMessage(autoAdjusted
+      ? 'Text colors were adjusted to preserve WCAG AA contrast for the public form.'
+      : 'Palette passes body, CTA, and accent contrast checks.');
   };
 
   return (
@@ -1549,7 +1564,7 @@ function DesignTabContent() {
                     )}
                   </div>
                 </div>
-                <span className="text-[10px] text-muted-foreground capitalize">
+                <span className="text-xs text-muted-foreground capitalize">
                   {preset.name}
                 </span>
               </button>
@@ -1567,31 +1582,56 @@ function DesignTabContent() {
         </Label>
         <div className="space-y-3">
           <ColorInput
+            key={`background-${localBg}`}
             label="Background"
             value={localBg}
             onChange={(v) => handleColorChange('bg', v)}
           />
           <ColorInput
+            key={`text-${localText}`}
             label="Text"
             value={localText}
             onChange={(v) => handleColorChange('text', v)}
           />
           <ColorInput
+            key={`button-${localBtn}`}
             label="Button"
             value={localBtn}
             onChange={(v) => handleColorChange('btn', v)}
           />
           <ColorInput
+            key={`button-text-${localBtnText}`}
             label="Button Text"
             value={localBtnText}
             onChange={(v) => handleColorChange('btnText', v)}
           />
         </div>
-        {((textContrast !== null && textContrast < 4.5) || (buttonContrast !== null && buttonContrast < 4.5)) && (
-          <p role="alert" className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-            Low contrast detected. Use at least 4.5:1 contrast for readable public-form text and buttons.
+        <div className={`rounded-lg border px-3 py-2 text-xs ${paletteValidation.isAccessible ? 'border-success/25 bg-success/10 text-success' : 'border-warning/25 bg-warning/10 text-warning'}`}>
+          <div className="flex items-center justify-between gap-2 font-semibold">
+            <span>{paletteValidation.isAccessible ? 'Accessible palette' : 'Existing palette needs repair'}</span>
+            <span className="font-mono">Body {textContrast?.toFixed(2) ?? '—'} · CTA {buttonContrast?.toFixed(2) ?? '—'}</span>
+          </div>
+          <p className="mt-1 leading-relaxed">
+            Body and CTA labels require 4.5:1. Accent controls require 3:1 against the form background.
           </p>
-        )}
+          {!paletteValidation.isAccessible && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full border-warning/40 text-warning hover:bg-warning/10"
+              onClick={() => {
+                const repaired = ensureAccessibleFormTheme(currentForm);
+                updateForm(currentForm.id, { ...repaired, theme: 'custom' });
+                saveDesign({ ...repaired, theme: 'custom' });
+                setPaletteMessage('Existing form colors were repaired for readable body and CTA text.');
+              }}
+            >
+              Repair contrast automatically
+            </Button>
+          )}
+        </div>
+        {paletteMessage && <p role="status" className="text-xs text-muted-foreground">{paletteMessage}</p>}
       </div>
 
       <Separator />
@@ -1605,6 +1645,7 @@ function DesignTabContent() {
           A cover image becomes the social preview for published forms. Use an HTTPS image URL.
         </p>
         <BrandingUrlEditor
+          key={`logo-${currentForm.logoUrl || ''}`}
           label="Logo image URL"
           value={currentForm.logoUrl || ''}
           onSave={(logoUrl) => {
@@ -1613,6 +1654,7 @@ function DesignTabContent() {
           }}
         />
         <BrandingUrlEditor
+          key={`cover-${currentForm.coverUrl || ''}`}
           label="Cover / social preview image URL"
           value={currentForm.coverUrl || ''}
           onSave={(coverUrl) => {
@@ -1641,41 +1683,19 @@ function DesignTabContent() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="sans">
-              <span className="font-sans">Sans Serif</span>
+              <span className="font-sans">System Sans — recommended</span>
             </SelectItem>
             <SelectItem value="serif">
-              <span className="font-serif">Serif</span>
+              <span className="font-serif">Editorial Serif</span>
             </SelectItem>
             <SelectItem value="mono">
-              <span className="font-mono">Monospace</span>
+              <span className="font-mono">Monospace — code/data</span>
             </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <Separator />
 
-      {/* Toggles */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm">Progress bar</Label>
-          <Switch
-            checked={currentForm.progressbar}
-            onCheckedChange={(checked) =>
-              updateForm(currentForm.id, { progressbar: checked })
-            }
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <Label className="text-sm">Question numbers</Label>
-          <Switch
-            checked={currentForm.showQuestionNumbers}
-            onCheckedChange={(checked) =>
-              updateForm(currentForm.id, { showQuestionNumbers: checked })
-            }
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -1690,27 +1710,41 @@ function ColorInput({
   label: string;
   value: string;
   onChange: (val: string) => void;
-  onBlur?: () => void;
 }) {
+  const [draft, setDraft] = useState(value);
+  const isComplete = /^#[0-9A-Fa-f]{6}$/.test(draft);
+
   return (
     <div className="flex items-center gap-3">
-      <div
-        className="size-8 rounded-md border shrink-0 cursor-pointer"
-        style={{ backgroundColor: value }}
+      <label
+        className="size-11 rounded-lg border shrink-0 cursor-pointer"
+        style={{ backgroundColor: isComplete ? draft : value }}
+        aria-label={`${label} color picker`}
       >
         <input
           type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="opacity-0 w-full h-full cursor-pointer"
+          value={isComplete ? draft : value}
+          onChange={(e) => {
+            setDraft(e.target.value.toUpperCase());
+            onChange(e.target.value);
+          }}
+          className="size-full cursor-pointer opacity-0"
         />
-      </div>
+      </label>
       <div className="flex-1">
         <Label className="text-xs text-muted-foreground">{label}</Label>
         <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-7 text-xs font-mono"
+          value={draft}
+          onChange={(e) => {
+            const next = e.target.value.toUpperCase();
+            setDraft(next);
+            if (/^#[0-9A-Fa-f]{6}$/.test(next)) onChange(next);
+          }}
+          onBlur={() => {
+            if (!/^#[0-9A-Fa-f]{6}$/.test(draft)) setDraft(value);
+          }}
+          aria-invalid={!isComplete}
+          className="min-h-11 font-mono text-xs"
         />
       </div>
     </div>
@@ -1794,7 +1828,7 @@ function FormSettingsAdvancedTab() {
             Hidden Fields
           </Label>
           <p className="text-xs text-muted-foreground">
-            Pass data from URL parameters into your form responses. Use query params like <code className="text-[10px] bg-muted px-1 rounded">?source=twitter</code> to pre-fill hidden values.
+            Pass data from URL parameters into your form responses. Use query params like <code className="text-xs bg-muted px-1 rounded">?source=twitter</code> to pre-fill hidden values.
           </p>
         </div>
 
@@ -1818,7 +1852,7 @@ function FormSettingsAdvancedTab() {
                     </span>
                     <button
                       onClick={() => removeHiddenField(field.id)}
-                      className="size-5 rounded flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <X className="size-3" />
                     </button>
@@ -1838,7 +1872,7 @@ function FormSettingsAdvancedTab() {
                         }
                       }}
                       placeholder="Field name"
-                      className="h-7 text-xs flex-1"
+                      className="min-h-11 text-xs flex-1"
                     />
                     <Input
                       value={defaultValue}
@@ -1854,10 +1888,10 @@ function FormSettingsAdvancedTab() {
                         }
                       }}
                       placeholder="Default value"
-                      className="h-7 text-xs flex-1"
+                      className="min-h-11 text-xs flex-1"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground/60">
+                  <p className="text-xs text-muted-foreground">
                     URL param: <code className="bg-muted px-0.5 rounded">?{name || 'fieldname'}=value</code>
                   </p>
                 </div>

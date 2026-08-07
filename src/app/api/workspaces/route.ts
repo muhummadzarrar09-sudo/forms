@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const workspace = await db.workspace.create({
       data: {
         name: data.name,
-        color: data.color ?? '#6366f1',
+        color: data.color ?? '#2563EB',
         icon: data.icon ?? 'Folder',
         order: data.order ?? nextOrder,
         userId: session.user.id,

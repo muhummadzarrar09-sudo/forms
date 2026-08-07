@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { deriveFormTheme } from '@/lib/form-theme';
 
 export const runtime = 'nodejs';
 
@@ -22,8 +23,10 @@ export async function GET(request: NextRequest) {
         metaTitle: true,
         metaDescription: true,
         buttonColor: true,
+        buttonTextColor: true,
         backgroundColor: true,
         textColor: true,
+        fontFamily: true,
         published: true,
         _count: { select: { questions: true } },
       },
@@ -39,9 +42,13 @@ export async function GET(request: NextRequest) {
       form.welcomeMessage?.trim() ||
       `${form._count.questions} question${form._count.questions !== 1 ? 's' : ''}`;
 
-    const bg = form.backgroundColor || '#FFFFFF';
-    const accent = form.buttonColor || '#1A1A1A';
-    const text = form.textColor || '#333333';
+    const theme = deriveFormTheme(form);
+    const bg = theme.backgroundColor;
+    const accent = theme.buttonColor;
+    const accentText = theme.buttonTextColor;
+    const text = theme.textColor;
+    const secondaryText = theme.textSecondaryColor;
+    const tertiaryText = theme.textTertiaryColor;
     const count = form._count.questions;
 
     // Truncate long strings — satori can crash on very long text
@@ -96,7 +103,7 @@ export async function GET(request: NextRequest) {
               display: 'flex',
               alignItems: 'center',
               backgroundColor: accent,
-              color: '#ffffff',
+              color: accentText,
               padding: '8px 20px',
               borderRadius: '999px',
               fontSize: '20px',
@@ -128,8 +135,7 @@ export async function GET(request: NextRequest) {
               style={{
                 display: 'flex',
                 fontSize: '26px',
-                color: text,
-                opacity: 0.6,
+                color: secondaryText,
                 maxWidth: '800px',
                 lineHeight: 1.4,
                 fontWeight: 400,
@@ -155,8 +161,7 @@ export async function GET(request: NextRequest) {
               style={{
                 display: 'flex',
                 fontSize: '20px',
-                color: text,
-                opacity: 0.4,
+                color: tertiaryText,
                 fontWeight: 500,
               }}
             >
@@ -168,7 +173,7 @@ export async function GET(request: NextRequest) {
                 display: 'flex',
                 alignItems: 'center',
                 backgroundColor: accent,
-                color: '#ffffff',
+                color: accentText,
                 padding: '10px 28px',
                 borderRadius: '999px',
                 fontSize: '20px',

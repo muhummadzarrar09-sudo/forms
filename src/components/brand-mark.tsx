@@ -1,0 +1,20 @@
+import { cn } from '@/lib/utils';
+
+export function BrandMark({ className, title = 'Forms' }: { className?: string; title?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      role="img"
+      aria-label={title}
+      className={cn('shrink-0', className)}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="32" height="32" rx="8" fill="#0F172A" />
+      <rect x="8" y="9" width="16" height="2.5" rx="1.25" fill="#FFFFFF" />
+      <rect x="8" y="14.75" width="12" height="2.5" rx="1.25" fill="#FFFFFF" />
+      <rect x="8" y="20.5" width="9" height="2.5" rx="1.25" fill="#FFFFFF" />
+      <circle cx="24" cy="22" r="5" fill="#1D4ED8" />
+      <path d="M21.5 22l1.8 1.8 3-3" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

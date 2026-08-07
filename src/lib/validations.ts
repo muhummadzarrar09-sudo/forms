@@ -25,7 +25,7 @@ const questionType = z.enum([
 
 // Question settings are persisted as JSON. Bound their serialized size at the
 // API boundary so arbitrary nested configuration cannot become a storage/CPU DoS.
-const boundedSettings = z.record(z.unknown()).refine(
+const boundedSettings = z.record(z.string(), z.unknown()).refine(
   (value) => JSON.stringify(value).length <= 20_000,
   'Question settings must not exceed 20KB'
 );

@@ -53,26 +53,11 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { deriveFormTheme } from '@/lib/form-theme';
 
-// Tag color system
-const TAG_COLORS = [
-  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-  'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-];
-
-function getTagColor(tag: string): string {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
-}
+// Tags are metadata, not status. Keeping them neutral avoids assigning a
+// misleading semantic meaning or unreadable color to an arbitrary word.
+const TAG_CLASS = 'border border-border bg-secondary text-secondary-foreground';
 
 interface FormCardProps {
   form: Form;
@@ -110,13 +95,6 @@ function formatDate(dateString: string): string {
   });
 }
 
-function getThemeColor(backgroundColor: string): string {
-  if (!backgroundColor || backgroundColor === '#FFFFFF' || backgroundColor === '#ffffff') {
-    return '#1A1A1A';
-  }
-  return backgroundColor;
-}
-
 export function FormCard({
   form,
   onEdit,
@@ -143,7 +121,8 @@ export function FormCard({
   const [tagInput, setTagInput] = useState('');
   const [showTagPopover, setShowTagPopover] = useState(false);
 
-  const themeColor = getThemeColor(form.backgroundColor);
+  const formTheme = deriveFormTheme(form);
+  const themeColor = formTheme.buttonColor;
   const responseCount = form._count?.responses ?? 0;
   const formTags = form.tags || [];
   const formWorkspace = form.workspace;
@@ -152,10 +131,10 @@ export function FormCard({
   const renderWorkspaceIndicator = () => {
     if (!formWorkspace) return null;
     return (
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <div
-          className="size-2 rounded-full shrink-0"
-          style={{ backgroundColor: formWorkspace.color }}
+          className="size-2.5 rounded-full shrink-0 border"
+          style={{ backgroundColor: formWorkspace.color, borderColor: formTheme.fieldBorderColor }}
         />
         <span className="truncate max-w-[100px]">{formWorkspace.name}</span>
       </div>
@@ -378,7 +357,7 @@ export function FormCard({
         {visibleTags.map((tag) => (
           <span
             key={tag}
-            className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getTagColor(tag)}`}
+            className={`inline-flex items-center gap-0.5 min-h-11 text-xs px-2 py-1 rounded-full font-medium ${TAG_CLASS}`}
           >
             {tag}
             <button
@@ -386,14 +365,14 @@ export function FormCard({
                 e.stopPropagation();
                 handleRemoveTag(tag);
               }}
-              className="hover:opacity-70 ml-0.5"
+              className="ml-0.5 flex size-11 items-center justify-center rounded-full hover:bg-foreground/10"
             >
-              <X className="size-2.5" />
+              <X className="size-3" />
             </button>
           </span>
         ))}
         {remaining > 0 && (
-          <span className="text-[10px] text-muted-foreground font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             +{remaining} more
           </span>
         )}
@@ -408,11 +387,13 @@ export function FormCard({
         e.stopPropagation();
         handleFavorite();
       }}
-      className={`transition-all ${className} ${
+      className={`flex size-11 items-center justify-center rounded-full transition-colors ${className} ${
         form.favorite
-          ? 'text-red-500 hover:text-red-600'
-          : 'text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100'
+          ? 'text-rose-600 hover:bg-rose-500/10'
+          : 'hover:opacity-70'
       }`}
+      style={{ color: form.favorite ? undefined : formTheme.textColor }}
+      aria-label={form.favorite ? 'Remove from favorites' : 'Add to favorites'}
       title={form.favorite ? 'Remove from favorites' : 'Add to favorites'}
     >
       <Heart className={`size-4 ${form.favorite ? 'fill-current' : ''}`} />
@@ -447,11 +428,11 @@ export function FormCard({
               {formTags.map((tag) => (
                 <span
                   key={tag}
-                  className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getTagColor(tag)}`}
+                  className={`inline-flex items-center gap-0.5 min-h-11 text-xs px-2 py-1 rounded-full font-medium ${TAG_CLASS}`}
                 >
                   {tag}
                   <button onClick={() => handleRemoveTag(tag)} className="hover:opacity-70">
-                    <X className="size-2.5" />
+                    <X className="size-3" />
                   </button>
                 </span>
               ))}
@@ -468,13 +449,13 @@ export function FormCard({
                 }
               }}
               placeholder="Tag name..."
-              className="h-7 text-xs"
+              className="min-h-10 text-xs"
               onClick={(e) => e.stopPropagation()}
             />
             <Button
               size="sm"
               variant="outline"
-              className="h-7 px-2 shrink-0"
+              className="min-h-10 px-3 shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
                 handleAddTag();
@@ -498,7 +479,7 @@ export function FormCard({
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2, delay: index * 0.03 }}
         >
-          <Card className="group relative overflow-hidden border transition-all duration-200 hover:shadow-md hover:border-border/80 py-0 gap-0">
+          <Card className="group relative overflow-hidden border transition-all duration-200 hover:shadow-[var(--shadow-2)] hover:border-border/80 py-0 gap-0">
             <CardContent className="p-0">
               <div className="flex items-center gap-4 px-4 py-3 sm:px-6">
                 {/* Color indicator */}
@@ -510,21 +491,7 @@ export function FormCard({
                 {/* Drag handle */}
                 <GripVertical className="size-4 text-muted-foreground/40 hidden sm:block shrink-0" />
 
-                {/* Favorite heart */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleFavorite();
-                  }}
-                  className={`shrink-0 transition-all ${
-                    form.favorite
-                      ? 'text-red-500 hover:text-red-600'
-                      : 'text-muted-foreground/30 hover:text-red-400'
-                  }`}
-                  title={form.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                  <Heart className={`size-4 ${form.favorite ? 'fill-current' : ''}`} />
-                </button>
+                {renderFavoriteButton('shrink-0')}
 
                 {/* Title & description */}
                 <div className="flex-1 min-w-0">
@@ -535,7 +502,7 @@ export function FormCard({
                       onBlur={handleTitleSave}
                       onKeyDown={handleTitleKeyDown}
                       autoFocus
-                      className="h-7 text-sm font-medium"
+                      className="min-h-11 text-sm font-medium"
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
@@ -562,7 +529,7 @@ export function FormCard({
                     </div>
                   )}
                   {timeAgoText && (
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       Edited {timeAgoText}
                     </p>
                   )}
@@ -571,14 +538,14 @@ export function FormCard({
                 {/* Status badge */}
                 <Badge
                   variant={form.published ? 'default' : 'secondary'}
-                  className="shrink-0 text-[10px] px-2 py-0 h-5"
+                  className={`shrink-0 min-h-8 px-2 text-xs ${form.published ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
                 >
                   {form.published ? 'Published' : 'Draft'}
                 </Badge>
 
                 {/* Response count */}
                 <div className="hidden md:flex items-center gap-1 text-xs shrink-0">
-                  <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 gap-1 font-normal">
+                  <Badge variant="secondary" className="min-h-8 gap-1 px-2 text-xs font-normal">
                     <Users className="size-3" />
                     {responseCount}
                   </Badge>
@@ -595,7 +562,7 @@ export function FormCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="min-h-10 px-3 text-xs"
                     onClick={() => onEdit(form.id)}
                   >
                     <Pencil className="size-3.5 mr-1" />
@@ -604,7 +571,7 @@ export function FormCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="min-h-10 px-3 text-xs"
                     onClick={() => onPreview(form.id)}
                   >
                     <Eye className="size-3.5 mr-1" />
@@ -613,7 +580,7 @@ export function FormCard({
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="size-7">
+                      <Button variant="ghost" size="icon" className="size-11">
                         <MoreVertical className="size-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -628,7 +595,7 @@ export function FormCard({
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleFavorite}>
-                        <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-red-500' : ''}`} />
+                        <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-rose-600' : ''}`} />
                         {form.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleArchive}>
@@ -721,7 +688,7 @@ export function FormCard({
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
-                className="bg-destructive text-white hover:bg-destructive/90"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Delete
               </AlertDialogAction>
@@ -735,19 +702,6 @@ export function FormCard({
   // Grid view
   const questionCount = form.questions?.length ?? 0;
 
-  // Determine text color for readability on colored background
-  const isLightColor = (hex: string): boolean => {
-    if (!hex || hex === '#FFFFFF' || hex === '#ffffff') return true;
-    const c = hex.replace('#', '');
-    const r = parseInt(c.substring(0, 2), 16);
-    const g = parseInt(c.substring(2, 4), 16);
-    const b = parseInt(c.substring(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.6;
-  };
-  const colorIsLight = isLightColor(themeColor);
-  const titleOnColorClass = colorIsLight ? 'text-gray-900' : 'text-white';
-
   return (
     <>
       <motion.div
@@ -755,39 +709,35 @@ export function FormCard({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.25, delay: index * 0.05 }}
-        whileHover={{ y: -6 }}
+        whileHover={{ y: -2 }}
         className="h-full"
       >
-        <Card className="group relative overflow-hidden border transition-all duration-300 hover:shadow-xl hover:border-border/80 h-full flex flex-col py-0 gap-0">
+        <Card className="group relative overflow-hidden border transition-all duration-300 hover:shadow-[var(--shadow-2)] hover:border-border/80 h-full flex flex-col py-0 gap-0">
           {/* Large colored area with gradient overlay for depth */}
           <div
-            className="h-24 w-full shrink-0 relative flex flex-col justify-between p-3 overflow-hidden"
-            style={{ backgroundColor: themeColor }}
+            className="h-28 w-full shrink-0 relative flex flex-col justify-between p-3 overflow-hidden border-b-4"
+            style={{
+              backgroundColor: formTheme.backgroundColor,
+              color: formTheme.textColor,
+              borderColor: formTheme.buttonColor,
+            }}
           >
-            {/* Subtle gradient overlay for depth */}
             <div
               className="absolute inset-0"
-              style={{
-                background: `linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%, rgba(0,0,0,0.08) 100%)`,
-              }}
+              style={{ background: `linear-gradient(135deg, ${formTheme.selectedSurfaceColor}, transparent 72%)` }}
             />
             {/* Favorite heart in top-left corner */}
             <div className="absolute top-2 left-2">
               {renderFavoriteButton(form.favorite ? '' : '')}
             </div>
 
-            {/* Status indicator dot (after the favorite heart) */}
-            <div className="absolute top-2 left-10">
-              <span className={`relative flex size-2.5 ${form.published ? '' : ''}`}>
-                {form.published && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                )}
-                <span className={`relative inline-flex rounded-full size-2.5 ${form.published ? 'bg-green-500' : 'bg-gray-400/60'}`} />
-              </span>
+            <div className="absolute left-14 top-4 flex items-center gap-1.5 text-xs font-medium" style={{ color: form.published ? 'var(--success)' : formTheme.textSecondaryColor }}>
+              <span className={`size-2.5 rounded-full ${form.published ? 'bg-success' : 'bg-muted-foreground'}`} />
+              {form.published ? 'Live' : 'Draft'}
             </div>
 
             {/* Title inside colored area */}
-            <div className="flex-1 min-w-0 pl-6 pr-6 relative z-10">
+            <div className="relative z-10 flex-1 min-w-0 pt-8 pr-11">
               {isEditingTitle ? (
                 <Input
                   value={editTitle}
@@ -795,12 +745,14 @@ export function FormCard({
                   onBlur={handleTitleSave}
                   onKeyDown={handleTitleKeyDown}
                   autoFocus
-                  className={`h-6 text-base font-bold bg-white/20 border-white/30 placeholder:text-white/50 ${titleOnColorClass}`}
+                  className="min-h-11 text-base font-bold"
+                  style={{ color: formTheme.textColor, backgroundColor: formTheme.controlSurfaceColor, borderColor: formTheme.fieldBorderColor }}
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <h3
-                  className={`text-base font-bold leading-snug cursor-pointer hover:opacity-80 transition-opacity line-clamp-2 ${titleOnColorClass}`}
+                  className="line-clamp-2 cursor-pointer text-base font-bold leading-snug transition-opacity hover:opacity-80"
+                  style={{ color: formTheme.textColor }}
                   onClick={() => onEdit(form.id)}
                   title="Open in builder"
                 >
@@ -811,11 +763,9 @@ export function FormCard({
 
             {/* Question count badge */}
             <Badge
-              className={`self-start text-[10px] px-2 py-0 h-5 ${
-                colorIsLight
-                  ? 'bg-black/10 text-gray-800 hover:bg-black/15'
-                  : 'bg-white/20 text-white hover:bg-white/25'
-              } border-0`}
+              variant="outline"
+              className="min-h-8 self-start border px-2 text-xs"
+              style={{ backgroundColor: formTheme.controlSurfaceColor, color: formTheme.textColor, borderColor: formTheme.fieldBorderColor }}
             >
               {questionCount} question{questionCount !== 1 ? 's' : ''}
             </Badge>
@@ -826,9 +776,9 @@ export function FormCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ${
-                    colorIsLight ? 'hover:bg-black/10' : 'hover:bg-white/15'
-                  } ${titleOnColorClass}`}
+                  className="absolute right-1 top-1 shrink-0"
+                  style={{ color: formTheme.textColor, backgroundColor: formTheme.controlSurfaceColor }}
+                  aria-label={`Open actions for ${form.title}`}
                 >
                   <MoreVertical className="size-3.5" />
                 </Button>
@@ -852,7 +802,7 @@ export function FormCard({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleFavorite}>
-                  <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-red-500' : ''}`} />
+                  <Heart className={`size-4 mr-2 ${form.favorite ? 'fill-current text-rose-600' : ''}`} />
                   {form.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleArchive}>
@@ -939,7 +889,7 @@ export function FormCard({
 
             {/* Last edited subtitle */}
             {timeAgoText && (
-              <p className="text-[10px] text-muted-foreground/60">
+              <p className="text-xs text-muted-foreground">
                 Last edited {timeAgoText}
               </p>
             )}
@@ -958,31 +908,30 @@ export function FormCard({
               <div className="flex items-center gap-2">
                 <Badge
                   variant={form.published ? 'default' : 'secondary'}
-                  className="text-[10px] px-2 py-0 h-5"
+                  className={`min-h-8 px-2 text-xs ${form.published ? 'bg-success text-success-foreground hover:bg-success/90' : ''}`}
                 >
                   {form.published ? 'Published' : 'Draft'}
                 </Badge>
                 {responseCount > 0 ? (
-                  <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 gap-1">
+                  <Badge variant="outline" className="min-h-8 gap-1 px-2 text-xs">
                     <BarChart2 className="size-3" />
                     {responseCount}
                   </Badge>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground/50">0 responses</span>
+                  <span className="text-xs text-muted-foreground">0 responses</span>
                 )}
               </div>
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="size-3" />
                 {timeAgoText || formatDate(form.createdAt)}
               </span>
             </div>
 
-            {/* Quick action buttons (visible on hover) */}
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="flex gap-2 pt-1">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 h-7 text-[11px] gap-1"
+                className="min-h-10 flex-1 gap-1 text-xs"
                 onClick={() => onEdit(form.id)}
               >
                 <Pencil className="size-3" />
@@ -991,7 +940,7 @@ export function FormCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 h-7 text-[11px] gap-1"
+                className="min-h-10 flex-1 gap-1 text-xs"
                 onClick={() => onPreview(form.id)}
               >
                 <Eye className="size-3" />
@@ -1000,7 +949,7 @@ export function FormCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2 text-[11px]"
+                className="min-h-10 px-3 text-xs"
                 onClick={() => onViewResponses(form.id)}
               >
                 <BarChart3 className="size-3" />
@@ -1024,7 +973,7 @@ export function FormCard({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>

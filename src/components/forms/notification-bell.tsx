@@ -31,7 +31,7 @@ function NotificationIcon({ type }: { type: FormNotification['type'] }) {
     case 'response_milestone':
       return <Users className="size-3.5 text-primary" />;
     case 'form_published':
-      return <ExternalLink className="size-3.5 text-green-600" />;
+      return <ExternalLink className="size-3.5 text-success" />;
     default:
       return <Bell className="size-3.5" />;
   }
@@ -67,14 +67,14 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 relative"
+          className="size-11 relative"
         >
           <Bell className="size-4" />
           {unreadCount > 0 && (
             <motion.span
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center"
+              className="absolute -right-0.5 -top-0.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-bold text-destructive-foreground"
             >
               {unreadCount > 99 ? '99+' : unreadCount}
             </motion.span>
@@ -89,7 +89,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1 px-2"
+                className="min-h-10 text-xs gap-1 px-3"
                 onClick={handleMarkAllRead}
               >
                 <Check className="size-3" />
@@ -100,7 +100,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1 px-2 text-destructive hover:text-destructive"
+                className="min-h-10 gap-1 px-3 text-xs text-destructive hover:text-destructive"
                 onClick={clearNotifications}
               >
                 <Trash2 className="size-3" />
@@ -115,7 +115,7 @@ export function NotificationBell() {
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <Bell className="size-8 text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">No notifications yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 You&apos;ll be notified when your forms receive new responses
               </p>
             </div>
@@ -141,7 +141,7 @@ export function NotificationBell() {
                       }`}>
                         {notification.message}
                       </p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {timeAgo(notification.timestamp)}
                       </p>
                     </div>

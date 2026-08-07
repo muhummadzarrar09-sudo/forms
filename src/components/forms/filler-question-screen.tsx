@@ -55,12 +55,15 @@ export function FillerQuestionScreen({
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         {showQuestionNumbers && (
-          <span className={`text-xs font-semibold uppercase tracking-wider opacity-50 ${fontClass}`} style={{ color: theme.textColor }}>
-            {questionIndex + 1} ↦ {totalQuestions}
+          <span className={`text-xs font-semibold uppercase tracking-wider ${fontClass}`} style={{ color: theme.textSecondaryColor }}>
+            {questionIndex + 1} of {totalQuestions}
           </span>
         )}
         {question.required && (
-          <span className={`text-xs font-semibold uppercase tracking-wider ${fontClass}`} style={{ color: theme.buttonColor }}>
+          <span
+            className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-wider ${fontClass}`}
+            style={{ color: theme.accentTextColor, backgroundColor: theme.selectedSurfaceColor }}
+          >
             Required
           </span>
         )}
@@ -71,7 +74,7 @@ export function FillerQuestionScreen({
       </h2>
 
       {question.description && (
-        <p className={`text-base md:text-lg opacity-50 ${fontClass}`} style={{ color: theme.textColor }}>
+        <p className={`text-base md:text-lg ${fontClass}`} style={{ color: theme.textSecondaryColor }}>
           {question.description}
         </p>
       )}
@@ -95,7 +98,7 @@ export function FillerQuestionScreen({
             exit={{ opacity: 0, y: -5 }}
             role="alert"
             className="text-sm font-medium"
-            style={{ color: theme.buttonColor }}
+            style={{ color: theme.errorColor }}
           >
             This question requires an answer
           </motion.p>
