@@ -25,29 +25,48 @@ BEGIN;
 -- to an unknown/fresh/drifted database.
 DO $$
 DECLARE
-  missing_table text;
+  required_table text;
   required_tables text[] := ARRAY[
-    'public."User"',
-    'public."Workspace"',
-    'public."Form"',
-    'public."Question"',
-    'public."FormEnding"',
-    'public."Response"',
-    'public."Answer"'
+    'User',
+    'Workspace',
+    'Form',
+    'Question',
+    'FormEnding',
+    'Response',
+    'Answer'
   ];
 BEGIN
-  FOREACH missing_table IN ARRAY required_tables LOOP
-    IF to_regclass(missing_table) IS NULL THEN
-      RAISE EXCEPTION 'Refusing minimal-schema preparation: required table % is missing. Rerun preflight.', missing_table;
+  -- Use pg_catalog names rather than a regclass text cast. SQL Editor sessions
+  -- can have different identifier/search-path parsing behaviour for quoted
+  -- PascalCase relations, while pg_class stores the exact relation name.
+  FOREACH required_table IN ARRAY required_tables LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public'
+        AND relation.relname = required_table
+        AND relation.relkind IN ('r', 'p')
+    ) THEN
+      RAISE EXCEPTION 'Refusing minimal-schema preparation: required public table "%" is missing. Rerun preflight.', required_table;
     END IF;
   END LOOP;
 
-  IF to_regclass('public."PasswordResetToken"') IS NOT NULL
-     OR to_regclass('public."EmailVerificationToken"') IS NOT NULL
-     OR to_regclass('public."GoogleConnection"') IS NOT NULL
-     OR to_regclass('public."GoogleSheetDestination"') IS NOT NULL
-     OR to_regclass('public."GoogleSheetSyncEvent"') IS NOT NULL
-     OR to_regclass('public."PublicRateLimit"') IS NOT NULL THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class relation
+    JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+    WHERE schema.nspname = 'public'
+      AND relation.relname = ANY (ARRAY[
+        'PasswordResetToken',
+        'EmailVerificationToken',
+        'GoogleConnection',
+        'GoogleSheetDestination',
+        'GoogleSheetSyncEvent',
+        'PublicRateLimit'
+      ])
+      AND relation.relkind IN ('r', 'p')
+  ) THEN
     RAISE EXCEPTION 'Refusing minimal-schema preparation: fuller-schema tables now exist. Rerun preflight and use the reviewed migration path.';
   END IF;
 
@@ -111,7 +130,12 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint
-    WHERE conrelid = 'public."User"'::regclass
+    WHERE conrelid IN (
+        SELECT relation.oid
+        FROM pg_class relation
+        JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+        WHERE schema.nspname = 'public' AND relation.relname = 'User'
+      )
       AND conname = 'User_authUserId_fkey'
   ) THEN
     ALTER TABLE public."User"
@@ -249,7 +273,12 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Question"'::regclass AND conname = 'Question_type_check'
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Question'
+    ) AND conname = 'Question_type_check'
   ) THEN
     ALTER TABLE public."Question"
       ADD CONSTRAINT "Question_type_check"
@@ -262,7 +291,12 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Response"'::regclass AND conname = 'Response_status_check'
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Response'
+    ) AND conname = 'Response_status_check'
   ) THEN
     ALTER TABLE public."Response"
       ADD CONSTRAINT "Response_status_check"
@@ -271,7 +305,12 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Form"'::regclass AND conname = 'Form_maxResponses_check'
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Form'
+    ) AND conname = 'Form_maxResponses_check'
   ) THEN
     ALTER TABLE public."Form"
       ADD CONSTRAINT "Form_maxResponses_check"
@@ -283,7 +322,12 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Question"'::regclass
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Question'
+    )
       AND conname = 'Question_type_check'
       AND NOT convalidated
   ) THEN
@@ -292,7 +336,12 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Response"'::regclass
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Response'
+    )
       AND conname = 'Response_status_check'
       AND NOT convalidated
   ) THEN
@@ -301,7 +350,12 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public."Form"'::regclass
+    WHERE conrelid IN (
+      SELECT relation.oid
+      FROM pg_class relation
+      JOIN pg_namespace schema ON schema.oid = relation.relnamespace
+      WHERE schema.nspname = 'public' AND relation.relname = 'Form'
+    )
       AND conname = 'Form_maxResponses_check'
       AND NOT convalidated
   ) THEN
